@@ -1,0 +1,34 @@
+#!/bin/bash
+
+DISASM_DIR="/Users/msw/dev/8085-Disassembler/"
+
+if [ -z "${1}" ]; then
+   echo "Usage: give a filename"
+   exit
+fi   
+
+filename=$(basename -- "$1")
+#extension="${filename##*.}"
+filename="${filename%.*}"
+
+if [ ! -d "${filename}" ]; then
+   echo "no such game / directory ${filename}"
+fi   
+
+cd ${filename}
+
+if [ ! -f "rom_prefix" ]; then
+   echo "missing the game's rom prefix file"
+   exit
+else
+   ROM_PREFIX=$(cat rom_prefix)
+fi   
+
+ONE_FILE=${filename}.bin
+echo ${ONE_FILE}
+cat ${ROM_PREFIX}_1.bin ${ROM_PREFIX}_2.bin ${ROM_PREFIX}_3.bin ${ROM_PREFIX}_4.bin > ${ONE_FILE}
+
+python3 ${DISASM_DIR}/matdasm.py -i $ONE_FILE > ${filename}.asm
+python3 ${DISASM_DIR}/matdasm.py -w -a -i $ONE_FILE > ${filename}.a.asm
+
+rm ${ONE_FILE}

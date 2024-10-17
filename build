@@ -1,0 +1,64 @@
+#!/bin/bash
+
+ASM_DIR="/Users/msw/dev/8085-Assembler/"
+MAME_ROM_DIR="/Users/msw/.pinmame/roms/"
+
+if [ -z "${1}" ]; then
+   echo "Usage: give a filename"
+   exit
+fi   
+
+src_filename=$(basename -- "$1")
+#extension="${src_filename##*.}"
+src_filename="${src_filename%.*}"
+
+if [ ! -d "${src_filename}" ]; then
+   echo "no such game / directory ${src_filename}"
+fi   
+
+if [ -z "${2}" ]; then
+   dst_filename=${src_filename}
+else
+   dst_filename=$(basename -- "$2")
+   dst_filename="${dst_filename%.*}"
+fi   
+
+ROM_FOLDER=${MAME_ROM_DIR}/${dst_filename}
+
+if [ ! -d ${ROM_FOLDER} ]; then
+   echo "no such ROM directory ${ROM_FOLDER}"
+fi   
+
+cd ${dst_filename}
+DST_ROM_PREFIX=$(cat rom_prefix)
+
+cd ../${src_filename}
+SRC_ROM_PREFIX=$(cat rom_prefix)
+
+FILE="${src_filename}.asm"
+
+if [ ! -f $FILE ]; then
+   echo "File $FILE not found!"
+   exit
+fi
+
+python3 ${ASM_DIR}/src/assembler.py $FILE -b -o "${src_filename}.bin"
+retval=$?
+
+if [ $retval -ne 0 ]; then
+   echo "bailing!!!"
+   exit 1
+fi
+
+split -b 2048 "${src_filename}.bin" ${src_filename}
+rm ${src_filename}.bin
+mv ${src_filename}aa ${SRC_ROM_PREFIX}_1.bin
+mv ${src_filename}ab ${SRC_ROM_PREFIX}_2.bin
+mv ${src_filename}ac ${SRC_ROM_PREFIX}_3.bin
+mv ${src_filename}ad ${SRC_ROM_PREFIX}_4.bin
+
+echo "deploying to ${dst_filename} in rom folder ${ROM_FOLDER}"
+cp ${SRC_ROM_PREFIX}_1.bin ${ROM_FOLDER}/${DST_ROM_PREFIX}_1.bin
+cp ${SRC_ROM_PREFIX}_2.bin ${ROM_FOLDER}/${DST_ROM_PREFIX}_2.bin
+cp ${SRC_ROM_PREFIX}_3.bin ${ROM_FOLDER}/${DST_ROM_PREFIX}_3.bin
+cp ${SRC_ROM_PREFIX}_4.bin ${ROM_FOLDER}/${DST_ROM_PREFIX}_4.bin
