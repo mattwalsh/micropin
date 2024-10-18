@@ -42,12 +42,8 @@ DIP_SWITCH_PORT EQU 0x5
 ; BOGUS address $137d found in         JNZ $137d at $13b2
 ; BOGUS address $137d found in         CALL $137d at $1d6f
 o0000:  JMP j0040
-        HLT
-        HLT
-        HLT
-        HLT
-        HLT
-        HLT
+o0003:  CALL jc06b4
+o0006:  JMP jo0382
         HLT
         HLT
         HLT
@@ -498,7 +494,7 @@ o0379:  JMP jo037f
         LXI H, #2193
 jo037f: CALL c03e1 ;o0379
 ; vector to 0630 stack restore
-jo0382: CALL c0630 ;o0341,o0357,o038f,o03a5,o0486,o0540,o0549,o078c,o07cb,o084f,o0865,o086d,o0921,o092a
+jo0382: CALL c0630 ;o0006,o0341,o0357,o038f,o03a5,o0486,o0540,o0549,o078c,o07cb,o084f,o0865,o086d,o0921,o092a
         RET
 ; switch handler routine
 jo0386: CALL c0624 ;o0034
@@ -547,8 +543,8 @@ o03a8:  CALL c03d6
         DCR B
         CMP H
         INX D
-        DB 0x82  ; (was:         ADD D)
         DB 0x3  ; (was:         INX B)
+        DB 0x0  ; (was:         NOP)
         MOV A,E
         INR B
         STC
@@ -900,13 +896,13 @@ o0683:  CALL c0ecf
 ; check credit button
 j06a4:  IN PRICE_89_CAB ;o0678
         ANI #10
-o06a8:  JNZ j06b4
+o06a8:  JNZ jc06b4
         LDA GAME_STATE
         ORI #20
         STA GAME_STATE
         RET
 ; credit handler
-j06b4:  LXI H, GAME_STATE ;o06a8
+jc06b4: LXI H, GAME_STATE ;o0003,o06a8
         MVI A, #05
 o06b9:  CALL c03ee
         RZ

@@ -42,12 +42,8 @@ DIP_SWITCH_PORT EQU 0x5
 ; BOGUS address $137d found in          c2 7d 13 JNZ $137d at $13b2
 ; BOGUS address $137d found in          cd 7d 13 CALL $137d at $1d6f
 $0000 o0000:   c3 40 00 JMP j0040
-$0003          76       HLT
-$0004          76       HLT
-$0005          76       HLT
-$0006          76       HLT
-$0007          76       HLT
-$0008          76       HLT
+$0003 o0003:   cd b4 06 CALL jc06b4
+$0006 o0006:   c3 82 03 JMP jo0382
 $0009          76       HLT
 $000a          76       HLT
 $000b          76       HLT
@@ -498,7 +494,7 @@ $0379 o0379:   c3 7f 03 JMP jo037f
 $037c          21 93 21 LXI H, #2193
 $037f jo037f:  cd e1 03 CALL c03e1 ;o0379
 ; vector to 0630 stack restore
-$0382 jo0382:  cd 30 06 CALL c0630 ;o0341,o0357,o038f,o03a5,o0486,o0540,o0549,o078c,o07cb,o084f,o0865,o086d,o0921,o092a
+$0382 jo0382:  cd 30 06 CALL c0630 ;o0006,o0341,o0357,o038f,o03a5,o0486,o0540,o0549,o078c,o07cb,o084f,o0865,o086d,o0921,o092a
 $0385          c9       RET
 ; switch handler routine
 $0386 jo0386:  cd 24 06 CALL c0624 ;o0034
@@ -547,8 +543,8 @@ $03c6          d9       (SHLX)
 $03c7          05       DCR B
 $03c8          bc       CMP H
 $03c9          13       INX D
-$03ca          82       DB 0x82  ; (was:          82       ADD D)
-$03cb          03       DB 0x3  ; (was:          03       INX B)
+$03ca          03       DB 0x3  ; (was:          03       INX B)
+$03cb          00       DB 0x0  ; (was:          00       NOP)
 $03cc          7b       MOV A,E
 $03cd          04       INR B
 $03ce          37       STC
@@ -900,13 +896,13 @@ $06a2          d3 04    OUT #04
 ; check credit button
 $06a4 j06a4:   db 04    IN PRICE_89_CAB ;o0678
 $06a6          e6 10    ANI #10
-$06a8 o06a8:   c2 b4 06 JNZ j06b4
+$06a8 o06a8:   c2 b4 06 JNZ jc06b4
 $06ab          3a 92 21 LDA GAME_STATE
 $06ae          f6 20    ORI #20
 $06b0          32 92 21 STA GAME_STATE
 $06b3          c9       RET
 ; credit handler
-$06b4 j06b4:   21 92 21 LXI H, GAME_STATE ;o06a8
+$06b4 jc06b4:  21 92 21 LXI H, GAME_STATE ;o0003,o06a8
 $06b7          3e 05    MVI A, #05
 $06b9 o06b9:   cd ee 03 CALL c03ee
 $06bc          c8       RZ
