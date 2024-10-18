@@ -44,23 +44,13 @@ DIP_SWITCH_PORT EQU 0x5
 o0000:  JMP j0040
 o0003:  CALL jc06b4
 o0006:  JMP jo0382
-        HLT
-        HLT
-        HLT
-        HLT
-        HLT
-        HLT
-        HLT
-        HLT
-        HLT
-        HLT
-        HLT
-        HLT
-        HLT
-        HLT
-        HLT
-        HLT
-        HLT
+j0009:  LDA CREDITS_1 ;o1606
+        ORA A
+o000d:  JNZ j1620
+        LDA PRICE_1
+        ORA A
+o0014:  JZ j1620
+o0017:  JMP j160d
         HLT
         HLT
         HLT
@@ -267,6 +257,7 @@ o01ca:  JNZ j01d2
 j01d2:  IN PRICE_CENTS_07_PORT ;o01ca,o1c45,o1c4b,o1c54,o1c70
         CMA
         MOV L,A
+; read in the ones place
         IN PRICE_89_CAB
         CMA
         ANI #03
@@ -279,6 +270,7 @@ o01e3:  JNZ j01de
 j01e6:  IN PRICE_TENS_07_PORT ;o01df
         CMA
         MOV L,A
+; read in the dimes place
         IN PRICE_89_CAB
         CMA
         ANI #0c
@@ -758,6 +750,7 @@ j0569:  LDA $2247 ;o0553
         LDA $2194
         ANI #33
         STA $2194
+; unknown cabinet press
 o0581:  JMP jo061e
         IN PRICE_89_CAB
         ANI #80
@@ -2352,6 +2345,7 @@ j129a:  MOV E,M ;o1294
         RST 7
         DB 0xca,0x8,0xff  ; (was:         JZ $ff08)
         XRA D
+; play sound
         (DSUB)
         RST 7
         ADD A
@@ -2835,17 +2829,20 @@ o15f8:  JMP jo1419
         MVI A, #00
 o1600:  CALL c03ee
 o1603:  JNZ j1789
-        LDA CREDITS_1
-        ORA A
-o160a:  JNZ j1620
-        LDA $239e
+o1606:  JMP j0009
+; check if credits
+        NOP
+        NOP
+        NOP
+        NOP
+j160d:  LDA $239e ;o0017
         ANI #08
 o1612:  JNZ j1789
         LDA $23b6
         ORI #40
         STA $23b6
 o161d:  JMP j1789
-j1620:  LDA BALL_IN_PLAY_hrm ;o160a
+j1620:  LDA BALL_IN_PLAY_hrm ;o000d,o0014
         ANI #0f
         CPI #01
 o1627:  JZ j16ed

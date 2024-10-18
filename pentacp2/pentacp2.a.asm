@@ -44,23 +44,13 @@ DIP_SWITCH_PORT EQU 0x5
 $0000 o0000:   c3 40 00 JMP j0040
 $0003 o0003:   cd b4 06 CALL jc06b4
 $0006 o0006:   c3 82 03 JMP jo0382
-$0009          76       HLT
-$000a          76       HLT
-$000b          76       HLT
-$000c          76       HLT
-$000d          76       HLT
-$000e          76       HLT
-$000f          76       HLT
-$0010          76       HLT
-$0011          76       HLT
-$0012          76       HLT
-$0013          76       HLT
-$0014          76       HLT
-$0015          76       HLT
-$0016          76       HLT
-$0017          76       HLT
-$0018          76       HLT
-$0019          76       HLT
+$0009 j0009:   3a 7a 23 LDA CREDITS_1 ;o1606
+$000c          b7       ORA A
+$000d o000d:   c2 20 16 JNZ j1620
+$0010          3a 7f 23 LDA PRICE_1
+$0013          b7       ORA A
+$0014 o0014:   ca 20 16 JZ j1620
+$0017 o0017:   c3 0d 16 JMP j160d
 $001a          76       HLT
 $001b          76       HLT
 $001c          76       HLT
@@ -267,6 +257,7 @@ $01cf          32 92 21 STA GAME_STATE
 $01d2 j01d2:   db 02    IN PRICE_CENTS_07_PORT ;o01ca,o1c45,o1c4b,o1c54,o1c70
 $01d4          2f       CMA
 $01d5          6f       MOV L,A
+; read in the ones place
 $01d6          db 04    IN PRICE_89_CAB
 $01d8          2f       CMA
 $01d9          e6 03    ANI #03
@@ -279,6 +270,7 @@ $01e3 o01e3:   c2 de 01 JNZ j01de
 $01e6 j01e6:   db 03    IN PRICE_TENS_07_PORT ;o01df
 $01e8          2f       CMA
 $01e9          6f       MOV L,A
+; read in the dimes place
 $01ea          db 04    IN PRICE_89_CAB
 $01ec          2f       CMA
 $01ed          e6 0c    ANI #0c
@@ -758,6 +750,7 @@ $0576          32 1c 22 STA $221c
 $0579          3a 94 21 LDA $2194
 $057c          e6 33    ANI #33
 $057e          32 94 21 STA $2194
+; unknown cabinet press
 $0581 o0581:   c3 1e 06 JMP jo061e
 $0584          db 04    IN PRICE_89_CAB
 $0586          e6 80    ANI #80
@@ -2352,6 +2345,7 @@ $12ab          c9       RET
 $12ac          ff       RST 7
 $12ad          ca 08 ff DB 0xca,0x8,0xff  ; (was:          ca 08 ff JZ $ff08)
 $12b0          aa       XRA D
+; play sound
 $12b1          08       (DSUB)
 $12b2          ff       RST 7
 $12b3          87       ADD A
@@ -2835,17 +2829,20 @@ $15fb          21 92 21 LXI H, GAME_STATE
 $15fe          3e 00    MVI A, #00
 $1600 o1600:   cd ee 03 CALL c03ee
 $1603 o1603:   c2 89 17 JNZ j1789
-$1606          3a 7a 23 LDA CREDITS_1
-$1609          b7       ORA A
-$160a o160a:   c2 20 16 JNZ j1620
-$160d          3a 9e 23 LDA $239e
+$1606 o1606:   c3 09 00 JMP j0009
+; check if credits
+$1609          00       NOP
+$160a          00       NOP
+$160b          00       NOP
+$160c          00       NOP
+$160d j160d:   3a 9e 23 LDA $239e ;o0017
 $1610          e6 08    ANI #08
 $1612 o1612:   c2 89 17 JNZ j1789
 $1615          3a b6 23 LDA $23b6
 $1618          f6 40    ORI #40
 $161a          32 b6 23 STA $23b6
 $161d o161d:   c3 89 17 JMP j1789
-$1620 j1620:   3a 7b 23 LDA BALL_IN_PLAY_hrm ;o160a
+$1620 j1620:   3a 7b 23 LDA BALL_IN_PLAY_hrm ;o000d,o0014
 $1623          e6 0f    ANI #0f
 $1625          fe 01    CPI #01
 $1627 o1627:   ca ed 16 JZ j16ed
