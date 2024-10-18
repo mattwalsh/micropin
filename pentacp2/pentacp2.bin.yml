@@ -24,11 +24,21 @@ inPorts:
    PRICE_CENTS_07_PORT : $02
    PRICE_TENS_07_PORT : $03
    PRICE_89_CAB : $04
+# bit 10 -> credit button?
+# bit 80 -> for the 80/90a
+# bit 20 -> flipper switch?
+# bits 0F -> when game started? 
+
+
    DIP_SWITCH_PORT : $05
 
 notes:
   $005D : "hard reset routine"
+  $12b1 : "play sound"
   $1c39 : "seems pointless"
+  $1D6  : "read in the ones place"
+  $1EA  : "read in the dimes place"
+  $1609 : "check if credits"
   $16d3 : "decrease credits"
   $6a4 : "check credit button"
   $6B4 : "credit handler"
@@ -39,3 +49,4 @@ notes:
   $03e1 : "save b, move a to b, ... (hrm)"
   $03e3 : "save b, move a to b, ... (hrm)"
   $03d6 : "save b, move a to b, ... (hrm)"
+  $0581 : "unknown cabinet press"
