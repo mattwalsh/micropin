@@ -44,13 +44,15 @@ DIP_SWITCH_PORT EQU 0x5
 o0000:  JMP j0040
 o0003:  CALL jc06b4
 o0006:  JMP jo0382
-j0009:  LDA CREDITS_1 ;o1606
+c0009:  LDA PRICE_1 ;o1606
         ORA A
-o000d:  JNZ j1620
-        LDA PRICE_1
-        ORA A
-o0014:  JZ j1620
-o0017:  JMP j160d
+o000d:  JNZ j0014
+        INR A
+        STA CREDITS_1
+j0014:  LDA CREDITS_1 ;o000d
+        RET
+        HLT
+        HLT
         HLT
         HLT
         HLT
@@ -2829,20 +2831,18 @@ o15f8:  JMP jo1419
         MVI A, #00
 o1600:  CALL c03ee
 o1603:  JNZ j1789
-o1606:  JMP j0009
+o1606:  CALL c0009
 ; check if credits
-        NOP
-        NOP
-        NOP
-        NOP
-j160d:  LDA $239e ;o0017
+        ORA A
+o160a:  JNZ j1620
+        LDA $239e
         ANI #08
 o1612:  JNZ j1789
         LDA $23b6
         ORI #40
         STA $23b6
 o161d:  JMP j1789
-j1620:  LDA BALL_IN_PLAY_hrm ;o000d,o0014
+j1620:  LDA BALL_IN_PLAY_hrm ;o160a
         ANI #0f
         CPI #01
 o1627:  JZ j16ed

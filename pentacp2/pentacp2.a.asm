@@ -44,13 +44,15 @@ DIP_SWITCH_PORT EQU 0x5
 $0000 o0000:   c3 40 00 JMP j0040
 $0003 o0003:   cd b4 06 CALL jc06b4
 $0006 o0006:   c3 82 03 JMP jo0382
-$0009 j0009:   3a 7a 23 LDA CREDITS_1 ;o1606
+$0009 c0009:   3a 7f 23 LDA PRICE_1 ;o1606
 $000c          b7       ORA A
-$000d o000d:   c2 20 16 JNZ j1620
-$0010          3a 7f 23 LDA PRICE_1
-$0013          b7       ORA A
-$0014 o0014:   ca 20 16 JZ j1620
-$0017 o0017:   c3 0d 16 JMP j160d
+$000d o000d:   c2 14 00 JNZ j0014
+$0010          3c       INR A
+$0011          32 7a 23 STA CREDITS_1
+$0014 j0014:   3a 7a 23 LDA CREDITS_1 ;o000d
+$0017          c9       RET
+$0018          76       HLT
+$0019          76       HLT
 $001a          76       HLT
 $001b          76       HLT
 $001c          76       HLT
@@ -2829,20 +2831,18 @@ $15fb          21 92 21 LXI H, GAME_STATE
 $15fe          3e 00    MVI A, #00
 $1600 o1600:   cd ee 03 CALL c03ee
 $1603 o1603:   c2 89 17 JNZ j1789
-$1606 o1606:   c3 09 00 JMP j0009
+$1606 o1606:   cd 09 00 CALL c0009
 ; check if credits
-$1609          00       NOP
-$160a          00       NOP
-$160b          00       NOP
-$160c          00       NOP
-$160d j160d:   3a 9e 23 LDA $239e ;o0017
+$1609          b7       ORA A
+$160a o160a:   c2 20 16 JNZ j1620
+$160d          3a 9e 23 LDA $239e
 $1610          e6 08    ANI #08
 $1612 o1612:   c2 89 17 JNZ j1789
 $1615          3a b6 23 LDA $23b6
 $1618          f6 40    ORI #40
 $161a          32 b6 23 STA $23b6
 $161d o161d:   c3 89 17 JMP j1789
-$1620 j1620:   3a 7b 23 LDA BALL_IN_PLAY_hrm ;o000d,o0014
+$1620 j1620:   3a 7b 23 LDA BALL_IN_PLAY_hrm ;o160a
 $1623          e6 0f    ANI #0f
 $1625          fe 01    CPI #01
 $1627 o1627:   ca ed 16 JZ j16ed
