@@ -1,3 +1,7 @@
+HIGH_SCORE_4 EQU 0x2230
+HIGH_SCORE_3 EQU 0x222f
+HIGH_SCORE_2 EQU 0x222e
+HIGH_SCORE_1 EQU 0x222d
 PRICE_1 EQU 0x237f
 PRICE_2 EQU 0x239f
 PRICE_3 EQU 0x23bf
@@ -143,7 +147,7 @@ $00b9          db 04    IN PRICE_89_CAB
 $00bb          e6 20    ANI #20
 $00bd o00bd:   ca f5 00 JZ jo00f5
 $00c0          21 81 11 LXI H, #1181
-$00c3 j00c3:   11 2d 22 LXI D, #222d ;o003b
+$00c3 j00c3:   11 2d 22 LXI D, HIGH_SCORE_1 ;o003b
 $00c6          3e 08    MVI A, #08
 $00c8 o00c8:   cd cf 0e CALL c0ecf
 $00cb          21 7d 11 LXI H, #117d
@@ -537,8 +541,8 @@ $03c6          d9       (SHLX)
 $03c7          05       DCR B
 $03c8          bc       CMP H
 $03c9          13       INX D
-$03ca          03       DB 0x3  ; (was:          03       INX B)
-$03cb          00       DB 0x0  ; (was:          00       NOP)
+$03ca          03       INX B
+$03cb          00       NOP
 $03cc          7b       MOV A,E
 $03cd          04       INR B
 $03ce          37       STC
@@ -1834,6 +1838,7 @@ $0ec8          3e 06    MVI A, #06
 $0eca o0eca:   cd cf 0e CALL c0ecf
 $0ecd          f1       POP PSW
 $0ece          c9       RET
+; save high score
 $0ecf c0ecf:   b7       ORA A ;o00c8,o00d3,o019d,o01b0,o0657,o0683,o0c02,o0e61,o0e74,o0e90,o0ea2,o0eb4,o0eca,o0f41,o0f7d,o0f91,o0fa2,o0fc3,o0fdb,o0ffc,o1015,o1022,o1039,o104f,o1062,o10cb,o10d6,o112a,o1637,o16ba,o16c5,o1865,o18a6,o1a84,o1b09,o1b14,o1bf6,o1c01,o1c2b,o1c89,o1ca6,o1f40,o1f4e,o1f5a,o1f6a,o1f8a,o1f9b,o1fa5,o1fb3,o1fbd,o1fc7,o1fd0,o1fe6
 $0ed0 j0ed0:   de 02    SBI #02 ;o0edc
 $0ed2 o0ed2:   fa e0 0e JM j0ee0
@@ -2139,68 +2144,68 @@ $1141          b0       ORA B
 $1142          32 8c 23 STA $238c
 $1145          32 ac 23 STA $23ac
 $1148          c9       RET
-$1149          00       NOP
-$114a          00       NOP
-$114b          00       NOP
-$114c          00       NOP
-$114d          01 00 00 LXI B, #0000
-$1150          00       NOP
-$1151          10       (ARHL)
-$1152          00       NOP
-$1153          00       NOP
-$1154          00       NOP
-$1155          25       DCR H
-$1156          00       NOP
-$1157          00       NOP
-$1158          00       NOP
-$1159          50       MOV D,B
-$115a          00       NOP
-$115b          00       NOP
-$115c          00       NOP
-$115d          00       NOP
-$115e          01 00 00 LXI B, #0000
-$1161          00       NOP
-$1162          05       DCR B
-$1163          00       NOP
-$1164          00       NOP
-$1165          00       NOP
-$1166          10       (ARHL)
-$1167          00       NOP
-$1168          00       NOP
-$1169          00       NOP
-$116a          20       RIM
-$116b          00       NOP
-$116c          00       NOP
-$116d          00       NOP
-$116e          40       MOV B,B
-$116f          00       NOP
-$1170          00       NOP
-$1171          00       NOP
-$1172          50       MOV D,B
-$1173          00       NOP
-$1174          00       NOP
-$1175          00       NOP
-$1176          60       MOV H,B
-$1177          00       NOP
-$1178          00       NOP
-$1179          00       NOP
-$117a          80       ADD B
-$117b          00       NOP
-$117c          00       NOP
-$117d          00       NOP
-$117e          00       NOP
-$117f          01 00 00 LXI B, #0000
-$1182          50       MOV D,B
-$1183          02       STAX B
-$1184          00       NOP
-$1185          f0       RP
-$1186          ff       RST 7
-$1187          ff       RST 7
-$1188          ff       RST 7
-$1189          ff       RST 7
-$118a          ff       RST 7
-$118b          ff       RST 7
-$118c          ff       RST 7
+$1149          00       DB 0x0  ; (was:          00       NOP)
+$114a          00       DB 0x0  ; (was:          00       NOP)
+$114b          00       DB 0x0  ; (was:          00       NOP)
+$114c          00       DB 0x0  ; (was:          00       NOP)
+$114d          01 00 00 DB 0x1,0x0,0x0  ; (was:          01 00 00 LXI B, #0000)
+$1150          00       DB 0x0  ; (was:          00       NOP)
+$1151          10       DB 0x10  ; (was:          10       (ARHL))
+$1152          00       DB 0x0  ; (was:          00       NOP)
+$1153          00       DB 0x0  ; (was:          00       NOP)
+$1154          00       DB 0x0  ; (was:          00       NOP)
+$1155          25       DB 0x25  ; (was:          25       DCR H)
+$1156          00       DB 0x0  ; (was:          00       NOP)
+$1157          00       DB 0x0  ; (was:          00       NOP)
+$1158          00       DB 0x0  ; (was:          00       NOP)
+$1159          50       DB 0x50  ; (was:          50       MOV D,B)
+$115a          00       DB 0x0  ; (was:          00       NOP)
+$115b          00       DB 0x0  ; (was:          00       NOP)
+$115c          00       DB 0x0  ; (was:          00       NOP)
+$115d          00       DB 0x0  ; (was:          00       NOP)
+$115e          01 00 00 DB 0x1,0x0,0x0  ; (was:          01 00 00 LXI B, #0000)
+$1161          00       DB 0x0  ; (was:          00       NOP)
+$1162          05       DB 0x5  ; (was:          05       DCR B)
+$1163          00       DB 0x0  ; (was:          00       NOP)
+$1164          00       DB 0x0  ; (was:          00       NOP)
+$1165          00       DB 0x0  ; (was:          00       NOP)
+$1166          10       DB 0x10  ; (was:          10       (ARHL))
+$1167          00       DB 0x0  ; (was:          00       NOP)
+$1168          00       DB 0x0  ; (was:          00       NOP)
+$1169          00       DB 0x0  ; (was:          00       NOP)
+$116a          20       DB 0x20  ; (was:          20       RIM)
+$116b          00       DB 0x0  ; (was:          00       NOP)
+$116c          00       DB 0x0  ; (was:          00       NOP)
+$116d          00       DB 0x0  ; (was:          00       NOP)
+$116e          40       DB 0x40  ; (was:          40       MOV B,B)
+$116f          00       DB 0x0  ; (was:          00       NOP)
+$1170          00       DB 0x0  ; (was:          00       NOP)
+$1171          00       DB 0x0  ; (was:          00       NOP)
+$1172          50       DB 0x50  ; (was:          50       MOV D,B)
+$1173          00       DB 0x0  ; (was:          00       NOP)
+$1174          00       DB 0x0  ; (was:          00       NOP)
+$1175          00       DB 0x0  ; (was:          00       NOP)
+$1176          60       DB 0x60  ; (was:          60       MOV H,B)
+$1177          00       DB 0x0  ; (was:          00       NOP)
+$1178          00       DB 0x0  ; (was:          00       NOP)
+$1179          00       DB 0x0  ; (was:          00       NOP)
+$117a          80       DB 0x80  ; (was:          80       ADD B)
+$117b          00       DB 0x0  ; (was:          00       NOP)
+$117c          00       DB 0x0  ; (was:          00       NOP)
+$117d          00       DB 0x0  ; (was:          00       NOP)
+$117e          00       DB 0x0  ; (was:          00       NOP)
+$117f          01 00 85 DB 0x1,0x0,0x85  ; (was:          01 00 85 LXI B, #8500)
+$1182          80       DB 0x80  ; (was:          80       ADD B)
+$1183          00       DB 0x0  ; (was:          00       NOP)
+$1184          00       DB 0x0  ; (was:          00       NOP)
+$1185          f0       DB 0xf0  ; (was:          f0       RP)
+$1186          ff       DB 0xff  ; (was:          ff       RST 7)
+$1187          ff       DB 0xff  ; (was:          ff       RST 7)
+$1188          ff       DB 0xff  ; (was:          ff       RST 7)
+$1189          ff       DB 0xff  ; (was:          ff       RST 7)
+$118a          ff       DB 0xff  ; (was:          ff       RST 7)
+$118b          ff       DB 0xff  ; (was:          ff       RST 7)
+$118c          ff       DB 0xff  ; (was:          ff       RST 7)
 $118d c118d:   3e ff    MVI A, #ff ;o123b,o125b
 $118f          d3 09    OUT #09
 $1191          11 ac 12 LXI D, #12ac
@@ -2305,6 +2310,7 @@ $1255 jo1255:  cd e1 03 CALL c03e1 ;o122a
 $1258 jo1258:  cd 8c 12 CALL c128c ;o1246
 $125b o125b:   cd 8d 11 CALL c118d
 $125e o125e:   c3 1e 06 JMP jo061e
+; play sound
 $1261 c1261:   eb       XCHG ;o0546,o0563,o059c,o06fd,o07bc,o0855,o0927,o0a1a,o0a3f,o0a79,o0adc,o0b69,o0c39,o0cf3,jo0d23,o0dcb,o0dde,o1085,o14bd,o14ef,o1585,o15a6,o15d0,o15f5,o1786,o1859,o18c7,o18e4,o1a27,o1ae4,o1b72,o1f70
 $1262          2a be 21 LHLD $21be
 $1265          01 be 21 LXI B, #21be
@@ -2347,7 +2353,6 @@ $12ab          c9       RET
 $12ac          ff       RST 7
 $12ad          ca 08 ff DB 0xca,0x8,0xff  ; (was:          ca 08 ff JZ $ff08)
 $12b0          aa       XRA D
-; play sound
 $12b1          08       (DSUB)
 $12b2          ff       RST 7
 $12b3          87       ADD A
@@ -3482,7 +3487,7 @@ $1c04 j1c04:   3a 15 22 LDA $2215 ;o1be4
 $1c07          e6 20    ANI #20
 $1c09 o1c09:   c2 c3 1c JNZ j1cc3
 $1c0c          fb       EI
-$1c0d          21 2d 22 LXI H, #222d
+$1c0d          21 2d 22 LXI H, HIGH_SCORE_1
 $1c10          11 b3 23 LXI D, #23b3
 $1c13          3e 07    MVI A, #07
 $1c15 o1c15:   cd ea 0e CALL c0eea
@@ -3746,7 +3751,7 @@ $1e78          2a 41 22 LHLD $2241
 $1e7b          22 43 22 SHLD $2243
 $1e7e          e1       POP H
 $1e7f          22 41 22 SHLD $2241
-$1e82 j1e82:   21 2d 22 LXI H, #222d ;o1e4b,o1e56,o1e61
+$1e82 j1e82:   21 2d 22 LXI H, HIGH_SCORE_1 ;o1e4b,o1e56,o1e61
 $1e85 o1e85:   cd d4 1f CALL c1fd4
 $1e88          2a 3d 22 LHLD $223d
 $1e8b          e5       PUSH H
@@ -3845,7 +3850,7 @@ $1f51          d1       POP D
 $1f52          f1       POP PSW
 $1f53          3d       DCR A
 $1f54          c8       RZ
-$1f55          21 2d 22 LXI H, #222d
+$1f55          21 2d 22 LXI H, HIGH_SCORE_1
 $1f58          3e 07    MVI A, #07
 $1f5a o1f5a:   cd cf 0e CALL c0ecf
 $1f5d          c9       RET
@@ -3853,7 +3858,7 @@ $1f5e c1f5e:   e5       PUSH H ;o1e90
 $1f5f          3e 03    MVI A, #03
 $1f61 o1f61:   cd 36 1f CALL c1f36
 $1f64          e1       POP H
-$1f65          11 2d 22 LXI D, #222d
+$1f65          11 2d 22 LXI D, HIGH_SCORE_1
 $1f68          3e 07    MVI A, #07
 $1f6a o1f6a:   cd cf 0e CALL c0ecf
 $1f6d          21 51 13 LXI H, #1351
@@ -3889,7 +3894,7 @@ $1fa8          3f       CMC
 $1fa9          c9       RET
 $1faa c1faa:   21 31 22 LXI H, #2231 ;o0707,o08f4
 $1fad          e5       PUSH H
-$1fae          11 2d 22 LXI D, #222d
+$1fae          11 2d 22 LXI D, HIGH_SCORE_1
 $1fb1          3e 07    MVI A, #07
 $1fb3 o1fb3:   cd cf 0e CALL c0ecf
 $1fb6          d1       POP D

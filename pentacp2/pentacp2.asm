@@ -1,3 +1,7 @@
+HIGH_SCORE_4 EQU 0x2230
+HIGH_SCORE_3 EQU 0x222f
+HIGH_SCORE_2 EQU 0x222e
+HIGH_SCORE_1 EQU 0x222d
 PRICE_1 EQU 0x237f
 PRICE_2 EQU 0x239f
 PRICE_3 EQU 0x23bf
@@ -143,7 +147,7 @@ o007f:  JNZ j007b
         ANI #20
 o00bd:  JZ jo00f5
         LXI H, #1181
-j00c3:  LXI D, #222d ;o003b
+j00c3:  LXI D, HIGH_SCORE_1 ;o003b
         MVI A, #08
 o00c8:  CALL c0ecf
         LXI H, #117d
@@ -537,8 +541,8 @@ o03a8:  CALL c03d6
         DCR B
         CMP H
         INX D
-        DB 0x3  ; (was:         INX B)
-        DB 0x0  ; (was:         NOP)
+        INX B
+        NOP
         MOV A,E
         INR B
         STC
@@ -1834,6 +1838,7 @@ o0ebf:  CALL c0eea
 o0eca:  CALL c0ecf
         POP PSW
         RET
+; save high score
 c0ecf:  ORA A ;o00c8,o00d3,o019d,o01b0,o0657,o0683,o0c02,o0e61,o0e74,o0e90,o0ea2,o0eb4,o0eca,o0f41,o0f7d,o0f91,o0fa2,o0fc3,o0fdb,o0ffc,o1015,o1022,o1039,o104f,o1062,o10cb,o10d6,o112a,o1637,o16ba,o16c5,o1865,o18a6,o1a84,o1b09,o1b14,o1bf6,o1c01,o1c2b,o1c89,o1ca6,o1f40,o1f4e,o1f5a,o1f6a,o1f8a,o1f9b,o1fa5,o1fb3,o1fbd,o1fc7,o1fd0,o1fe6
 j0ed0:  SBI #02 ;o0edc
 o0ed2:  JM j0ee0
@@ -2139,68 +2144,68 @@ j1138:  MOV A,M ;o109e,o10da
         STA $238c
         STA $23ac
         RET
-        NOP
-        NOP
-        NOP
-        NOP
-        LXI B, #0000
-        NOP
-        (ARHL)
-        NOP
-        NOP
-        NOP
-        DCR H
-        NOP
-        NOP
-        NOP
-        MOV D,B
-        NOP
-        NOP
-        NOP
-        NOP
-        LXI B, #0000
-        NOP
-        DCR B
-        NOP
-        NOP
-        NOP
-        (ARHL)
-        NOP
-        NOP
-        NOP
-        RIM
-        NOP
-        NOP
-        NOP
-        MOV B,B
-        NOP
-        NOP
-        NOP
-        MOV D,B
-        NOP
-        NOP
-        NOP
-        MOV H,B
-        NOP
-        NOP
-        NOP
-        ADD B
-        NOP
-        NOP
-        NOP
-        NOP
-        LXI B, #0000
-        MOV D,B
-        STAX B
-        NOP
-        RP
-        RST 7
-        RST 7
-        RST 7
-        RST 7
-        RST 7
-        RST 7
-        RST 7
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x1,0x0,0x0  ; (was:         LXI B, #0000)
+        DB 0x0  ; (was:         NOP)
+        DB 0x10  ; (was:         (ARHL))
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x25  ; (was:         DCR H)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x50  ; (was:         MOV D,B)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x1,0x0,0x0  ; (was:         LXI B, #0000)
+        DB 0x0  ; (was:         NOP)
+        DB 0x5  ; (was:         DCR B)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x10  ; (was:         (ARHL))
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x20  ; (was:         RIM)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x40  ; (was:         MOV B,B)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x50  ; (was:         MOV D,B)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x60  ; (was:         MOV H,B)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x80  ; (was:         ADD B)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0x1,0x0,0x85  ; (was:         LXI B, #8500)
+        DB 0x80  ; (was:         ADD B)
+        DB 0x0  ; (was:         NOP)
+        DB 0x0  ; (was:         NOP)
+        DB 0xf0  ; (was:         RP)
+        DB 0xff  ; (was:         RST 7)
+        DB 0xff  ; (was:         RST 7)
+        DB 0xff  ; (was:         RST 7)
+        DB 0xff  ; (was:         RST 7)
+        DB 0xff  ; (was:         RST 7)
+        DB 0xff  ; (was:         RST 7)
+        DB 0xff  ; (was:         RST 7)
 c118d:  MVI A, #ff ;o123b,o125b
         OUT #09
         LXI D, #12ac
@@ -2305,6 +2310,7 @@ jo1255: CALL c03e1 ;o122a
 jo1258: CALL c128c ;o1246
 o125b:  CALL c118d
 o125e:  JMP jo061e
+; play sound
 c1261:  XCHG ;o0546,o0563,o059c,o06fd,o07bc,o0855,o0927,o0a1a,o0a3f,o0a79,o0adc,o0b69,o0c39,o0cf3,jo0d23,o0dcb,o0dde,o1085,o14bd,o14ef,o1585,o15a6,o15d0,o15f5,o1786,o1859,o18c7,o18e4,o1a27,o1ae4,o1b72,o1f70
         LHLD $21be
         LXI B, #21be
@@ -2347,7 +2353,6 @@ j129a:  MOV E,M ;o1294
         RST 7
         DB 0xca,0x8,0xff  ; (was:         JZ $ff08)
         XRA D
-; play sound
         (DSUB)
         RST 7
         ADD A
@@ -3482,7 +3487,7 @@ j1c04:  LDA $2215 ;o1be4
         ANI #20
 o1c09:  JNZ j1cc3
         EI
-        LXI H, #222d
+        LXI H, HIGH_SCORE_1
         LXI D, #23b3
         MVI A, #07
 o1c15:  CALL c0eea
@@ -3746,7 +3751,7 @@ j1e77:  PUSH H ;o1e45
         SHLD $2243
         POP H
         SHLD $2241
-j1e82:  LXI H, #222d ;o1e4b,o1e56,o1e61
+j1e82:  LXI H, HIGH_SCORE_1 ;o1e4b,o1e56,o1e61
 o1e85:  CALL c1fd4
         LHLD $223d
         PUSH H
@@ -3845,7 +3850,7 @@ o1f4e:  CALL c0ecf
         POP PSW
         DCR A
         RZ
-        LXI H, #222d
+        LXI H, HIGH_SCORE_1
         MVI A, #07
 o1f5a:  CALL c0ecf
         RET
@@ -3853,7 +3858,7 @@ c1f5e:  PUSH H ;o1e90
         MVI A, #03
 o1f61:  CALL c1f36
         POP H
-        LXI D, #222d
+        LXI D, HIGH_SCORE_1
         MVI A, #07
 o1f6a:  CALL c0ecf
         LXI H, #1351
@@ -3889,7 +3894,7 @@ o1fa5:  CALL c0ecf
         RET
 c1faa:  LXI H, #2231 ;o0707,o08f4
         PUSH H
-        LXI D, #222d
+        LXI D, HIGH_SCORE_1
         MVI A, #07
 o1fb3:  CALL c0ecf
         POP D

@@ -1,4 +1,8 @@
 addresses:
+   HIGH_SCORE_4 : $2230        
+   HIGH_SCORE_3 : $222F         
+   HIGH_SCORE_2 : $222E         
+   HIGH_SCORE_1 : $222D         
    PRICE_1   : $237F         
    PRICE_2   : $239F 
    PRICE_3   : $23BF 
@@ -18,6 +22,7 @@ addresses:
 
 not_code:
    COIN : [$03ca , $03cb] 
+   COIN : [$1149 , $118c] 
 
 inPorts:
    MYSTERY_PORT_1 : $01
@@ -34,7 +39,9 @@ inPorts:
 
 notes:
   $005D : "hard reset routine"
-  $12b1 : "play sound"
+  $0ECF : "save high score"
+  $1181 : "default high score"
+  $1261 : "play sound"
   $1c39 : "seems pointless"
   $1D6  : "read in the ones place"
   $1EA  : "read in the dimes place"
