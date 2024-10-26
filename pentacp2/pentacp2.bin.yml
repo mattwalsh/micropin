@@ -14,11 +14,18 @@ addresses:
    PL24_SCORE_1 : $2373
    # ??PL24_SCORE_2 : $2373
 
-   # ??? : $21F3 
+   SPREAD_1 : $21f3
+   SPREAD_2 : $2377
+   SPREAD_3 : $23b7
+   SPREAD_4 : $2397
+   FREE_BALL : $2389
 
+   CREDIT_1 : $239A
+   CREDIT_2 : $23BA
    PL1_SCORE_1 : $2363
    PL1_SCORE_2 : $2386
-   PL1_SCORE_3 : $23A6
+   PL1_SCORE_DISPLAY : $23A6
+   PL1_SCORE_DISPLAY2 : $2386
    PL1_SCORE_hrm: $2377           
 
    PL2_SCORE_1 : $236b
@@ -28,7 +35,8 @@ addresses:
 
    PL3_SCORE_1 : $235f
    PL3_SCORE_2 : $23fe
-   PL3_SCORE_3 : $2383
+   PL1_AND_3   : $2389
+   PL3_SCORE_DISPLAY_2 : $2383
 
    PL4_SCORE_1 : $236f
    PL4_SCORE_2 : $2390
@@ -44,14 +52,22 @@ addresses:
    BALLS_PER_GAME : $2213
    DIP_SWITCHES: $2216
    HARD_RESET : $005D
+   GAME_STATE_ROLLOVFER : $2192 # bit 7 must be set for rollovers
    GAME_STATE : $2192 # F0 = game over, B0 = game on, D0 bootup
+   STACK_SCRATCH : $2195
 
 labels:
-   SAVE_TO_RAM : $0ecf # A is # bytes, D is dest, H is souce
+   2_LSHIFT_A : $03f9
+   COPY_FROM_H_TO_D : $0ecf # A is # bytes, D is dest, H is souce
    PLAY_SOUND : $1261
    CREDIT_HANDLER : $6B4
    DECREASE_CREDIT : $16d0
    SWITCH_HANDLER : $0386
+   SAVE_BDPSW : $0624
+   CHECK_ATH_BIT_OF_HL: $03ee
+   CLEAR_ATH_BIT_OF_HL: $03e1
+   SET_ATH_BIT_OF_HL: $03d6
+   WRITE_TO_RAM : $0eea
 
 not_code:
    COIN : [$03ca , $03cb] 
@@ -72,17 +88,16 @@ inPorts:
 
 notes:
   $005D : "hard reset routine"
-  $0EEA : "??? stuff to ram" # A is # bytes, D is dest, H is souce
-  $1181 : "default high score"
-  $1c39 : "seems pointless"
-  $1D6  : "read in the ones place"
-  $1EA  : "read in the dimes place"
-  $1609 : "check if credits"
-  $6a4 : "check credit button"
+  $01D6  : "read in the ones place"
+  $01EA  : "read in the dimes place"
+  $0382 : "vector to 0630 stack restore"
+  $0440 : "unreachable or data or computed call?"
+  $0581 : "unknown cabinet press"
   $0624 : "push A, SP, B, D, H"
   $0630 : "restore A, SP, B, D, H"
-  $0382 : "vector to 0630 stack restore"
-  $03e1 : "save b, move a to b, ... (hrm)"
-  $03e3 : "save b, move a to b, ... (hrm)"
-  $03d6 : "save b, move a to b, ... (hrm)"
-  $0581 : "unknown cabinet press"
+  $06a4 : "check credit button"
+  $1181 : "default high score"
+  $1536 : "10,000 / EB lane"
+  $15d6 : "inlane routine"
+  $1609 : "check if credits"
+  $1c39 : "seems pointless"
