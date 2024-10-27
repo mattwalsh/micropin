@@ -783,7 +783,7 @@ o0581:  JMP joEND_MAIN_LOOP
 ; tilt handler 2
         IN PRICE_89_CAB
         ANI #80
-o0588:  JZ j05a2
+o0588:  JMP j05a2
 o058b:  CALL c046a
 o058e:  JNZ j05a2
         CALL $044f
