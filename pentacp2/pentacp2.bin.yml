@@ -58,12 +58,14 @@ addresses:
 
 labels:
    2_LSHIFT_A : $03f9
-   COPY_FROM_H_TO_D : $0ecf # A is # bytes, D is dest, H is souce
+   COPY_FROM_HL_TO_DE : $0ecf # A is # bytes, D is dest, H is souce
    PLAY_SOUND : $1261
-   CREDIT_HANDLER : $6B4
    DECREASE_CREDIT : $16d0
    SWITCH_HANDLER : $0386
+   END_MAIN_LOOP : $061e
    SAVE_BDPSW : $0624
+   RESTORE_BDPSW : $0630
+   CREDIT_HANDLER : $6B4
    CHECK_ATH_BIT_OF_HL: $03ee
    CLEAR_ATH_BIT_OF_HL: $03e1
    SET_ATH_BIT_OF_HL: $03d6
@@ -72,6 +74,9 @@ labels:
 not_code:
    COIN : [$03ca , $03cb] 
    COIN : [$1149 , $118c] 
+   HRM  : [$1a56,  $1a61]
+   HRM2  : [$17a0, $17a7]
+   TILT  : [$0742, $0743]
 
 inPorts:
    MYSTERY_PORT_1 : $01
@@ -92,7 +97,8 @@ notes:
   $01EA  : "read in the dimes place"
   $0382 : "vector to 0630 stack restore"
   $0440 : "unreachable or data or computed call?"
-  $0581 : "unknown cabinet press"
+  $0584 : "tilt handler"
+  $05d9 : "when no switches activated?"
   $0624 : "push A, SP, B, D, H"
   $0630 : "restore A, SP, B, D, H"
   $06a4 : "check credit button"

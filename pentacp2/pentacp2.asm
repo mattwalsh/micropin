@@ -61,6 +61,7 @@ o000d:  JNZ j0014
         STA CREDITS_1
 j0014:  LDA CREDITS_1 ;o000d
         RET
+
         HLT
         HLT
         HLT
@@ -155,11 +156,11 @@ o00bd:  JZ jo00f5
         LXI H, #1181
 j00c3:  LXI D, HIGH_SCORE_START ;o003b
         MVI A, #08
-o00c8:  CALL cCOPY_FROM_H_TO_D
+o00c8:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, #117d
         LXI D, #2231
         MVI A, #08
-o00d3:  CALL cCOPY_FROM_H_TO_D
+o00d3:  CALL cCOPY_FROM_HL_TO_DE
         MVI A, #71
         STA $219f
         MVI A, #3c
@@ -243,14 +244,14 @@ jo0168: CALL c17a8 ;o0147,o02c5
         LXI H, #23a3
         LXI D, #2320
         MVI A, #2e
-o019d:  CALL cCOPY_FROM_H_TO_D
+o019d:  CALL cCOPY_FROM_HL_TO_DE
         MVI B, #01
         LXI D, #21c6
 o01a5:  CALL jc178e
         LXI H, #21c9
         LXI D, #21ce
         MVI A, #0a
-o01b0:  CALL cCOPY_FROM_H_TO_D
+o01b0:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, #2205
         MVI B, #13
         SUB A
@@ -381,6 +382,7 @@ c0292:  XCHG ;o07c8,o0ce8,o0dc5,o0dd4,o14b7,o15ca,o18d9
         INX H
         SHLD $21f9
         RET
+
 j029e:  LDA $2191 ;o015d
         MOV B,A
         ANI #01
@@ -442,6 +444,7 @@ j030c:  LDAX D ;o0313
         CPI #5d
 o0313:  JNZ j030c
         RET
+
 co0317: CALL c0303 ;jo00f5
         XCHG
         LHLD $2224
@@ -453,11 +456,13 @@ o0322:  JZ j0328
 j0325:  MOV A,D ;o032a
         CMP H
         RET
+
 j0328:  MOV A,D ;o0322
         ORA A
 o032a:  JNZ j0325
         INR A
         RET
+
         DCR L
 jo0330: CALL cSAVE_BDPSW ;o002c
         LDA $2190
@@ -482,7 +487,7 @@ o035a:  CALL cSAVE_BDPSW
         LDA $2191
         ANI #02
 o0362:  CNZ c0402
-o0365:  CALL c0630
+o0365:  CALL cRESTORE_BDPSW
 o0368:  CALL cSET_ATH_BIT_OF_HL
         XCHG
         DAD H
@@ -498,9 +503,11 @@ o0379:  JMP jo037f
         LXI H, #2193
 jo037f: CALL cCLEAR_ATH_BIT_OF_HL ;o0379
 ; vector to 0630 stack restore
-jo0382: CALL c0630 ;o0006,o0341,o0357,o038f,o03a5,o0486,o0540,o0549,o078c,o07cb,o084f,o0865,o086d,o0921,o092a
+jo0382: CALL cRESTORE_BDPSW ;o0006,o0341,o0357,o038f,o03a5,o0486,o0540,o0549,o078c,o07cb,o084f,o0865,o086d,o0921,o092a
         RET
-joSWITCH_HANDLER: CALL cSAVE_BDPSW ;o0034
+
+joSWITCH_HANDLER:
+              CALL cSAVE_BDPSW ;o0034
         LXI D, #0000
         IN #00
 j038e:  ORA A ;o0397
@@ -558,14 +565,16 @@ o03a8:  CALL cSET_ATH_BIT_OF_HL
         DCR D
         MOV A,E
         INR B
-cSET_ATH_BIT_OF_HL: PUSH B ;o0368,o03a8,o0410,o052e,o06cb,o079f,o09c0,o09cf,o09f6,o0aa1,o0af2,o0b55,o0c98,o0c9e,o0d52,jo1078,jo10ad,o11f8,o1213,o1283,o13c1,o13fb,o1499,o1568,o15c4,o1657,o170a,jo1738,jo174e,o184b,o1853,o19a3,o19dc,jo1a98,o1aab,o1b6c,o1c42,o1c7e,o1d1f,o1d56,o1d79,o1d7d,o1d94
+cSET_ATH_BIT_OF_HL:
+              PUSH B ;o0368,o03a8,o0410,o052e,o06cb,o079f,o09c0,o09cf,o09f6,o0aa1,o0af2,o0b55,o0c98,o0c9e,o0d52,jo1078,jo10ad,o11f8,o1213,o1283,o13c1,o13fb,o1499,o1568,o15c4,o1657,o170a,jo1738,jo174e,o184b,o1853,o19a3,o19dc,jo1a98,o1aab,o1b6c,o1c42,o1c7e,o1d1f,o1d56,o1d79,o1d7d,o1d94
         MOV B,A
 o03d8:  CALL c2_LSHIFT_A
         MOV C,M
         ORA C
         MOV M,A
 o03de:  JMP j03f6
-cCLEAR_ATH_BIT_OF_HL: PUSH B ;jo037f,o0423,o06bd,o06d8,o06de,o06e4,o0716,o088b,o0948,o09e7,jo09fc,o0a4d,o0a5b,o0ba4,o0bb4,jo107d,o10ba,o10bf,jo1222,jo1255,o1382,o13e1,o13f1,jo1402,o14ae,o1541,o15e9,o16a7,o1923,jo1955,o199d,o1abf,o1acc,jo1c48,o1c6a,o1d4e,o1d6b,o1d84,o1d8c,o1d98
+cCLEAR_ATH_BIT_OF_HL:
+              PUSH B ;jo037f,o0423,o06bd,o06d8,o06de,o06e4,o0716,o088b,o0948,o09e7,jo09fc,o0a4d,o0a5b,o0ba4,o0bb4,jo107d,o10ba,o10bf,jo1222,jo1255,o1382,o13e1,o13f1,jo1402,o14ae,o1541,o15e9,o16a7,o1923,jo1955,o199d,o1abf,o1acc,jo1c48,o1c6a,o1d4e,o1d6b,o1d84,o1d8c,o1d98
         MOV B,A
 o03e3:  CALL c2_LSHIFT_A
         CMA
@@ -574,7 +583,8 @@ o03e3:  CALL c2_LSHIFT_A
         ANA C
         MOV M,A
 o03eb:  JMP j03f6
-cCHECK_ATH_BIT_OF_HL: PUSH B ;o0218,o0221,o0281,o0354,o03a2,o0409,o05b2,o06b9,o0710,o07f8,o084c,o0862,o0875,o0880,o091e,o0932,o093d,o09c5,o09e1,o0a0b,o0a47,o0a55,o0b13,o0b49,o0bec,o0cd6,o0f49,o0f50,o0f57,o0faa,o1071,o10a6,o120b,o1227,o127f,o13d9,o13f5,o149e,o14a8,o153b,o1546,o1557,o1562,o158d,o15be,o15db,o15e3,o1600,o1642,o164a,o16fa,o1702,o17f7,o180d,o186d,jo1949,o195c,o19c4,o1c78,o1cd3,o1d88,o1d9f
+cCHECK_ATH_BIT_OF_HL:
+              PUSH B ;o0218,o0221,o0281,o0354,o03a2,o0409,o05b2,o06b9,o0710,o07f8,o084c,o0862,o0875,o0880,o091e,o0932,o093d,o09c5,o09e1,o0a0b,o0a47,o0a55,o0b13,o0b49,o0bec,o0cd6,o0f49,o0f50,o0f57,o0faa,o1071,o10a6,o120b,o1227,o127f,o13d9,o13f5,o149e,o14a8,o153b,o1546,o1557,o1562,o158d,o15be,o15db,o15e3,o1600,o1642,o164a,o16fa,o1702,o17f7,o180d,o186d,jo1949,o195c,o19c4,o1c78,o1cd3,o1d88,o1d9f
         MOV B,A
 o03f0:  CALL c2_LSHIFT_A
         MOV C,A
@@ -583,7 +593,9 @@ o03f0:  CALL c2_LSHIFT_A
 j03f6:  MOV A,B ;o03de,o03eb
         POP B
         RET
-c2_LSHIFT_A: MOV C,A ;o03d8,o03e3,o03f0
+
+c2_LSHIFT_A:
+              MOV C,A ;o03d8,o03e3,o03f0
         MVI A, #01
 j03fc:  DCR C ;o03ff
         RM
@@ -606,6 +618,7 @@ o041f:  CALL c0427
         XCHG
 o0423:  CALL cCLEAR_ATH_BIT_OF_HL
         RET
+
 c0427:  MVI D, #00 ;o0406,o041f
         MOV E,A
         LXI H, #0440
@@ -624,6 +637,7 @@ c0427:  MVI D, #00 ;o0406,o041f
         DAD D
         XCHG
         RET
+
 ; unreachable or data or computed call?
         INR B
         NOP
@@ -642,6 +656,7 @@ c0427:  MVI D, #00 ;o0406,o041f
         ORI #30
         STA $2194
         RET
+
 c046a:  LDA GAME_STATE ;o0483,o058b
         ANI #40
         RZ
@@ -650,8 +665,10 @@ c046a:  LDA GAME_STATE ;o0483,o058b
 o0474:  JZ j0479
         CMP A
         RET
+
 j0479:  DCR A ;o0474
         RET
+
         DB #cd,#4f,#04
         MVI A, #7d
         STA $21a2
@@ -749,7 +766,7 @@ o0553:  JZ j0569
         STA $219e
         LXI H, #12bf
 o0563:  CALL cPLAY_SOUND
-o0566:  JMP jo061e
+o0566:  JMP joEND_MAIN_LOOP
 j0569:  LDA $2247 ;o0553
         ANI #bf
         STA $2247
@@ -759,8 +776,8 @@ j0569:  LDA $2247 ;o0553
         LDA $2194
         ANI #33
         STA $2194
-; unknown cabinet press
-o0581:  JMP jo061e
+o0581:  JMP joEND_MAIN_LOOP
+; tilt handler
         IN PRICE_89_CAB
         ANI #80
 o0588:  JZ j05a2
@@ -771,15 +788,15 @@ o058e:  JNZ j05a2
         STA $21a2
         LXI H, #12c2
 o059c:  CALL cPLAY_SOUND
-o059f:  JMP jo061e
+o059f:  JMP joEND_MAIN_LOOP
 j05a2:  LDA $2194 ;o0588,o058e
         ANI #77
         STA $2194
-o05aa:  JMP jo061e
+o05aa:  JMP joEND_MAIN_LOOP
         LXI H, GAME_STATE
         MVI A, #07
 o05b2:  CALL cCHECK_ATH_BIT_OF_HL
-o05b5:  JZ jo061e
+o05b5:  JZ joEND_MAIN_LOOP
         LDA $23b6
         ANI #ef
         STA $23b6
@@ -791,7 +808,8 @@ o05b5:  JZ jo061e
         STA $2381
         STA $23a2
         STA $2382
-o05d6:  JMP jo061e
+o05d6:  JMP joEND_MAIN_LOOP
+; when no switches activated?
         LXI H, #2197
         MVI C, #1a
 j05de:  MVI A, #ff ;o05ea
@@ -828,10 +846,12 @@ o060a:  CALL cSAVE_BDPSW
         MOV H,M
         MOV L,A
         PCHL
-jo061e: CALL c0630 ;o0566,o0581,o059f,o05aa,o05b5,o05d6,o071e,o0729,o07e8,o07f0,o07fb,o0803,o0883,o088e,o08a1,o08c8,o08da,o08f1,o0906,o0940,o094b,o095e,o0a6d,o0a90,o0aa9,o0abb,o0ae9,o0b4f,o0ba7,o0bb7,o0cc1,o0cf6,o0d26,o0de9,o121f,o123e,o1252,o125e,o14f7,o152b,o18e7,o1911,o1a37,o1a6e,o1a87,o1ad4,o1aec,jo1ba5,o1d73
+joEND_MAIN_LOOP:
+              CALL cRESTORE_BDPSW ;o0566,o0581,o059f,o05aa,o05b5,o05d6,o071e,o0729,o07e8,o07f0,o07fb,o0803,o0883,o088e,o08a1,o08c8,o08da,o08f1,o0906,o0940,o094b,o095e,o0a6d,o0a90,o0aa9,o0abb,o0ae9,o0b4f,o0ba7,o0bb7,o0cc1,o0cf6,o0d26,o0de9,o121f,o123e,o1252,o125e,o14f7,o152b,o18e7,o1911,o1a37,o1a6e,o1a87,o1ad4,o1aec,jo1ba5,o1d73
 o0621:  JMP j05e8
 ; push A, SP, B, D, H
-cSAVE_BDPSW: SHLD STACK_SCRATCH ;jo0330,o035a,joSWITCH_HANDLER,o060a,o1406
+cSAVE_BDPSW:
+              SHLD STACK_SCRATCH ;jo0330,o035a,joSWITCH_HANDLER,o060a,o1406
         XTHL
         PUSH B
         PUSH D
@@ -839,13 +859,16 @@ cSAVE_BDPSW: SHLD STACK_SCRATCH ;jo0330,o035a,joSWITCH_HANDLER,o060a,o1406
         PUSH H
         LHLD STACK_SCRATCH
         RET
+
 ; restore A, SP, B, D, H
-c0630:  POP H ;o0365,jo0382,jo061e,jo1419
+cRESTORE_BDPSW:
+              POP H ;o0365,jo0382,joEND_MAIN_LOOP,jo1419
         POP PSW
         POP D
         POP B
         XTHL
         RET
+
 c0636:  LXI H, #21f8 ;o0600
         DCR M
 o063a:  JNZ j0647
@@ -859,7 +882,7 @@ o064c:  JZ j067b
         LXI H, #23a0
         LXI D, #23c0
         MVI A, #40
-o0657:  CALL cCOPY_FROM_H_TO_D
+o0657:  CALL cCOPY_FROM_HL_TO_DE
         LDA $21c9
         CMA
         OUT #00
@@ -879,7 +902,7 @@ o0678:  JMP j06a4
 j067b:  LXI H, #2380 ;o064c
         LXI D, #23c0
         MVI A, #40
-o0683:  CALL cCOPY_FROM_H_TO_D
+o0683:  CALL cCOPY_FROM_HL_TO_DE
         LDA $21ce
         CMA
         OUT #00
@@ -903,7 +926,9 @@ o06a8:  JNZ jcCREDIT_HANDLER
         ORI #20
         STA GAME_STATE
         RET
-jcCREDIT_HANDLER: LXI H, GAME_STATE ;o0003,o06a8
+
+jcCREDIT_HANDLER:
+              LXI H, GAME_STATE ;o0003,o06a8
         MVI A, #05
 o06b9:  CALL cCHECK_ATH_BIT_OF_HL
         RZ
@@ -939,6 +964,7 @@ o06fd:  CALL cPLAY_SOUND
         MVI M, #64
 o0707:  CALL c1faa
         RET
+
         LXI H, #21c5
         MVI A, #03
 o0710:  CALL cCHECK_ATH_BIT_OF_HL
@@ -946,11 +972,11 @@ o0713:  JZ j0721
 o0716:  CALL cCLEAR_ATH_BIT_OF_HL
         MVI A, #09
         STA $21ab
-o071e:  JMP jo061e
+o071e:  JMP joEND_MAIN_LOOP
 j0721:  LDA $2194 ;o0713
         ANI #bb
         STA $2194
-o0729:  JMP jo061e
+o0729:  JMP joEND_MAIN_LOOP
         XRA D
         DCX B
         MVI B, #12
@@ -968,8 +994,8 @@ o0729:  JMP jo061e
         DAD D
         RST 2
         LDAX D
-        ADD H
-        DCR B
+        DB #84
+        DB #05
         MOV H,D
         LDAX D
         PUSH D
@@ -1060,17 +1086,17 @@ o07cb:  JMP jo0382
         OUT #07
         LDA $21ad
         ORA A
-o07e8:  JNZ jo061e
+o07e8:  JNZ joEND_MAIN_LOOP
         MVI A, #06
         STA $21ad
-o07f0:  JMP jo061e
+o07f0:  JMP joEND_MAIN_LOOP
         LXI H, #2190
         MVI A, #02
 o07f8:  CALL cCHECK_ATH_BIT_OF_HL
-o07fb:  JNZ jo061e
+o07fb:  JNZ joEND_MAIN_LOOP
         MVI A, #80
         STA $2193
-o0803:  JMP jo061e
+o0803:  JMP joEND_MAIN_LOOP
         INX B
         NOP
         LXI B, #0302
@@ -1130,11 +1156,11 @@ o0878:  JNZ j0891
         LXI H, #2190
         MVI A, #02
 o0880:  CALL cCHECK_ATH_BIT_OF_HL
-o0883:  JNZ jo061e
+o0883:  JNZ joEND_MAIN_LOOP
         MVI A, #04
         LXI H, #2194
 o088b:  CALL cCLEAR_ATH_BIT_OF_HL
-o088e:  JMP jo061e
+o088e:  JMP joEND_MAIN_LOOP
 j0891:  LDA $21c3 ;o0878
         ANI #2f
         STA $21c3
@@ -1142,7 +1168,7 @@ j0891:  LDA $21c3 ;o0878
         OUT #06
         MVI A, #06
         STA $21a8
-o08a1:  JMP jo061e
+o08a1:  JMP joEND_MAIN_LOOP
         LDA $2191
         ANI #01
 o08a9:  JZ j08bc
@@ -1157,7 +1183,7 @@ j08bc:  MVI A, #71 ;o08a9
         LDA $221f
         DCR A
         STA $221f
-o08c8:  JNZ jo061e
+o08c8:  JNZ joEND_MAIN_LOOP
         MVI A, #3c
         STA $221f
         LDA $2220
@@ -1165,7 +1191,7 @@ o08c8:  JNZ jo061e
         DAA
         STA $2220
         CPI #60
-o08da:  JNZ jo061e
+o08da:  JNZ joEND_MAIN_LOOP
         MVI A, #00
         STA $2220
         LDA $2221
@@ -1175,7 +1201,7 @@ o08da:  JNZ jo061e
         LDA $2222
         DCR A
         STA $2222
-o08f1:  JNZ jo061e
+o08f1:  JNZ joEND_MAIN_LOOP
 o08f4:  CALL c1faa
         MVI A, #64
         STA $224a
@@ -1183,7 +1209,7 @@ o08f4:  CALL c1faa
         STA $2222
         MVI A, #00
         STA $219f
-o0906:  JMP jo061e
+o0906:  JMP joEND_MAIN_LOOP
         LDA $21c3
         ORI #20
         STA $21c3
@@ -1205,11 +1231,11 @@ o0935:  JNZ j094e
         LXI H, #2190
         MVI A, #02
 o093d:  CALL cCHECK_ATH_BIT_OF_HL
-o0940:  JNZ jo061e
+o0940:  JNZ joEND_MAIN_LOOP
         LXI H, #2194
         MVI A, #05
 o0948:  CALL cCLEAR_ATH_BIT_OF_HL
-o094b:  JMP jo061e
+o094b:  JMP joEND_MAIN_LOOP
 j094e:  LDA $21c3 ;o0935
         ANI #1f
         STA $21c3
@@ -1217,7 +1243,7 @@ j094e:  LDA $21c3 ;o0935
         OUT #06
         MVI A, #06
         STA $21a9
-o095e:  JMP jo061e
+o095e:  JMP joEND_MAIN_LOOP
         MVI B, #24
         MVI C, #00
 o0965:  JMP j0999
@@ -1329,7 +1355,7 @@ o0a5b:  CALL cCLEAR_ATH_BIT_OF_HL
         STA $221a
         MVI A, #28
         STA $219c
-o0a6d:  JMP jo061e
+o0a6d:  JMP joEND_MAIN_LOOP
         LXI H, #1171
 o0a73:  CALL c0e5c
         LXI H, #1335
@@ -1342,7 +1368,7 @@ o0a83:  JZ j0a93
         STA $219c
         MVI A, #fa
         STA $2208
-o0a90:  JMP jo061e
+o0a90:  JMP joEND_MAIN_LOOP
 j0a93:  LDA $21c7 ;o0a4a,o0a58,o0a83
         CPI #00
 o0a98:  JZ j0aac
@@ -1351,14 +1377,14 @@ o0a98:  JZ j0aac
 o0aa1:  CALL cSET_ATH_BIT_OF_HL
         MVI A, #06
         STA $21a6
-o0aa9:  JMP jo061e
+o0aa9:  JMP joEND_MAIN_LOOP
 j0aac:  MVI A, #3c ;o0a98
         STA $21a5
         MVI A, #64
         STA $2208
         MVI A, #00
         STA $2207
-o0abb:  JMP jo061e
+o0abb:  JMP joEND_MAIN_LOOP
         SUB A
         STA $2208
         LDA $2207
@@ -1378,7 +1404,7 @@ o0adc:  CALL cPLAY_SOUND
         STA $21a5
         MVI A, #64
         STA $2208
-o0ae9:  JMP jo061e
+o0ae9:  JMP joEND_MAIN_LOOP
 j0aec:  LHLD $2209 ;o0acb
         LDA $220b
 o0af2:  CALL cSET_ATH_BIT_OF_HL
@@ -1424,7 +1450,7 @@ j0b44:  LXI H, #2191 ;o0b2c
         MVI A, #01
 o0b49:  CALL cCHECK_ATH_BIT_OF_HL
 o0b4c:  CNZ c0402
-o0b4f:  JMP jo061e
+o0b4f:  JMP joEND_MAIN_LOOP
 jo0b52: CALL c0b6f ;o09e4
 o0b55:  CALL cSET_ATH_BIT_OF_HL
         MVI A, #06
@@ -1456,6 +1482,7 @@ c0b6f:  MVI D, #00 ;o09cc,o0a00,jo0b52
         SHLD $2209
         MOV A,C
         RET
+
         MVI A, #00
         STA $21c2
         LDA $21c4
@@ -1466,13 +1493,13 @@ c0b6f:  MVI D, #00 ;o09cc,o0a00,jo0b52
         LXI H, #21c5
         MVI A, #01
 o0ba4:  CALL cCLEAR_ATH_BIT_OF_HL
-o0ba7:  JMP jo061e
+o0ba7:  JMP joEND_MAIN_LOOP
         MVI A, #00
         STA $2208
         LXI H, GAME_STATE
         MVI A, #03
 o0bb4:  CALL cCLEAR_ATH_BIT_OF_HL
-o0bb7:  JMP jo061e
+o0bb7:  JMP joEND_MAIN_LOOP
         INR H
         INX B
         DCX B
@@ -1511,7 +1538,7 @@ o0bf7:  JNZ j0ca6
         LXI H, #235b
         LXI D, #220d
         MVI A, #06
-o0c02:  CALL cCOPY_FROM_H_TO_D
+o0c02:  CALL cCOPY_FROM_HL_TO_DE
         MVI B, #38
 o0c07:  CALL co1d9c
 o0c0a:  JZ j0c12
@@ -1604,7 +1631,7 @@ o0cb6:  JM j0cc4
         LDA $2194
         ANI #fd
         STA $2194
-o0cc1:  JMP jo061e
+o0cc1:  JMP joEND_MAIN_LOOP
 j0cc4:  MVI A, #00 ;o0cb6
         STA $2197
         LDA $2194
@@ -1623,7 +1650,7 @@ o0ce8:  CALL c0292
         STA $21a7
         LXI H, #1332
 o0cf3:  CALL cPLAY_SOUND
-o0cf6:  JMP jo061e
+o0cf6:  JMP joEND_MAIN_LOOP
 j0cf9:  LXI H, #1165 ;o0ce2
 o0cfc:  CALL c0e5c
         LXI H, #235b
@@ -1640,7 +1667,7 @@ o0d18:  CALL c0e6f
         STA $21a7
         LXI H, #1335
 jo0d23: CALL cPLAY_SOUND ;o0d4a
-o0d26:  JMP jo061e
+o0d26:  JMP joEND_MAIN_LOOP
 j0d29:  LXI H, #21c5 ;o0cd9,o0d0f,o0d12
         MOV A,M
         ORI #02
@@ -1715,7 +1742,7 @@ o0dde:  CALL cPLAY_SOUND
 j0de1:  LDA $2191 ;o0da2,o0db9,o0dce
         ANI #df
         STA $2191
-o0de9:  JMP jo061e
+o0de9:  JMP joEND_MAIN_LOOP
 c0dec:  LXI D, SPREAD_1 ;o0e69,o0f73,o100b,o18b1
         ORA A
         PUSH PSW
@@ -1737,6 +1764,7 @@ o0dff:  JNZ j0e09
         INX D
         STAX D
         RET
+
 j0e09:  INX H ;o0dff
         INX D
 o0e0b:  JMP j0df1
@@ -1749,6 +1777,7 @@ j0e0e:  MOV A,M ;o0df3
         DAA
         STAX D
         RET
+
 c0e18:  MVI C, #00 ;o0ea8,o0fcb,o1004,o102a,o1132,o1dc1,o1de7,o1df7,o1e21,o1e31,o1e41,o1e8c,o1e9e,o1eb0,o1ec2,o1ed4,o1ee6,o1ef8,o1f0a,o1f1c,o1f2e
         ORA A
         LXI D, SPREAD_1
@@ -1790,19 +1819,21 @@ o0e51:  JZ j0e58
         RC
         ORA C
         RET
+
 j0e58:  POP PSW ;o0e51
         ANI #00
         RET
+
 c0e5c:  LXI D, SPREAD_1 ;o0a39,o0a73,o0cfc,o0dd8,o154f,o15ef,o18ed
         MVI A, #08
-o0e61:  CALL cCOPY_FROM_H_TO_D
+o0e61:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, #235b
         MVI A, #08
 o0e69:  CALL c0dec
         LXI H, SPREAD_1
 c0e6f:  LXI D, #235b ;o0d18,o18bc,o1af2
         MVI A, #08
-o0e74:  CALL cCOPY_FROM_H_TO_D
+o0e74:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, #235b
         LXI D, #23a0
         MVI A, #06
@@ -1813,15 +1844,16 @@ o0e7f:  CALL cWRITE_TO_RAM
         LXI H, #23a0
         LXI D, #2380
         MVI A, #06
-o0e90:  CALL cCOPY_FROM_H_TO_D
+o0e90:  CALL cCOPY_FROM_HL_TO_DE
         MVI B, #39
 o0e95:  CALL co1d76
         RET
+
 c0e99:  PUSH H ;o0cdf,o0d08,o18d0,o18f9
         LXI H, #235b
         LXI D, SPREAD_1
         MVI A, #08
-o0ea2:  CALL cCOPY_FROM_H_TO_D
+o0ea2:  CALL cCOPY_FROM_HL_TO_DE
         POP H
         MVI A, #08
 o0ea8:  CALL c0e18
@@ -1829,7 +1861,7 @@ o0ea8:  CALL c0e18
         LXI H, SPREAD_1
         LXI D, #235b
         MVI A, #08
-o0eb4:  CALL cCOPY_FROM_H_TO_D
+o0eb4:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, #235b
         LXI D, #2380
         MVI A, #06
@@ -1837,10 +1869,12 @@ o0ebf:  CALL cWRITE_TO_RAM
         LXI H, #2380
         LXI D, #23a0
         MVI A, #06
-o0eca:  CALL cCOPY_FROM_H_TO_D
+o0eca:  CALL cCOPY_FROM_HL_TO_DE
         POP PSW
         RET
-cCOPY_FROM_H_TO_D: ORA A ;o00c8,o00d3,o019d,o01b0,o0657,o0683,o0c02,o0e61,o0e74,o0e90,o0ea2,o0eb4,o0eca,o0f41,o0f7d,o0f91,o0fa2,o0fc3,o0fdb,o0ffc,o1015,o1022,o1039,o104f,o1062,o10cb,o10d6,o112a,o1637,o16ba,o16c5,o1865,o18a6,o1a84,o1b09,o1b14,o1bf6,o1c01,o1c2b,o1c89,o1ca6,o1f40,o1f4e,o1f5a,o1f6a,o1f8a,o1f9b,o1fa5,o1fb3,o1fbd,o1fc7,o1fd0,o1fe6
+
+cCOPY_FROM_HL_TO_DE:
+              ORA A ;o00c8,o00d3,o019d,o01b0,o0657,o0683,o0c02,o0e61,o0e74,o0e90,o0ea2,o0eb4,o0eca,o0f41,o0f7d,o0f91,o0fa2,o0fc3,o0fdb,o0ffc,o1015,o1022,o1039,o104f,o1062,o10cb,o10d6,o112a,o1637,o16ba,o16c5,o1865,o18a6,o1a84,o1b09,o1b14,o1bf6,o1c01,o1c2b,o1c89,o1ca6,o1f40,o1f4e,o1f5a,o1f6a,o1f8a,o1f9b,o1fa5,o1fb3,o1fbd,o1fc7,o1fd0,o1fe6
 j0ed0:  SBI #02 ;o0edc
 o0ed2:  JM j0ee0
         MOV B,A
@@ -1852,6 +1886,7 @@ o0ed2:  JM j0ee0
         ORA A
 o0edc:  JNZ j0ed0
         RET
+
 j0ee0:  MOV A,M ;o0ed2
         ANI #0f
         MOV B,A
@@ -1860,7 +1895,9 @@ j0ee0:  MOV A,M ;o0ed2
         ORA B
         STAX D
         RET
-cWRITE_TO_RAM: RRC ;o0e7f,o0ebf,o0f85,o0fe5,o0fee,o1044,o1c15
+
+cWRITE_TO_RAM:
+              RRC ;o0e7f,o0ebf,o0f85,o0fe5,o0fee,o1044,o1c15
         PUSH PSW
 o0eec:  JNC j0ef2
         INR A
@@ -1888,6 +1925,7 @@ j0f0b:  STAX D ;o0f06,o0f10,o0f35
         DCR C
 o0f10:  JP j0f0b
         RET
+
 j0f14:  LDAX D ;o0efb
         ANI #f0
         MOV B,A
@@ -1903,6 +1941,7 @@ j0f21:  STAX D ;o0f31
         MOV A,M
 o0f26:  JP j0eff
         RET
+
 j0f2a:  MOV A,C ;o0f00
         DCR A
 o0f2c:  JM j0f38
@@ -1913,9 +1952,10 @@ o0f35:  JMP j0f0b
 j0f38:  MVI A, #f0 ;o0f2c
         STAX D
         RET
+
 c0f3c:  LXI D, SPREAD_1 ;o0278,o0d02,o1722,o172d,o18f3
         MVI A, #08
-o0f41:  CALL cCOPY_FROM_H_TO_D
+o0f41:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, #237e
         MVI A, #04
 o0f49:  CALL cCHECK_ATH_BIT_OF_HL
@@ -1942,7 +1982,7 @@ o0f73:  CALL c0dec
         PUSH D
         LXI H, SPREAD_1
         MVI A, #08
-o0f7d:  CALL cCOPY_FROM_H_TO_D
+o0f7d:  CALL cCOPY_FROM_HL_TO_DE
         POP H
         POP D
         PUSH D
@@ -1954,14 +1994,14 @@ o0f85:  CALL cWRITE_TO_RAM
         DAD D
         XCHG
         MVI A, #06
-o0f91:  CALL cCOPY_FROM_H_TO_D
+o0f91:  CALL cCOPY_FROM_HL_TO_DE
         POP D
         LDA $21f6
         ANI #0f
 o0f9a:  JZ j0fa5
         LXI H, #1189
         MVI A, #06
-o0fa2:  CALL cCOPY_FROM_H_TO_D
+o0fa2:  CALL cCOPY_FROM_HL_TO_DE
 j0fa5:  LXI H, #237e ;o0f9a
         MVI A, #03
 o0faa:  CALL cCHECK_ATH_BIT_OF_HL
@@ -1976,7 +2016,7 @@ o0fad:  JNZ j1008
         LXI H, PL1_SCORE_1
         LXI D, SPREAD_1
         MVI A, #07
-o0fc3:  CALL cCOPY_FROM_H_TO_D
+o0fc3:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, PL2_SCORE_1
         MVI A, #07
 o0fcb:  CALL c0e18
@@ -1986,7 +2026,7 @@ o0fcf:  CC c0ff4
         LXI D, PL1_SCORE_hrm
         PUSH D
         MVI A, #06
-o0fdb:  CALL cCOPY_FROM_H_TO_D
+o0fdb:  CALL cCOPY_FROM_HL_TO_DE
         POP H
         PUSH H
         LXI D, SPREAD_4
@@ -2000,11 +2040,12 @@ o0ff1:  JMP j1052
 c0ff4:  LXI H, PL2_SCORE_1 ;o0fcf
         LXI D, SPREAD_1
         MVI A, #07
-o0ffc:  CALL cCOPY_FROM_H_TO_D
+o0ffc:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, PL1_SCORE_1
         MVI A, #07
 o1004:  CALL c0e18
         RET
+
 j1008:  POP H ;o0fad
         MVI A, #08
 o100b:  CALL c0dec
@@ -2012,13 +2053,13 @@ o100b:  CALL c0dec
         POP D
         PUSH D
         MVI A, #07
-o1015:  CALL cCOPY_FROM_H_TO_D
+o1015:  CALL cCOPY_FROM_HL_TO_DE
         POP H
         POP D
         LXI H, PL13_SCORE_1
         LXI D, SPREAD_1
         MVI A, #07
-o1022:  CALL cCOPY_FROM_H_TO_D
+o1022:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, PL24_SCORE_1
         MVI A, #07
 o102a:  CALL c0e18
@@ -2027,7 +2068,7 @@ o102e:  JC j1122
 j1031:  LXI H, SPREAD_1 ;o1135
         LXI D, PL1_SCORE_hrm
         MVI A, #06
-o1039:  CALL cCOPY_FROM_H_TO_D
+o1039:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, PL1_SCORE_hrm
         LXI D, SPREAD_4
         MVI A, #06
@@ -2035,14 +2076,14 @@ o1044:  CALL cWRITE_TO_RAM
         LXI H, SPREAD_4
         LXI D, SPREAD_3
         MVI A, #06
-o104f:  CALL cCOPY_FROM_H_TO_D
+o104f:  CALL cCOPY_FROM_HL_TO_DE
 j1052:  LDA $21f6 ;o0ff1
         ANI #0f
 o1057:  JZ j1065
         LXI H, #1189
         LXI D, SPREAD_4
         MVI A, #06
-o1062:  CALL cCOPY_FROM_H_TO_D
+o1062:  CALL cCOPY_FROM_HL_TO_DE
 j1065:  POP PSW ;o1057
 o1066:  JZ j10b5
 o1069:  JC j10a1
@@ -2051,6 +2092,7 @@ o1069:  JC j10a1
 o1071:  CALL cCHECK_ATH_BIT_OF_HL
 o1074:  JZ jo1078
         RET
+
 jo1078: CALL cSET_ATH_BIT_OF_HL ;o1074
         MVI A, #05
 jo107d: CALL cCLEAR_ATH_BIT_OF_HL ;o10b2
@@ -2076,6 +2118,7 @@ j10a1:  LXI H, #236a ;o1069
 o10a6:  CALL cCHECK_ATH_BIT_OF_HL
 o10a9:  JZ jo10ad
         RET
+
 jo10ad: CALL cSET_ATH_BIT_OF_HL ;o10a9
         MVI A, #04
 o10b2:  JMP jo107d
@@ -2088,11 +2131,11 @@ o10bf:  CALL cCLEAR_ATH_BIT_OF_HL
         LXI H, #1185
         LXI D, SPREAD_4
         MVI A, #06
-o10cb:  CALL cCOPY_FROM_H_TO_D
+o10cb:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, #1185
         LXI D, SPREAD_3
         MVI A, #06
-o10d6:  CALL cCOPY_FROM_H_TO_D
+o10d6:  CALL cCOPY_FROM_HL_TO_DE
         POP H
 o10da:  JMP j1138
 j10dd:  LXI H, PL1_AND_3 ;o0f4c
@@ -2131,7 +2174,7 @@ o111f:  JMP j0f71
 j1122:  LXI H, PL24_SCORE_1 ;o102e
         LXI D, SPREAD_1
         MVI A, #07
-o112a:  CALL cCOPY_FROM_H_TO_D
+o112a:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, PL13_SCORE_1
         MVI A, #07
 o1132:  CALL c0e18
@@ -2145,6 +2188,7 @@ j1138:  MOV A,M ;o109e,o10da
         STA $238c
         STA $23ac
         RET
+
         DB #00
         DB #00
         DB #00
@@ -2267,6 +2311,7 @@ j11ef:  LDAX D ;o11b3,o11e3
         MVI A, #05
 o11f8:  CALL cSET_ATH_BIT_OF_HL
         RET
+
         DCR C
         LDAX B
         MVI C, #0a
@@ -2285,7 +2330,7 @@ o1213:  CALL cSET_ATH_BIT_OF_HL
         OUT #09
         MVI A, #02
         STA $2198
-o121f:  JMP jo061e
+o121f:  JMP joEND_MAIN_LOOP
 jo1222: CALL cCLEAR_ATH_BIT_OF_HL ;o120e
         MVI A, #06
 o1227:  CALL cCHECK_ATH_BIT_OF_HL
@@ -2298,7 +2343,7 @@ o122a:  JNZ jo1255
         CPI #ff
 o1238:  JZ j1241
 o123b:  CALL c118d
-o123e:  JMP jo061e
+o123e:  JMP joEND_MAIN_LOOP
 j1241:  LDA $21b3 ;o1238
         CPI #00
 o1246:  JNZ jo1258
@@ -2306,12 +2351,13 @@ o1246:  JNZ jo1258
         OUT #09
         MVI A, #0c
         STA $2198
-o1252:  JMP jo061e
+o1252:  JMP joEND_MAIN_LOOP
 jo1255: CALL cCLEAR_ATH_BIT_OF_HL ;o122a
 jo1258: CALL c128c ;o1246
 o125b:  CALL c118d
-o125e:  JMP jo061e
-cPLAY_SOUND: XCHG ;o0546,o0563,o059c,o06fd,o07bc,o0855,o0927,o0a1a,o0a3f,o0a79,o0adc,o0b69,o0c39,o0cf3,jo0d23,o0dcb,o0dde,o1085,o14bd,o14ef,o1585,o15a6,o15d0,o15f5,o1786,o1859,o18c7,o18e4,o1a27,o1ae4,o1b72,o1f70
+o125e:  JMP joEND_MAIN_LOOP
+cPLAY_SOUND:
+              XCHG ;o0546,o0563,o059c,o06fd,o07bc,o0855,o0927,o0a1a,o0a3f,o0a79,o0adc,o0b69,o0c39,o0cf3,jo0d23,o0dcb,o0dde,o1085,o14bd,o14ef,o1585,o15a6,o15d0,o15f5,o1786,o1859,o18c7,o18e4,o1a27,o1ae4,o1b72,o1f70
         LHLD $21be
         LXI B, #21be
         MOV A,C
@@ -2332,6 +2378,7 @@ o1283:  CALL cSET_ATH_BIT_OF_HL
         MVI A, #01
         STA $2198
         RET
+
 c128c:  LHLD $21c0 ;jo1258
         LXI B, #21be
         MOV A,C
@@ -2350,6 +2397,7 @@ j129a:  MOV E,M ;o1294
         STA $21b3
         POP H
         RET
+
         RST 7
         DB #ca,#08,#ff
         XRA D
@@ -2563,6 +2611,7 @@ o13aa:  JNZ j138d
 o13b5:  CALL c0303
         SHLD $2224
         RET
+
         LXI H, #2191
         MVI A, #06
 o13c1:  CALL cSET_ATH_BIT_OF_HL
@@ -2609,7 +2658,7 @@ o1406:  CALL cSAVE_BDPSW
         MOV H,M
         MOV L,A
         PCHL
-jo1419: CALL c0630 ;o0996,o09ab,o09b8,o09d7,o0a27,o0b60,o0b6c,o0cab,o0d5a,o0d7e,o0d9a,o14a1,o14ab,o14c5,o14d2,o153e,o1549,o15a9,o15c1,o15d3,o15de,o15e6,o15f8,o1810,o1820,o1828,o1886,o18ca
+jo1419: CALL cRESTORE_BDPSW ;o0996,o09ab,o09b8,o09d7,o0a27,o0b60,o0b6c,o0cab,o0d5a,o0d7e,o0d9a,o14a1,o14ab,o14c5,o14d2,o153e,o1549,o15a9,o15c1,o15d3,o15de,o15e6,o15f8,o1810,o1820,o1828,o1886,o18ca
 jo141c: JMP j13cf ;o13ff
         SUI #15
         DAD D
@@ -2734,7 +2783,7 @@ o14e9:  CALL co1d76
 o14ef:  CALL cPLAY_SOUND
         MVI A, #0a
         STA $21a4
-o14f7:  JMP jo061e
+o14f7:  JMP joEND_MAIN_LOOP
 j14fa:  MVI A, #00 ;o14de
         STA $220c
         MVI B, #11
@@ -2754,7 +2803,7 @@ j1522:  MVI A, #ff ;o150c,o1514,o151f
         STA $21c6
         SUB A
         STA $2205
-o152b:  JMP jo061e
+o152b:  JMP joEND_MAIN_LOOP
         STAX B
         LHLD $1a10
         LXI B, #2119
@@ -2858,7 +2907,7 @@ o162c:  JZ j16ed
         LXI H, #23a3
         LXI D, #2320
         MVI A, #2e
-o1637:  CALL cCOPY_FROM_H_TO_D
+o1637:  CALL cCOPY_FROM_HL_TO_DE
 o163a:  CALL c17a8
         LXI H, GAME_STATE
         MVI A, #04
@@ -2907,15 +2956,16 @@ o16a7:  CALL cCLEAR_ATH_BIT_OF_HL
         LXI H, #21d3
         LXI D, #21c6
         MVI A, #10
-o16ba:  CALL cCOPY_FROM_H_TO_D
+o16ba:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, #21c9
         LXI D, #21ce
         MVI A, #0a
-o16c5:  CALL cCOPY_FROM_H_TO_D
+o16c5:  CALL cCOPY_FROM_HL_TO_DE
         LDA $2190
         ANI #e7
         STA $2190
-jDECREASE_CREDIT: LDA CREDITS_1 ;o1735,o174b,o176d,o1780
+jDECREASE_CREDIT:
+              LDA CREDITS_1 ;o1735,o174b,o176d,o1780
         ADI #99
         DAA
         STA CREDITS_1
@@ -3000,12 +3050,13 @@ o1798:  JNZ j1793
         DCR B
 o179c:  JNZ jc178e
         RET
-        RST 7
-        RAR
-        LXI B, #3904
-        DCX H
-        STC
-        STC
+
+        DB #ff
+        DB #1f
+        DB #01,#04,#39
+        DB #2b
+        DB #37
+        DB #37
 c17a8:  LXI H, #235b ;jo0168,o163a
         MVI A, #00
         MVI D, #1f
@@ -3037,6 +3088,7 @@ o17cf:  JNZ j17cc
         SHLD $239c
         SHLD $23bc
         RET
+
 c17ea:  LDA $237e ;o1880,o18fc
         ANI #02
         MVI A, #20
@@ -3052,6 +3104,7 @@ o17f7:  CALL cCHECK_ATH_BIT_OF_HL
         RZ
         MVI A, #80
         RET
+
         LXI H, GAME_STATE
         MVI A, #04
 o180d:  CALL cCHECK_ATH_BIT_OF_HL
@@ -3088,7 +3141,7 @@ o185c:  CALL c1ba8
         XCHG
         LXI H, #21c6
         MVI A, #10
-o1865:  CALL cCOPY_FROM_H_TO_D
+o1865:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, #2190
         MVI A, #00
 o186d:  CALL cCHECK_ATH_BIT_OF_HL
@@ -3117,7 +3170,7 @@ j1889:  LHLD $235c ;o1878
         LXI H, SPREAD_1
         LXI D, #220d
         MVI A, #06
-o18a6:  CALL cCOPY_FROM_H_TO_D
+o18a6:  CALL cCOPY_FROM_HL_TO_DE
         MVI A, #04
 j18ab:  PUSH PSW ;o18b6
         LXI H, #220d
@@ -3142,7 +3195,7 @@ o18d9:  CALL c0292
         STA $21ae
         LXI H, #1332
 o18e4:  CALL cPLAY_SOUND
-o18e7:  JMP jo061e
+o18e7:  JMP joEND_MAIN_LOOP
 j18ea:  LXI H, #1165 ;o18d3
 o18ed:  CALL c0e5c
         LXI H, #235b
@@ -3157,7 +3210,7 @@ o18fc:  CALL c17ea
 o1909:  JZ j1914
         MVI A, #02
         STA $21a0
-o1911:  JMP jo061e
+o1911:  JMP joEND_MAIN_LOOP
 j1914:  MVI A, #01 ;o1909
         STA $2212
         MVI A, #32
@@ -3284,7 +3337,7 @@ j1a2a:  MVI A, #00 ;o1a21
         STA BALL_IN_PLAY_2
         MVI A, #fa
         STA $219e
-o1a37:  JMP jo061e
+o1a37:  JMP joEND_MAIN_LOOP
 c1a3a:  LXI H, #1a56 ;o1930,o19a6
         LDA $2245
         ADD A
@@ -3303,24 +3356,25 @@ c1a3a:  LXI H, #1a56 ;o1930,o19a6
         XCHG
         LXI D, #0020
         RET
-        ADC H
-        INX H
-        ADC E
-        INX H
-        ADC E
-        INX H
-        ADC D
-        INX H
-        RRC
-        RP
-        RRC
-        RP
+
+        DB #8c
+        DB #23
+        DB #8b
+        DB #23
+        DB #8b
+        DB #23
+        DB #8a
+        DB #23
+        DB #0f
+        DB #f0
+        DB #0f
+        DB #f0
         LXI H, #2217
         DCR M
 o1a66:  JZ jo1a71
         MVI A, #72
         STA $21a3
-o1a6e:  JMP jo061e
+o1a6e:  JMP joEND_MAIN_LOOP
 jo1a71: CALL c06d3 ;o1a66
         LDA $2247
         ANI #f7
@@ -3328,8 +3382,8 @@ jo1a71: CALL c06d3 ;o1a66
         MVI A, #07
         LXI H, #23b3
         LXI D, HIGH_SCORE_NOW
-o1a84:  CALL cCOPY_FROM_H_TO_D
-o1a87:  JMP jo061e
+o1a84:  CALL cCOPY_FROM_HL_TO_DE
+o1a87:  JMP joEND_MAIN_LOOP
 j1a8a:  STA BALL_IN_PLAY_hrm ;o1944,o196d,o19c9
         STA BALL_IN_PLAY_1
         STA BALL_IN_PLAY_2
@@ -3359,7 +3413,7 @@ o1ac4:  CALL co1d81
 o1acc:  CALL cCLEAR_ATH_BIT_OF_HL
         MVI A, #02
         STA $21a1
-o1ad4:  JMP jo061e
+o1ad4:  JMP joEND_MAIN_LOOP
         LDA $2212
         DCR A
         STA $2212
@@ -3368,7 +3422,7 @@ o1ade:  JZ j1aef
 o1ae4:  CALL cPLAY_SOUND
         MVI A, #a0
         STA $21a1
-o1aec:  JMP jo061e
+o1aec:  JMP joEND_MAIN_LOOP
 j1aef:  LXI H, #1149 ;o1ade
 o1af2:  CALL c0e6f
         LDA $21c9
@@ -3378,11 +3432,11 @@ o1af2:  CALL c0e6f
 o1b01:  CALL c1ba8
         LXI D, #21c6
         MVI A, #10
-o1b09:  CALL cCOPY_FROM_H_TO_D
+o1b09:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, #21c9
         LXI D, #21ce
         MVI A, #0a
-o1b14:  CALL cCOPY_FROM_H_TO_D
+o1b14:  CALL cCOPY_FROM_HL_TO_DE
         MVI B, #2b
 o1b19:  CALL co1d76
         MVI B, #2c
@@ -3442,7 +3496,7 @@ o1b97:  JP jo1ba5
 o1b9c:  CALL co1d9c
 o1b9f:  JNZ jo1ba5
 o1ba2:  CALL co1d76
-jo1ba5: JMP jo061e ;o1b7e,o1b81,o1b97,o1b9f
+jo1ba5: JMP joEND_MAIN_LOOP ;o1b7e,o1b81,o1b97,o1b9f
 c1ba8:  LDA $237e ;o185c,o1b01
         ANI #f0
         LXI H, #21eb
@@ -3479,11 +3533,11 @@ o1be4:  JZ j1c04
         LXI H, #224b
         LXI D, #2380
         MVI A, #34
-o1bf6:  CALL cCOPY_FROM_H_TO_D
+o1bf6:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, #226b
         LXI D, #23a0
         MVI A, #34
-o1c01:  CALL cCOPY_FROM_H_TO_D
+o1c01:  CALL cCOPY_FROM_HL_TO_DE
 j1c04:  LDA $2215 ;o1be4
         ANI #20
 o1c09:  JNZ j1cc3
@@ -3499,7 +3553,7 @@ o1c20:  JNZ j1c26
         LXI H, #23b3
 j1c26:  LXI D, HIGH_SCORE_NOW ;o1c20
         MVI A, #07
-o1c2b:  CALL cCOPY_FROM_H_TO_D
+o1c2b:  CALL cCOPY_FROM_HL_TO_DE
         LDA GAME_STATE
         ANI #40
 o1c33:  JZ j1c4e
@@ -3536,7 +3590,7 @@ o1c7e:  CALL cSET_ATH_BIT_OF_HL
         LXI H, #2380
         LXI D, #224b
         MVI A, #80
-o1c89:  CALL cCOPY_FROM_H_TO_D
+o1c89:  CALL cCOPY_FROM_HL_TO_DE
         MVI A, #ff
         LXI H, PL3_SCORE_DISPLAY_2
         MVI B, #17
@@ -3549,7 +3603,7 @@ o1c96:  JNZ j1c93
         LXI H, #2320
         LXI D, #23a3
         MVI A, #2e
-o1ca6:  CALL cCOPY_FROM_H_TO_D
+o1ca6:  CALL cCOPY_FROM_HL_TO_DE
         LDA $2261
         ORI #0f
         STA $2396
@@ -3630,12 +3684,13 @@ o1d6b:  CALL cCLEAR_ATH_BIT_OF_HL
         DI
         DB #cd,#7d,#13
         EI
-o1d73:  JMP jo061e
+o1d73:  JMP joEND_MAIN_LOOP
 co1d76: CALL c1da3 ;o0ad6,o0b23,o0b3b,o0b63,o0e95,o14e9,o1511,o151c,o1b19,o1b1e,o1b23,o1b28,o1b2d,o1ba2
 o1d79:  CALL cSET_ATH_BIT_OF_HL
         DAD D
 o1d7d:  CALL cSET_ATH_BIT_OF_HL
         RET
+
 co1d81: CALL c1da3 ;o050c,o06e9,jo09da,o0b41,o0c2e,o0c33,o0d37,o0dbc,o14b1,jo1517,o159b,o1ac4,o1b32,o1b37,o1b3c,o1b41,o1b64
 o1d84:  CALL cCLEAR_ATH_BIT_OF_HL
         DAD D
@@ -3644,14 +3699,17 @@ o1d88:  CALL cCHECK_ATH_BIT_OF_HL
 o1d8c:  CALL cCLEAR_ATH_BIT_OF_HL
         POP PSW
         RET
+
 co1d91: CALL c1da3 ;jo0a14,o15a0
 o1d94:  CALL cSET_ATH_BIT_OF_HL
         DAD D
 o1d98:  CALL cCLEAR_ATH_BIT_OF_HL
         RET
+
 co1d9c: CALL c1da3 ;o0a03,o0b1b,o0b5d,o0be1,o0c07,o0c14,o0c26,o0db6,o1501,o1509,o1595,o1875,o1b9c
 o1d9f:  CALL cCHECK_ATH_BIT_OF_HL
         RET
+
 c1da3:  LXI H, #21c9 ;co1d76,co1d81,co1d91,co1d9c
         MVI D, #00
         MOV A,B
@@ -3665,6 +3723,7 @@ c1da3:  LXI H, #21c9 ;co1d76,co1d81,co1d91,co1d9c
         ANI #07
         LXI D, #0005
         RET
+
 c1db7:  LXI H, PL1_SCORE_1 ;o19d4
 o1dba:  CALL c1fd4
         LXI H, PL2_SCORE_1
@@ -3747,6 +3806,7 @@ c1e6a:  LHLD $223f ;o1e05,o1e10,o1e5a
         LHLD $223d
         SHLD $223f
         RET
+
 j1e77:  PUSH H ;o1e45
         LHLD $2241
         SHLD $2243
@@ -3784,6 +3844,7 @@ o1ec2:  CALL c0e18
         POP H
 o1ec6:  CC c1fa0
         RET
+
         LXI H, #2231
 o1ecd:  CALL c1fd4
         LHLD $223f
@@ -3808,6 +3869,7 @@ o1ef8:  CALL c0e18
         POP H
 o1efc:  CC c1fa0
         RET
+
         LXI H, #2235
 o1f03:  CALL c1fd4
         LHLD $2241
@@ -3824,6 +3886,7 @@ o1f1c:  CALL c0e18
         POP H
 o1f20:  CC c1fa0
         RET
+
         LXI H, #2239
 o1f27:  CALL c1fd4
         LHLD $2243
@@ -3832,12 +3895,13 @@ o1f2e:  CALL c0e18
         POP H
 o1f32:  CC c1fa0
         RET
+
 c1f36:  PUSH PSW ;o1f61,o1f81,o1f92
         LXI H, #2235
         PUSH H
         LXI D, #2239
         MVI A, #07
-o1f40:  CALL cCOPY_FROM_H_TO_D
+o1f40:  CALL cCOPY_FROM_HL_TO_DE
         POP D
         POP PSW
         DCR A
@@ -3846,22 +3910,23 @@ o1f40:  CALL cCOPY_FROM_H_TO_D
         LXI H, #2231
         PUSH H
         MVI A, #07
-o1f4e:  CALL cCOPY_FROM_H_TO_D
+o1f4e:  CALL cCOPY_FROM_HL_TO_DE
         POP D
         POP PSW
         DCR A
         RZ
         LXI H, HIGH_SCORE_START
         MVI A, #07
-o1f5a:  CALL cCOPY_FROM_H_TO_D
+o1f5a:  CALL cCOPY_FROM_HL_TO_DE
         RET
+
 c1f5e:  PUSH H ;o1e90
         MVI A, #03
 o1f61:  CALL c1f36
         POP H
         LXI D, HIGH_SCORE_START
         MVI A, #07
-o1f6a:  CALL cCOPY_FROM_H_TO_D
+o1f6a:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, #1351
 o1f70:  CALL cPLAY_SOUND
         LDA $2247
@@ -3870,49 +3935,54 @@ o1f70:  CALL cPLAY_SOUND
         ORA A
         CMC
         RET
+
 c1f7e:  PUSH H ;o1ea2,o1ed8
         MVI A, #02
 o1f81:  CALL c1f36
         POP H
         LXI D, #2231
         MVI A, #07
-o1f8a:  CALL cCOPY_FROM_H_TO_D
+o1f8a:  CALL cCOPY_FROM_HL_TO_DE
         CMC
         RET
+
 c1f8f:  PUSH H ;o1eb4,o1eea,o1f0e
         MVI A, #01
 o1f92:  CALL c1f36
         POP H
         LXI D, #2235
         MVI A, #07
-o1f9b:  CALL cCOPY_FROM_H_TO_D
+o1f9b:  CALL cCOPY_FROM_HL_TO_DE
         CMC
         RET
+
 c1fa0:  LXI D, #2239 ;o1ec6,o1efc,o1f20,o1f32
         MVI A, #07
-o1fa5:  CALL cCOPY_FROM_H_TO_D
+o1fa5:  CALL cCOPY_FROM_HL_TO_DE
         CMC
         RET
+
 c1faa:  LXI H, #2231 ;o0707,o08f4
         PUSH H
         LXI D, HIGH_SCORE_START
         MVI A, #07
-o1fb3:  CALL cCOPY_FROM_H_TO_D
+o1fb3:  CALL cCOPY_FROM_HL_TO_DE
         POP D
         LXI H, #2235
         PUSH H
         MVI A, #07
-o1fbd:  CALL cCOPY_FROM_H_TO_D
+o1fbd:  CALL cCOPY_FROM_HL_TO_DE
         POP D
         LXI H, #2239
         PUSH H
         MVI A, #07
-o1fc7:  CALL cCOPY_FROM_H_TO_D
+o1fc7:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, #1181
         POP D
         MVI A, #07
-o1fd0:  CALL cCOPY_FROM_H_TO_D
+o1fd0:  CALL cCOPY_FROM_HL_TO_DE
         RET
+
 c1fd4:  LXI D, SPREAD_1 ;o1dba,o1de0,o1df2,o1e1a,o1e2c,o1e3c,o1e85,o1e97,o1ea9,o1ebb,o1ecd,o1edf,o1ef1,o1f03,o1f15,o1f27
         MVI A, #00
         MVI B, #04
@@ -3922,9 +3992,10 @@ j1fdb:  STAX D ;o1fde
 o1fde:  JNZ j1fdb
         LXI D, SPREAD_1
         MVI A, #07
-o1fe6:  CALL cCOPY_FROM_H_TO_D
+o1fe6:  CALL cCOPY_FROM_HL_TO_DE
         MVI A, #07
         RET
+
         NOP
         NOP
         NOP
