@@ -15,6 +15,12 @@ addresses:
    # ??PL24_SCORE_2 : $2373
 
    SPREAD_1 : $21f3
+   # set to ff when outlane triggered
+   STATE_OUTLANE_1 : $2193
+
+   # gets OR'd by $30 when outlane triggered 
+   STATE_OUTLANE_1 : $2194 
+
    SPREAD_2 : $2377
    SPREAD_3 : $23b7
    SPREAD_4 : $2397
@@ -52,11 +58,17 @@ addresses:
    BALLS_PER_GAME : $2213
    DIP_SWITCHES: $2216
    HARD_RESET : $005D
-   GAME_STATE_ROLLOVFER : $2192 # bit 7 must be set for rollovers
-   GAME_STATE : $2192 # F0 = game over, B0 = game on, D0 bootup
+
+   #  bit 2 - has outlane triggered?
+   GAME_STATE : $2190
+
+   # F0 = game over, B0 = game on, D0 bootup.  
+   # bit 7 must be set for rollovers
+   GAME_STATE2 : $2192 
    STACK_SCRATCH : $2195
 
 labels:
+   ADD_BONUS_HL : $0292
    2_LSHIFT_A : $03f9
    COPY_FROM_HL_TO_DE : $0ecf # A is # bytes, D is dest, H is souce
    PLAY_SOUND : $1261
@@ -70,13 +82,23 @@ labels:
    CLEAR_ATH_BIT_OF_HL: $03e1
    SET_ATH_BIT_OF_HL: $03d6
    WRITE_TO_RAM : $0eea
+   TILT_HANDLER : $047b
+   TILT_HELPER : $044f
+   TILT2 : $0543
 
 not_code:
    COIN : [$03ca , $03cb] 
-   COIN : [$1149 , $118c] 
+   PRE_TILT_HRM : [$440, $044e]
+   SCORES1: [$1149 , $1164] 
+   OUTLANE_SCORE : [$1165, $1166]
+   SCORES2: [$1167 , $118c] 
    HRM  : [$1a56,  $1a61]
    HRM2  : [$17a0, $17a7]
    TILT  : [$0742, $0743]
+   TILT_HANDLER_PTR1 : [$03cc, $03cd]
+   TILT_HANDLER_PTR2 : [$03d4, $03d5]
+   OUTANE_HANDLER_PTR : [$145b, $145c]
+   INLANE_HANDLER_PTR : [$145d, $145e]
 
 inPorts:
    MYSTERY_PORT_1 : $01
@@ -97,13 +119,15 @@ notes:
   $01EA  : "read in the dimes place"
   $0382 : "vector to 0630 stack restore"
   $0440 : "unreachable or data or computed call?"
-  $0584 : "tilt handler"
+  $0584 : "tilt handler 2"
   $05d9 : "when no switches activated?"
   $0624 : "push A, SP, B, D, H"
   $0630 : "restore A, SP, B, D, H"
   $06a4 : "check credit button"
   $1181 : "default high score"
   $1536 : "10,000 / EB lane"
+  $15ac : "outlane handler"
+  $15b9 : "don't let outlane scrore > 1x"
   $15d6 : "inlane routine"
   $1609 : "check if credits"
   $1c39 : "seems pointless"
