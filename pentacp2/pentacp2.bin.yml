@@ -115,8 +115,9 @@ inPorts:
 
 notes:
   $005D : "hard reset routine"
-  $01D6  : "read in the ones place"
-  $01EA  : "read in the dimes place"
+  $01D6 : "read in the ones place"
+  $020e : "load dip switches, set # balls per game"
+  $01EA : "read in the dimes place"
   $0382 : "vector to 0630 stack restore"
   $0440 : "unreachable or data or computed call?"
   $0584 : "tilt handler 2"

@@ -9,6 +9,7 @@ PL13_SCORE_1 EQU 0x2367
 PL13_SCORE_2 EQU 0x236f
 PL24_SCORE_1 EQU 0x2373
 SPREAD_1 EQU 0x21f3
+STATE_OUTLANE_1 EQU 0x2194
 SPREAD_2 EQU 0x2377
 SPREAD_3 EQU 0x23b7
 SPREAD_4 EQU 0x2397
@@ -41,8 +42,8 @@ BALL_IN_PLAY_3 EQU 0x23db
 BALLS_PER_GAME EQU 0x2213
 DIP_SWITCHES EQU 0x2216
 HARD_RESET EQU 0x5d
-GAME_STATE_ROLLOVFER EQU 0x2192
-GAME_STATE EQU 0x2192
+GAME_STATE EQU 0x2190
+GAME_STATE2 EQU 0x2192
 STACK_SCRATCH EQU 0x2195
 
 ; INPUT PORTS
@@ -115,7 +116,7 @@ j0060:  SUB A ;o0066
         MVI A, #24
         CMP H
 o0066:  JNZ j0060
-j0069:  LXI SP, #2190 ;o0024,o005a
+j0069:  LXI SP, GAME_STATE ;o0024,o005a
         MVI A, #07
 j006e:  OUT #0e ;o0073
         OUT #0d
@@ -137,7 +138,7 @@ o007f:  JNZ j007b
         MVI A, #ff
         STA $2193
         MVI A, #fc
-        STA $2194
+        STA STATE_OUTLANE_1
         LXI H, #21fb
         SHLD $21f9
         LXI H, #21b4
@@ -145,9 +146,9 @@ o007f:  JNZ j007b
         SHLD $21c0
         MVI A, #0f
         STA $21f8
-        LDA $2190
+        LDA GAME_STATE
         ORI #05
-        STA $2190
+        STA GAME_STATE
         MVI A, #0c
         SIM
         IN PRICE_89_CAB
@@ -209,13 +210,13 @@ o0132:  JNZ j012d
         OUT #07
         OUT #08
         DI
-        DB #cd,#7d,#13
+        CALL $137d
 j0143:  IN PRICE_89_CAB ;o00f8,o0300
         ANI #20
 o0147:  JNZ jo0168
-        LDA GAME_STATE
+        LDA GAME_STATE2
         ANI #df
-        STA GAME_STATE
+        STA GAME_STATE2
         IN PRICE_TENS_07_PORT
         CPI #fe
 o0156:  JNZ j01bf
@@ -227,7 +228,7 @@ o0162:  JZ j02c8
 o0165:  JMP j01bf
 jo0168: CALL c17a8 ;o0147,o02c5
         MVI A, #d0
-        STA GAME_STATE
+        STA GAME_STATE2
         MVI A, #00
         STA $237e
         STA $239e
@@ -261,12 +262,12 @@ j01b9:  MOV M,A ;o01bc
 o01bc:  JNZ j01b9
 j01bf:  DI ;o0156,o0165,o02a4
         MVI A, #30
-        STA $2194
-        LDA GAME_STATE
+        STA STATE_OUTLANE_1
+        LDA GAME_STATE2
         ANI #80
 o01ca:  JNZ j01d2
         MVI A, #00
-        STA GAME_STATE
+        STA GAME_STATE2
 j01d2:  IN PRICE_CENTS_07_PORT ;o01ca,o1c45,o1c4b,o1c54,o1c70
         CMA
         MOV L,A
@@ -306,6 +307,7 @@ j01fc:  MOV A,C ;o01f5
         STA PRICE_2
         STA PRICE_3
         EI
+; load dip switches, set # balls per game
         IN DIP_SWITCH_PORT
         LXI H, DIP_SWITCHES
         MOV M,A
@@ -366,7 +368,7 @@ j0270:  DCX H ;o0264
         MOV H,A
 o0278:  CALL c0f3c
 j027b:  EI ;o025c,o026d
-        LXI H, GAME_STATE
+        LXI H, GAME_STATE2
         MVI A, #07
 o0281:  CALL cCHECK_ATH_BIT_OF_HL
 o0284:  JNZ j1bb9
@@ -374,7 +376,8 @@ o0284:  JNZ j1bb9
         ANI #bf
         STA $23b6
 o028f:  JMP j022c
-c0292:  XCHG ;o07c8,o0ce8,o0dc5,o0dd4,o14b7,o15ca,o18d9
+cADD_BONUS_HL:
+              XCHG ;o07c8,o0ce8,o0dc5,o0dd4,o14b7,o15ca,o18d9
         LHLD $21f9
         MOV M,E
         INX H
@@ -392,7 +395,7 @@ o02a4:  JNZ j01bf
         STA $2191
         DI
         MVI A, #30
-        STA $2194
+        STA STATE_OUTLANE_1
         MVI A, #7d
         STA $219f
         MVI A, #3c
@@ -465,9 +468,9 @@ o032a:  JNZ j0325
 
         DCR L
 jo0330: CALL cSAVE_BDPSW ;o002c
-        LDA $2190
+        LDA GAME_STATE
         ORI #80
-        STA $2190
+        STA GAME_STATE
         IN MYSTERY_PORT_1
         LXI D, #0000
 j0340:  ORA A ;o0349
@@ -498,7 +501,7 @@ o0368:  CALL cSET_ATH_BIT_OF_HL
         MOV H,M
         MOV L,A
         PCHL
-j0376:  LXI H, #2194 ;o0606,o13e7,o178b
+j0376:  LXI H, STATE_OUTLANE_1 ;o0606,o13e7,o178b
 o0379:  JMP jo037f
         LXI H, #2193
 jo037f: CALL cCLEAR_ATH_BIT_OF_HL ;o0379
@@ -520,7 +523,7 @@ j039a:  MOV A,E ;o0393
         CMA
         OUT #0d
         CMA
-        LXI H, #2194
+        LXI H, STATE_OUTLANE_1
 o03a2:  CALL cCHECK_ATH_BIT_OF_HL
 o03a5:  JNZ jo0382
 o03a8:  CALL cSET_ATH_BIT_OF_HL
@@ -553,18 +556,18 @@ o03a8:  CALL cSET_ATH_BIT_OF_HL
         DCR B
         CMP H
         INX D
-        INX B
-        NOP
-        MOV A,E
-        INR B
+        DB #03
+        DB #00
+        DB #7b
+        DB #04
         STC
         (DSUB)
         DAD B
         DAD B
         EI
         DCR D
-        MOV A,E
-        INR B
+        DB #7b
+        DB #04
 cSET_ATH_BIT_OF_HL:
               PUSH B ;o0368,o03a8,o0410,o052e,o06cb,o079f,o09c0,o09cf,o09f6,o0aa1,o0af2,o0b55,o0c98,o0c9e,o0d52,jo1078,jo10ad,o11f8,o1213,o1283,o13c1,o13fb,o1499,o1568,o15c4,o1657,o170a,jo1738,jo174e,o184b,o1853,o19a3,o19dc,jo1a98,o1aab,o1b6c,o1c42,o1c7e,o1d1f,o1d56,o1d79,o1d7d,o1d94
         MOV B,A
@@ -639,25 +642,25 @@ c0427:  MVI D, #00 ;o0406,o041f
         RET
 
 ; unreachable or data or computed call?
-        INR B
-        NOP
-        LXI B, #0502
+        DB #04
+        DB #00
+        DB #01,#02,#05
         DB #cd,#21,#cc
-        LXI H, #21cc
+        DB #21,#cc,#21
         DB #cc,#21,#ca
-        LXI H, #903a
+        DB #21,#3a,#90
         LXI H, #05f6
-        STA $2190
+        STA GAME_STATE
         MVI A, #00
         STA $220c
         MVI A, #ff
         STA $2193
-        LDA $2194
+        LDA STATE_OUTLANE_1
         ORI #30
-        STA $2194
+        STA STATE_OUTLANE_1
         RET
 
-c046a:  LDA GAME_STATE ;o0483,o058b
+c046a:  LDA GAME_STATE2 ;o0483,o058b
         ANI #40
         RZ
         LDA CREDITS_1
@@ -669,7 +672,7 @@ o0474:  JZ j0479
 j0479:  DCR A ;o0474
         RET
 
-        DB #cd,#4f,#04
+        CALL $044f
         MVI A, #7d
         STA $21a2
 o0483:  CALL c046a
@@ -688,13 +691,13 @@ o0486:  JNZ jo0382
         MOV B,A
         LDA $23e4
         SUB B
-o04ab:  JM j0543
-        LDA GAME_STATE
+o04ab:  JM jTILT2
+        LDA GAME_STATE2
         ANI #40
-o04b3:  JNZ j0543
-        LDA $2194
+o04b3:  JNZ jTILT2
+        LDA STATE_OUTLANE_1
         ORI #fc
-        STA $2194
+        STA STATE_OUTLANE_1
         LDA $2247
         ORI #40
         STA $2247
@@ -719,9 +722,9 @@ o04d0:  JNZ j04cd
         STA $23cc
         STA $23d6
         STA $23de
-        LDA $2190
+        LDA GAME_STATE
         ANI #f7
-        STA $2190
+        STA GAME_STATE
         LDA $2396
         ANI #df
         STA $2396
@@ -731,7 +734,7 @@ o04d0:  JNZ j04cd
         MVI B, #30
 o050c:  CALL co1d81
         MVI A, #d0
-        STA GAME_STATE
+        STA GAME_STATE2
         LDA BALLS_PER_GAME
         STA BALL_IN_PLAY_hrm
         LXI H, #237e
@@ -753,7 +756,7 @@ o052e:  CALL cSET_ATH_BIT_OF_HL
         MVI A, #02
         STA $219d
 o0540:  JMP jo0382
-j0543:  LXI H, #12c2 ;o04ab,o04b3
+jTILT2: LXI H, #12c2 ;o04ab,o04b3
 o0546:  CALL cPLAY_SOUND
 o0549:  JMP jo0382
         LDA $221b
@@ -773,27 +776,27 @@ j0569:  LDA $2247 ;o0553
         MVI A, #01
         STA $21a0
         STA $221c
-        LDA $2194
+        LDA STATE_OUTLANE_1
         ANI #33
-        STA $2194
+        STA STATE_OUTLANE_1
 o0581:  JMP joEND_MAIN_LOOP
-; tilt handler
+; tilt handler 2
         IN PRICE_89_CAB
         ANI #80
 o0588:  JZ j05a2
 o058b:  CALL c046a
 o058e:  JNZ j05a2
-        DB #cd,#4f,#04
+        CALL $044f
         MVI A, #7d
         STA $21a2
         LXI H, #12c2
 o059c:  CALL cPLAY_SOUND
 o059f:  JMP joEND_MAIN_LOOP
-j05a2:  LDA $2194 ;o0588,o058e
+j05a2:  LDA STATE_OUTLANE_1 ;o0588,o058e
         ANI #77
-        STA $2194
+        STA STATE_OUTLANE_1
 o05aa:  JMP joEND_MAIN_LOOP
-        LXI H, GAME_STATE
+        LXI H, GAME_STATE2
         MVI A, #07
 o05b2:  CALL cCHECK_ATH_BIT_OF_HL
 o05b5:  JZ joEND_MAIN_LOOP
@@ -922,13 +925,13 @@ o0683:  CALL cCOPY_FROM_HL_TO_DE
 j06a4:  IN PRICE_89_CAB ;o0678
         ANI #10
 o06a8:  JNZ jcCREDIT_HANDLER
-        LDA GAME_STATE
+        LDA GAME_STATE2
         ORI #20
-        STA GAME_STATE
+        STA GAME_STATE2
         RET
 
 jcCREDIT_HANDLER:
-              LXI H, GAME_STATE ;o0003,o06a8
+              LXI H, GAME_STATE2 ;o0003,o06a8
         MVI A, #05
 o06b9:  CALL cCHECK_ATH_BIT_OF_HL
         RZ
@@ -973,9 +976,9 @@ o0716:  CALL cCLEAR_ATH_BIT_OF_HL
         MVI A, #09
         STA $21ab
 o071e:  JMP joEND_MAIN_LOOP
-j0721:  LDA $2194 ;o0713
+j0721:  LDA STATE_OUTLANE_1 ;o0713
         ANI #bb
-        STA $2194
+        STA STATE_OUTLANE_1
 o0729:  JMP joEND_MAIN_LOOP
         XRA D
         DCX B
@@ -1017,7 +1020,7 @@ o0729:  JMP joEND_MAIN_LOOP
         DCR E
         DI
         RLC
-        DB #cd,#18,#9d
+        CALL $9d18
         DCR C
         MVI E, #06
         LXI D, #0000
@@ -1072,7 +1075,7 @@ o07bc:  CALL cPLAY_SOUND
         INX H
         MOV H,M
         MOV L,B
-o07c8:  CALL c0292
+o07c8:  CALL cADD_BONUS_HL
 o07cb:  JMP jo0382
         LDA $21c3
         ANI #30
@@ -1090,7 +1093,7 @@ o07e8:  JNZ joEND_MAIN_LOOP
         MVI A, #06
         STA $21ad
 o07f0:  JMP joEND_MAIN_LOOP
-        LXI H, #2190
+        LXI H, GAME_STATE
         MVI A, #02
 o07f8:  CALL cCHECK_ATH_BIT_OF_HL
 o07fb:  JNZ joEND_MAIN_LOOP
@@ -1102,11 +1105,11 @@ o0803:  JMP joEND_MAIN_LOOP
         LXI B, #0302
         INR B
         STAX B
-        DB #c3,#21,#c4
+        JMP $c421
         LXI H, #21c4
-        DB #c3,#21,#c4
+        JMP $c421
         LXI H, #21c4
-        DB #c4,#21,#ad
+        CNZ $ad21
         STAX D
         ORA B
         STAX D
@@ -1134,7 +1137,7 @@ o0803:  JMP joEND_MAIN_LOOP
         OUT #06
         MVI A, #09
         STA $21a8
-        LXI H, #2190
+        LXI H, GAME_STATE
         MVI A, #05
 o084c:  CALL cCHECK_ATH_BIT_OF_HL
 o084f:  JNZ jo0382
@@ -1153,12 +1156,12 @@ o086d:  JMP jo0382
         MVI A, #04
 o0875:  CALL cCHECK_ATH_BIT_OF_HL
 o0878:  JNZ j0891
-        LXI H, #2190
+        LXI H, GAME_STATE
         MVI A, #02
 o0880:  CALL cCHECK_ATH_BIT_OF_HL
 o0883:  JNZ joEND_MAIN_LOOP
         MVI A, #04
-        LXI H, #2194
+        LXI H, STATE_OUTLANE_1
 o088b:  CALL cCLEAR_ATH_BIT_OF_HL
 o088e:  JMP joEND_MAIN_LOOP
 j0891:  LDA $21c3 ;o0878
@@ -1217,7 +1220,7 @@ o0906:  JMP joEND_MAIN_LOOP
         OUT #06
         MVI A, #09
         STA $21a9
-        LXI H, #2190
+        LXI H, GAME_STATE
         MVI A, #05
 o091e:  CALL cCHECK_ATH_BIT_OF_HL
 o0921:  JNZ jo0382
@@ -1228,11 +1231,11 @@ o092a:  JMP jo0382
         MVI A, #05
 o0932:  CALL cCHECK_ATH_BIT_OF_HL
 o0935:  JNZ j094e
-        LXI H, #2190
+        LXI H, GAME_STATE
         MVI A, #02
 o093d:  CALL cCHECK_ATH_BIT_OF_HL
 o0940:  JNZ joEND_MAIN_LOOP
-        LXI H, #2194
+        LXI H, STATE_OUTLANE_1
         MVI A, #05
 o0948:  CALL cCLEAR_ATH_BIT_OF_HL
 o094b:  JMP joEND_MAIN_LOOP
@@ -1282,7 +1285,7 @@ j09ae:  MVI A, #64 ;o098f,o099f
         MVI A, #04
         STA $2197
 o09b8:  JMP jo1419
-j09bb:  LXI H, #2190 ;o09a3
+j09bb:  LXI H, GAME_STATE ;o09a3
         MVI A, #07
 o09c0:  CALL cSET_ATH_BIT_OF_HL
         MVI A, #02
@@ -1302,7 +1305,7 @@ o09e4:  JZ jo0b52
 o09e7:  CALL cCLEAR_ATH_BIT_OF_HL
         LXI H, #2211
         CMP M
-        LXI H, GAME_STATE
+        LXI H, GAME_STATE2
         MVI A, #01
 o09f3:  JNZ jo09fc
 o09f6:  CALL cSET_ATH_BIT_OF_HL
@@ -1339,7 +1342,7 @@ o0a27:  JMP jo1419
 o0a39:  CALL c0e5c
         LXI H, #12dd
 o0a3f:  CALL cPLAY_SOUND
-        LXI H, GAME_STATE
+        LXI H, GAME_STATE2
         MVI A, #01
 o0a47:  CALL cCHECK_ATH_BIT_OF_HL
 o0a4a:  JZ j0a93
@@ -1421,7 +1424,7 @@ o0af2:  CALL cSET_ATH_BIT_OF_HL
         LDA $23be
         ANA B
 o0b0b:  JNZ j0b26
-        LXI H, #2190
+        LXI H, GAME_STATE
         MVI A, #03
 o0b13:  CALL cCHECK_ATH_BIT_OF_HL
 o0b16:  JNZ j0b26
@@ -1496,7 +1499,7 @@ o0ba4:  CALL cCLEAR_ATH_BIT_OF_HL
 o0ba7:  JMP joEND_MAIN_LOOP
         MVI A, #00
         STA $2208
-        LXI H, GAME_STATE
+        LXI H, GAME_STATE2
         MVI A, #03
 o0bb4:  CALL cCLEAR_ATH_BIT_OF_HL
 o0bb7:  JMP joEND_MAIN_LOOP
@@ -1519,16 +1522,16 @@ o0bb7:  JMP joEND_MAIN_LOOP
         STAX B
         NOP
         LXI B, #21c2
-        DB #c4,#21,#c2
+        CNZ $c221
         LXI H, #21c2
-        DB #c2,#21,#69
+        JNZ $6921
         LXI D, #116d
         MOV M,L
         LXI D, #1179
 j0bdf:  MVI B, #39 ;o0993
 o0be1:  CALL co1d9c
 o0be4:  JZ j0d4d
-        LXI H, #2190
+        LXI H, GAME_STATE
         MVI A, #02
 o0bec:  CALL cCHECK_ATH_BIT_OF_HL
 o0bef:  JNZ j0d4d
@@ -1628,16 +1631,16 @@ o0cab:  JMP jo1419
         LDA $23ee
         SUB B
 o0cb6:  JM j0cc4
-        LDA $2194
+        LDA STATE_OUTLANE_1
         ANI #fd
-        STA $2194
+        STA STATE_OUTLANE_1
 o0cc1:  JMP joEND_MAIN_LOOP
 j0cc4:  MVI A, #00 ;o0cb6
         STA $2197
-        LDA $2194
+        LDA STATE_OUTLANE_1
         ORI #02
-        STA $2194
-        LXI H, #2190
+        STA STATE_OUTLANE_1
+        LXI H, GAME_STATE
         MVI A, #00
 o0cd6:  CALL cCHECK_ATH_BIT_OF_HL
 o0cd9:  JNZ j0d29
@@ -1645,7 +1648,7 @@ o0cd9:  JNZ j0d29
 o0cdf:  CALL c0e99
 o0ce2:  JC j0cf9
         LXI H, #1165
-o0ce8:  CALL c0292
+o0ce8:  CALL cADD_BONUS_HL
         MVI A, #0a
         STA $21a7
         LXI H, #1332
@@ -1676,9 +1679,9 @@ j0d29:  LXI H, #21c5 ;o0cd9,o0d0f,o0d12
         STA $21a6
         MVI B, #39
 o0d37:  CALL co1d81
-        LDA $2194
+        LDA STATE_OUTLANE_1
         ANI #fd
-        STA $2194
+        STA STATE_OUTLANE_1
         MVI A, #00
         STA $220c
         LXI H, #1335
@@ -1700,7 +1703,7 @@ o0d6e:  JMP j0d76
         MVI A, #14
 o0d73:  JMP j0d76
 j0d76:  STA $2226 ;o0d5f,o0d64,o0d69,o0d6e,o0d73
-        LDA $2190
+        LDA GAME_STATE
         ANI #04
 o0d7e:  JNZ jo1419
         LDA $21af
@@ -1729,12 +1732,12 @@ o0db9:  JZ j0de1
 o0dbc:  CALL co1d81
 o0dbf:  JZ j0dd1
         LXI H, #1165
-o0dc5:  CALL c0292
+o0dc5:  CALL cADD_BONUS_HL
         LXI H, #12e0
 o0dcb:  CALL cPLAY_SOUND
 o0dce:  JMP j0de1
 j0dd1:  LXI H, #1171 ;o0dbf
-o0dd4:  CALL c0292
+o0dd4:  CALL cADD_BONUS_HL
         XCHG
 o0dd8:  CALL c0e5c
         LXI H, #12f2
@@ -1838,7 +1841,7 @@ o0e74:  CALL cCOPY_FROM_HL_TO_DE
         LXI D, #23a0
         MVI A, #06
 o0e7f:  CALL cWRITE_TO_RAM
-        LDA $2190
+        LDA GAME_STATE
         ANI #01
         RNZ
         LXI H, #23a0
@@ -2307,7 +2310,7 @@ j11ed:  INX D ;o11bd
 j11ee:  INX D ;o11b8
 j11ef:  LDAX D ;o11b3,o11e3
         STA $2198
-        LXI H, #2190
+        LXI H, GAME_STATE
         MVI A, #05
 o11f8:  CALL cSET_ATH_BIT_OF_HL
         RET
@@ -2370,7 +2373,7 @@ j1273:  MOV M,E ;o126d
         MOV M,D
         INX H
         SHLD $21be
-        LXI H, #2190
+        LXI H, GAME_STATE
         MVI A, #05
 o127f:  CALL cCHECK_ATH_BIT_OF_HL
         RNZ
@@ -2399,7 +2402,7 @@ j129a:  MOV E,M ;o1294
         RET
 
         RST 7
-        DB #ca,#08,#ff
+        JZ $ff08
         XRA D
         (DSUB)
         RST 7
@@ -2525,9 +2528,9 @@ j129a:  MOV E,M ;o1294
         MOV C,H
         INR C
         RST 7
-        DB #ca,#08,#ca
+        JZ $ca08
         (DSUB)
-        DB #ca,#08,#ca
+        JZ $ca08
         INR C
         RST 7
         MOV A,B
@@ -2542,18 +2545,18 @@ j129a:  MOV E,M ;o1294
         DCR D
         INR C
         RST 7
-        DB #ca,#00,#ff
+        JZ $ff00
         MOV H,L
         INR C
         ADD A
         INR C
         XRA D
         INR C
-        DB #ca,#0c,#ca
+        JZ $ca0c
         NOP
-        DB #ca,#08,#ca
+        JZ $ca08
         (DSUB)
-        DB #ca,#08,#aa
+        JZ $aa08
         NOP
         XRA D
         INR C
@@ -2607,7 +2610,7 @@ j13a4:  MOV A,B ;o1399
 o13aa:  JNZ j138d
         LDA $2191
         ANI #08
-        DB #c2,#7d,#13
+        JNZ $137d
 o13b5:  CALL c0303
         SHLD $2224
         RET
@@ -2718,9 +2721,9 @@ jo141c: JMP j13cf ;o13ff
         DCR C
         MOV H,C
         DAD B
-        XRA H
-        DCR D
-        SUI #15
+        DB #ac
+        DB #15
+        DB #d6,#15
         MVI C, #00
         MVI B, #02
 o1463:  JMP j1494
@@ -2744,7 +2747,7 @@ o1486:  JMP j1494
 o148d:  JMP j1494
         MVI C, #07
         MVI B, #0a
-j1494:  LXI H, #2190 ;o1463,o146a,o1471,o1478,o147f,o1486,o148d
+j1494:  LXI H, GAME_STATE ;o1463,o146a,o1471,o1478,o147f,o1486,o148d
         MVI A, #07
 o1499:  CALL cSET_ATH_BIT_OF_HL
         MVI A, #02
@@ -2757,7 +2760,7 @@ o14ab:  JZ jo1419
 o14ae:  CALL cCLEAR_ATH_BIT_OF_HL
 o14b1:  CALL co1d81
         LXI H, #1161
-o14b7:  CALL c0292
+o14b7:  CALL cADD_BONUS_HL
         LXI H, #12d7
 o14bd:  CALL cPLAY_SOUND
         LDA $21c6
@@ -2809,7 +2812,7 @@ o152b:  JMP joEND_MAIN_LOOP
         LXI B, #2119
         LDAX B
 ; 10,000 / EB lane
-        LXI H, #2190
+        LXI H, GAME_STATE
         MVI A, #07
 o153b:  CALL cCHECK_ATH_BIT_OF_HL
 o153e:  JZ jo1419
@@ -2819,7 +2822,7 @@ o1546:  CALL cCHECK_ATH_BIT_OF_HL
 o1549:  JNZ jo1419
         LXI H, #117d
 o154f:  CALL c0e5c
-        LXI H, #2190
+        LXI H, GAME_STATE
         MVI A, #04
 o1557:  CALL cCHECK_ATH_BIT_OF_HL
 o155a:  JZ j1588
@@ -2841,7 +2844,7 @@ j157c:  STA $2211 ;o1577
 o157f:  CALL c0402
         LXI H, #1338
 o1585:  CALL cPLAY_SOUND
-j1588:  LXI H, #2190 ;o155a,o1565
+j1588:  LXI H, GAME_STATE ;o155a,o1565
         MVI A, #03
 o158d:  CALL cCHECK_ATH_BIT_OF_HL
 o1590:  JNZ j15a3
@@ -2854,23 +2857,25 @@ o15a0:  CALL co1d91
 j15a3:  LXI H, #12ed ;o1590,o1598
 o15a6:  CALL cPLAY_SOUND
 o15a9:  JMP jo1419
+; outlane handler
         MVI A, #ff
         STA $2193
-        LDA $2194
+        LDA STATE_OUTLANE_1
         ORI #30
-        STA $2194
-        LXI H, #2190
+        STA STATE_OUTLANE_1
+; don't let outlane scrore > 1x
+        LXI H, GAME_STATE
         MVI A, #02
 o15be:  CALL cCHECK_ATH_BIT_OF_HL
 o15c1:  JNZ jo1419
 o15c4:  CALL cSET_ATH_BIT_OF_HL
         LXI H, #1165
-o15ca:  CALL c0292
+o15ca:  CALL cADD_BONUS_HL
         LXI H, #134b
 o15d0:  CALL cPLAY_SOUND
 o15d3:  JMP jo1419
 ; inlane routine
-        LXI H, #2190
+        LXI H, GAME_STATE
         MVI A, #02
 o15db:  CALL cCHECK_ATH_BIT_OF_HL
 o15de:  JNZ jo1419
@@ -2883,7 +2888,7 @@ o15ef:  CALL c0e5c
         LXI H, #1335
 o15f5:  CALL cPLAY_SOUND
 o15f8:  JMP jo1419
-        LXI H, GAME_STATE
+        LXI H, GAME_STATE2
         MVI A, #00
 o1600:  CALL cCHECK_ATH_BIT_OF_HL
 o1603:  JNZ j1789
@@ -2909,7 +2914,7 @@ o162c:  JZ j16ed
         MVI A, #2e
 o1637:  CALL cCOPY_FROM_HL_TO_DE
 o163a:  CALL c17a8
-        LXI H, GAME_STATE
+        LXI H, GAME_STATE2
         MVI A, #04
 o1642:  CALL cCHECK_ATH_BIT_OF_HL
 o1645:  JZ j1655
@@ -2920,14 +2925,14 @@ o164d:  JZ j1655
 o1652:  JMP j1671
 j1655:  MVI A, #06 ;o1645,o164d
 o1657:  CALL cSET_ATH_BIT_OF_HL
-        LDA $2190
+        LDA GAME_STATE
         ORI #05
-        STA $2190
+        STA GAME_STATE
         MVI A, #ff
         STA $2193
-        LDA $2194
+        LDA STATE_OUTLANE_1
         ORI #30
-        STA $2194
+        STA STATE_OUTLANE_1
         MVI A, #00
 j1671:  STA BALL_IN_PLAY_hrm ;o1652
         STA BALL_IN_PLAY_1
@@ -2947,7 +2952,7 @@ j1671:  STA BALL_IN_PLAY_hrm ;o1652
         LXI D, #21d3
         MVI B, #04
 o169f:  CALL jc178e
-        LXI H, GAME_STATE
+        LXI H, GAME_STATE2
         MVI A, #06
 o16a7:  CALL cCLEAR_ATH_BIT_OF_HL
         LDA $23b6
@@ -2961,9 +2966,9 @@ o16ba:  CALL cCOPY_FROM_HL_TO_DE
         LXI D, #21ce
         MVI A, #0a
 o16c5:  CALL cCOPY_FROM_HL_TO_DE
-        LDA $2190
+        LDA GAME_STATE
         ANI #e7
-        STA $2190
+        STA GAME_STATE
 jDECREASE_CREDIT:
               LDA CREDITS_1 ;o1735,o174b,o176d,o1780
         ADI #99
@@ -3093,7 +3098,7 @@ c17ea:  LDA $237e ;o1880,o18fc
         ANI #02
         MVI A, #20
         RZ
-        LXI H, #2190
+        LXI H, GAME_STATE
         MVI A, #03
 o17f7:  CALL cCHECK_ATH_BIT_OF_HL
         MVI A, #20
@@ -3105,7 +3110,7 @@ o17f7:  CALL cCHECK_ATH_BIT_OF_HL
         MVI A, #80
         RET
 
-        LXI H, GAME_STATE
+        LXI H, GAME_STATE2
         MVI A, #04
 o180d:  CALL cCHECK_ATH_BIT_OF_HL
 o1810:  JNZ jo1419
@@ -3126,13 +3131,13 @@ j182b:  MVI A, #ff ;o181d
         STA $21c3
         STA $21a8
         STA $21a9
-        LDA $2194
+        LDA STATE_OUTLANE_1
         ORI #30
-        STA $2194
-        LXI H, #2190
+        STA STATE_OUTLANE_1
+        LXI H, GAME_STATE
         MVI A, #02
 o184b:  CALL cSET_ATH_BIT_OF_HL
-        LXI H, GAME_STATE
+        LXI H, GAME_STATE2
         MVI A, #04
 o1853:  CALL cSET_ATH_BIT_OF_HL
         LXI H, #12e8
@@ -3142,7 +3147,7 @@ o185c:  CALL c1ba8
         LXI H, #21c6
         MVI A, #10
 o1865:  CALL cCOPY_FROM_HL_TO_DE
-        LXI H, #2190
+        LXI H, GAME_STATE
         MVI A, #00
 o186d:  CALL cCHECK_ATH_BIT_OF_HL
 o1870:  JNZ j187b
@@ -3190,7 +3195,7 @@ o18ca:  JMP jo1419
 o18d0:  CALL c0e99
 o18d3:  JC j18ea
         LXI H, #1165
-o18d9:  CALL c0292
+o18d9:  CALL cADD_BONUS_HL
         MVI A, #0a
         STA $21ae
         LXI H, #1332
@@ -3214,8 +3219,8 @@ o1911:  JMP joEND_MAIN_LOOP
 j1914:  MVI A, #01 ;o1909
         STA $2212
         MVI A, #32
-        STA $2194
-        LXI H, GAME_STATE
+        STA STATE_OUTLANE_1
+        LXI H, GAME_STATE2
         MVI A, #03
 o1923:  CALL cCLEAR_ATH_BIT_OF_HL
         LXI H, BALL_IN_PLAY_hrm
@@ -3287,18 +3292,18 @@ o19a6:  CALL c1a3a
         LDA $2396
         ANI #df
         STA $2396
-        LDA $2190
+        LDA GAME_STATE
         ORI #08
-        STA $2190
+        STA GAME_STATE
 o19bc:  JMP j1aae
 j19bf:  LXI H, #2191 ;o197f
         MVI A, #00
 o19c4:  CALL cCHECK_ATH_BIT_OF_HL
         MVI A, #01
 o19c9:  JNZ j1a8a
-        LDA GAME_STATE
+        LDA GAME_STATE2
         ORI #c0
-        STA GAME_STATE
+        STA GAME_STATE2
 o19d4:  CALL c1db7
         LXI H, #23b6
         MVI A, #07
@@ -3395,7 +3400,7 @@ jo1a98: CALL cSET_ATH_BIT_OF_HL ;o1960
         LDA BALL_IN_PLAY_hrm
         CMP C
 o1aa3:  JNZ j1aae
-        LXI H, #2190
+        LXI H, GAME_STATE
         MVI A, #04
 o1aab:  CALL cSET_ATH_BIT_OF_HL
 j1aae:  LDA $237e ;o19bc,o1aa3
@@ -3403,7 +3408,7 @@ j1aae:  LDA $237e ;o19bc,o1aa3
         MOV B,A
         ANI #0f
         STA $239e
-        LXI H, #2190
+        LXI H, GAME_STATE
         MVI A, #00
 o1abf:  CALL cCLEAR_ATH_BIT_OF_HL
         MVI B, #09
@@ -3471,7 +3476,7 @@ o1b41:  CALL co1d81
         STA $21ce
         MVI B, #39
 o1b64:  CALL co1d81
-        LXI H, GAME_STATE
+        LXI H, GAME_STATE2
         MVI A, #07
 o1b6c:  CALL cSET_ATH_BIT_OF_HL
         LXI H, #1346
@@ -3516,19 +3521,19 @@ o1bc2:  JNZ j1c73
         MOV B,A
         LDA $23f8
         SUB B
-        LDA $2194
+        LDA STATE_OUTLANE_1
 o1bd1:  JM j1bd9
         ANI #fd
 o1bd6:  JMP j1bdb
 j1bd9:  ORI #02 ;o1bd1
-j1bdb:  STA $2194 ;o1bd6
-        LDA GAME_STATE
+j1bdb:  STA STATE_OUTLANE_1 ;o1bd6
+        LDA GAME_STATE2
         MOV B,A
         ANI #01
 o1be4:  JZ j1c04
         MOV A,B
         ANI #fe
-        STA GAME_STATE
+        STA GAME_STATE2
         EI
         LXI H, #224b
         LXI D, #2380
@@ -3554,7 +3559,7 @@ o1c20:  JNZ j1c26
 j1c26:  LXI D, HIGH_SCORE_NOW ;o1c20
         MVI A, #07
 o1c2b:  CALL cCOPY_FROM_HL_TO_DE
-        LDA GAME_STATE
+        LDA GAME_STATE2
         ANI #40
 o1c33:  JZ j1c4e
         LDA CREDITS_1
@@ -3582,7 +3587,7 @@ j1c65:  LXI H, #2191 ;o1c5b
 o1c6a:  CALL cCLEAR_ATH_BIT_OF_HL
         STA $219f
 o1c70:  JMP j01d2
-j1c73:  LXI H, GAME_STATE ;o1bc2
+j1c73:  LXI H, GAME_STATE2 ;o1bc2
         MVI A, #00
 o1c78:  CALL cCHECK_ATH_BIT_OF_HL
 o1c7b:  JNZ j022c
@@ -3620,7 +3625,7 @@ j1cc3:  LDA $2353 ;o1c09
         LDA $23f8
         SUB B
 o1ccb:  JP j022c
-        LXI H, GAME_STATE
+        LXI H, GAME_STATE2
         MVI A, #06
 o1cd3:  CALL cCHECK_ATH_BIT_OF_HL
 o1cd6:  JZ j1cdc
@@ -3659,18 +3664,18 @@ o1d1f:  CALL cSET_ATH_BIT_OF_HL
         MVI A, #06
         STA $21ac
         MVI A, #00
-        STA $2194
-        LDA $2190
+        STA STATE_OUTLANE_1
+        LDA GAME_STATE
         ANI #38
         ORI #80
-        STA $2190
-        LDA GAME_STATE
-        ANI #67
         STA GAME_STATE
+        LDA GAME_STATE2
+        ANI #67
+        STA GAME_STATE2
         LXI H, #2191
         MVI A, #01
 o1d4e:  CALL cCLEAR_ATH_BIT_OF_HL
-        LXI H, #2194
+        LXI H, STATE_OUTLANE_1
         MVI A, #04
 o1d56:  CALL cSET_ATH_BIT_OF_HL
         MVI A, #06
@@ -3682,7 +3687,7 @@ o1d63:  JMP j022c
         MVI A, #05
 o1d6b:  CALL cCLEAR_ATH_BIT_OF_HL
         DI
-        DB #cd,#7d,#13
+        CALL $137d
         EI
 o1d73:  JMP joEND_MAIN_LOOP
 co1d76: CALL c1da3 ;o0ad6,o0b23,o0b3b,o0b63,o0e95,o14e9,o1511,o151c,o1b19,o1b1e,o1b23,o1b28,o1b2d,o1ba2
