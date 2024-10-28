@@ -1,4 +1,5 @@
 addresses:
+   NEXT_TONE : $21b1
    HIGH_SCORE_START : $222D         
    HIGH_SCORE_DISP   : $2323
    HIGH_SCORE_DISP2   : $2330
@@ -10,6 +11,8 @@ addresses:
    PRICE_3   : $23BF 
    PRICE_4   : $23DF 
    CREDITS_1 : $237A
+
+# 52 54 56 58 5A 5c 5e 1360 1362 
 
 #1450, 1825, 1175, 2025
 
@@ -71,6 +74,29 @@ addresses:
    GAME_STATE2 : $2192 
    STACK_SCRATCH : $2195
 
+   SILENCE_END_LOOP_MUSIC : $12bf
+   TILT_MUSIC : $12c2
+   BONUS_MUSIC : $12c2
+   START_PLAYER_MUSIC : $12da
+   UNKNOWN_MUSIC : $12dd
+   LOW_MUSIC : $12e0 
+   OOPS_MUSIC : $12e3 
+   OOPS2_MUSIC : $12e8 
+   LIL_VICTORY_MUSIC : $12ed 
+   LIT_STANDUP_MUSIC : $12f2
+   GAME_OVER_MUSIC : $12ff
+   SPREAD_TAKEOVER_MUSIC : $1316
+   MORSE_CODE_MUSIC : $1321
+   BUMPER_25_MUSIC : $1332
+   SPREAD_HRM_MUSIC : $1335
+   LONGER_BUMPER_25_MUSIC: $1338
+   CREDIT_MUSIC : $1341
+   NEXT_PLAYER_MUSIC : $1346
+   OUTLANE_MUSIC : $134b
+   SILENCE_MUSIC : $134e
+
+   HIGH_SCORE_MUSIC : $1351
+
 labels:
    ADD_BONUS_HL : $0292
    2_LSHIFT_A : $03f9
@@ -90,6 +116,7 @@ labels:
    TILT_HANDLER : $047b
    TILT_HELPER : $044f
    TILT2 : $0543
+   TONE_PLAY : $118d
 
 not_code:
    COIN : [$03ca , $03cb] 
@@ -104,6 +131,7 @@ not_code:
    TILT_HANDLER_PTR2 : [$03d4, $03d5]
    OUTANE_HANDLER_PTR : [$145b, $145c]
    INLANE_HANDLER_PTR : [$145d, $145e]
+   MUSIC : [$12ac, $137c]
 
 inPorts:
    MYSTERY_PORT_1 : $01
@@ -138,7 +166,9 @@ notes:
   $0624 : "push A, SP, B, D, H"
   $0630 : "restore A, SP, B, D, H"
   $06a4 : "check credit button"
+  $07bc : "computed sound?"
   $1181 : "default high score"
+  $1351 : "call to the post"
   $1536 : "10,000 / EB lane"
   $15ac : "outlane handler"
   $15b9 : "don't let outlane scrore > 1x"
