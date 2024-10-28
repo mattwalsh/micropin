@@ -1,5 +1,9 @@
 HIGH_SCORE_START EQU 0x222d
+HIGH_SCORE_DISP EQU 0x2323
+HIGH_SCORE_DISP2 EQU 0x2330
 HIGH_SCORE_NOW EQU 0x2393
+HIGH_SCORE_DISP3 EQU 0x23b3
+HIGH_SCORE_DISP4 EQU 0x23d3
 PRICE_1 EQU 0x237f
 PRICE_2 EQU 0x239f
 PRICE_3 EQU 0x23bf
@@ -51,6 +55,13 @@ MYSTERY_PORT_1 EQU 0x1
 PRICE_CENTS_07_PORT EQU 0x2
 PRICE_TENS_07_PORT EQU 0x3
 PRICE_89_CAB EQU 0x4
+
+; OUTPUT PORTS
+TONE_ENABLE_DUR EQU 0x9
+TONE_PITCH EQU 0xa
+LAMP_1 EQU 0xd
+LAMP_2 EQU 0xe
+LAMP_3 EQU 0xf
 DIP_SWITCH_PORT EQU 0x5
 $0000 o0000:   c3 40 00 JMP j0040
 $0003 o0003:   cd b4 06 CALL jcCREDIT_HANDLER
@@ -100,7 +111,7 @@ $0042          32 da 23 STA CREDITS_4
 $0045          16 05    MVI D, #05
 $0047 j0047:   21 10 27 LXI H, #2710 ;o0053
 $004a j004a:   2b       DCX H ;o004f
-$004b          d3 0f    OUT #0f
+$004b          d3 0f    OUT LAMP_3
 $004d          7c       MOV A,H
 $004e          b7       ORA A
 $004f o004f:   c2 4a 00 JNZ j004a
@@ -119,8 +130,8 @@ $0065          bc       CMP H
 $0066 o0066:   c2 60 00 JNZ j0060
 $0069 j0069:   31 90 21 LXI SP, GAME_STATE ;o0024,o005a
 $006c          3e 07    MVI A, #07
-$006e j006e:   d3 0e    OUT #0e ;o0073
-$0070          d3 0d    OUT #0d
+$006e j006e:   d3 0e    OUT LAMP_2 ;o0073
+$0070          d3 0d    OUT LAMP_1
 $0072          3d       DCR A
 $0073 o0073:   f2 6e 00 JP j006e
 $0076          21 97 21 LXI H, #2197
@@ -133,7 +144,7 @@ $007f o007f:   c2 7b 00 JNZ j007b
 $0082          3e 05    MVI A, #05
 $0084          32 00 00 STA $0000
 $0087          3e fe    MVI A, #fe
-$0089          d3 09    OUT #09
+$0089          d3 09    OUT TONE_ENABLE_DUR
 $008b          3e 02    MVI A, #02
 $008d          32 98 21 STA $2198
 $0090          3e ff    MVI A, #ff
@@ -180,7 +191,7 @@ $00f8 o00f8:   ca 43 01 JZ j0143
 $00fb j00fb:   3e 07    MVI A, #07 ;o00f2
 $00fd          32 c2 21 STA $21c2
 $0100          2f       CMA
-$0101          d3 05    OUT #05
+$0101          d3 05    OUT DIP_SWITCH_PORT
 $0103          3e 06    MVI A, #06
 $0105          32 a6 21 STA $21a6
 $0108 j0108:   fb       EI ;o010d
@@ -190,7 +201,7 @@ $010d o010d:   c2 08 01 JNZ j0108
 $0110          3e 28    MVI A, #28
 $0112          32 c2 21 STA $21c2
 $0115          2f       CMA
-$0116          d3 05    OUT #05
+$0116          d3 05    OUT DIP_SWITCH_PORT
 $0118          3e 20    MVI A, #20
 $011a          32 c4 21 STA $21c4
 $011d          2f       CMA
@@ -206,7 +217,7 @@ $012e          3a a6 21 LDA $21a6
 $0131          b7       ORA A
 $0132 o0132:   c2 2d 01 JNZ j012d
 $0135          3e ff    MVI A, #ff
-$0137          d3 05    OUT #05
+$0137          d3 05    OUT DIP_SWITCH_PORT
 $0139          d3 06    OUT #06
 $013b          d3 07    OUT #07
 $013d          d3 08    OUT #08
@@ -309,7 +320,7 @@ $0207          32 9f 23 STA PRICE_2
 $020a          32 bf 23 STA PRICE_3
 $020d          fb       EI
 ; load dip switches, set # balls per game
-$020e          db 05    IN DIP_SWITCH_PORT
+$020e          db 05    IN #05
 $0210          21 16 22 LXI H, DIP_SWITCHES
 $0213          77       MOV M,A
 $0214          06 03    MVI B, #03
@@ -323,7 +334,7 @@ $0224 o0224:   c2 28 02 JNZ j0228
 $0227          04       INR B
 $0228 j0228:   78       MOV A,B ;o021b,o0224
 $0229          32 13 22 STA BALLS_PER_GAME
-$022c j022c:   d3 0f    OUT #0f ;o028f,o1c7b,o1cc0,o1ccb,o1cd9,o1d63
+$022c j022c:   d3 0f    OUT LAMP_3 ;o028f,o1c7b,o1cc0,o1ccb,o1cd9,o1d63
 $022e          fb       EI
 $022f          00       NOP
 $0230          fb       EI
@@ -333,7 +344,7 @@ $0233          00       NOP
 $0234          f3       DI
 $0235          3a c2 21 LDA $21c2
 $0238          2f       CMA
-$0239          d3 05    OUT #05
+$0239          d3 05    OUT DIP_SWITCH_PORT
 $023b          3a c3 21 LDA $21c3
 $023e          2f       CMA
 $023f          d3 06    OUT #06
@@ -436,7 +447,7 @@ $02f6          d3 01    OUT #01
 $02f8          d3 02    OUT #02
 $02fa          d3 03    OUT #03
 $02fc          d3 04    OUT #04
-$02fe          d3 0f    OUT #0f
+$02fe          d3 0f    OUT LAMP_3
 $0300 o0300:   c3 43 01 JMP j0143
  
 $0303 c0303:   11 3b 23 LXI D, #233b ;co0317,o13b5
@@ -485,7 +496,7 @@ $0348          1c       INR E
 $0349 o0349:   c3 40 03 JMP j0340
 $034c j034c:   7b       MOV A,E ;o0345
 $034d          2f       CMA
-$034e          d3 0e    OUT #0e
+$034e          d3 0e    OUT LAMP_2
 $0350          2f       CMA
 $0351          21 93 21 LXI H, #2193
 $0354 o0354:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
@@ -525,7 +536,7 @@ $0396          1c       INR E
 $0397 o0397:   c3 8e 03 JMP j038e
 $039a j039a:   7b       MOV A,E ;o0393
 $039b          2f       CMA
-$039c          d3 0d    OUT #0d
+$039c          d3 0d    OUT LAMP_1
 $039e          2f       CMA
 $039f          21 94 21 LXI H, STATE_OUTLANE_1
 $03a2 o03a2:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
@@ -724,7 +735,7 @@ $04d5          d3 01    OUT #01
 $04d7          d3 02    OUT #02
 $04d9          d3 03    OUT #03
 $04db          d3 04    OUT #04
-$04dd          d3 05    OUT #05
+$04dd          d3 05    OUT DIP_SWITCH_PORT
 $04df          d3 06    OUT #06
 $04e1          d3 07    OUT #07
 $04e3          d3 08    OUT #08
@@ -768,7 +779,7 @@ $053b          3e 02    MVI A, #02
 $053d          32 9d 21 STA $219d
 $0540 o0540:   c3 82 03 JMP jo0382
 $0543 jTILT2:  21 c2 12 LXI H, #12c2 ;o04ab,o04b3
-$0546 o0546:   cd 61 12 CALL cPLAY_SOUND
+$0546 o0546:   cd 61 12 CALL cPLAY_SOUND_2
 $0549 o0549:   c3 82 03 JMP jo0382
 $054c          3a 1b 22 LDA $221b
 $054f          3d       DCR A
@@ -779,7 +790,7 @@ $0558          32 9d 21 STA $219d
 $055b          3e fa    MVI A, #fa
 $055d          32 9e 21 STA $219e
 $0560          21 bf 12 LXI H, #12bf
-$0563 o0563:   cd 61 12 CALL cPLAY_SOUND
+$0563 o0563:   cd 61 12 CALL cPLAY_SOUND_2
 $0566 o0566:   c3 1e 06 JMP joEND_MAIN_LOOP
 $0569 j0569:   3a 47 22 LDA $2247 ;o0553
 $056c          e6 bf    ANI #bf
@@ -794,14 +805,14 @@ $0581 o0581:   c3 1e 06 JMP joEND_MAIN_LOOP
 ; tilt handler 2
 $0584          db 04    IN PRICE_89_CAB
 $0586          e6 80    ANI #80
-$0588 o0588:   ca a2 05 JZ j05a2
+$0588 o0588:   c3 a2 05 JMP j05a2
 $058b o058b:   cd 6a 04 CALL c046a
 $058e o058e:   c2 a2 05 JNZ j05a2
 $0591          cd 4f 04 CALL $044f
 $0594          3e 7d    MVI A, #7d
 $0596          32 a2 21 STA $21a2
 $0599          21 c2 12 LXI H, #12c2
-$059c o059c:   cd 61 12 CALL cPLAY_SOUND
+$059c o059c:   cd 61 12 CALL cPLAY_SOUND_2
 $059f o059f:   c3 1e 06 JMP joEND_MAIN_LOOP
 $05a2 j05a2:   3a 94 21 LDA STATE_OUTLANE_1 ;o0588,o058e
 $05a5          e6 77    ANI #77
@@ -976,7 +987,7 @@ $06f1          32 7a 23 STA CREDITS_1
 $06f4          32 9a 23 STA CREDITS_2
 $06f7          32 ba 23 STA CREDITS_3
 $06fa          21 41 13 LXI H, #1341
-$06fd o06fd:   cd 61 12 CALL cPLAY_SOUND
+$06fd o06fd:   cd 61 12 CALL cPLAY_SOUND_2
 $0700          21 4a 22 LXI H, #224a
 $0703          35       DCR M
 $0704          c0       RNZ
@@ -1083,7 +1094,7 @@ $07b8          23       INX H
 $07b9          66       MOV H,M
 $07ba          68       MOV L,B
 $07bb          d5       PUSH D
-$07bc o07bc:   cd 61 12 CALL cPLAY_SOUND
+$07bc o07bc:   cd 61 12 CALL cPLAY_SOUND_2
 $07bf          d1       POP D
 $07c0          21 29 08 LXI H, #0829
 $07c3          19       DAD D
@@ -1158,7 +1169,7 @@ $084a          3e 05    MVI A, #05
 $084c o084c:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
 $084f o084f:   c2 82 03 JNZ jo0382
 $0852          21 4e 13 LXI H, #134e
-$0855 o0855:   cd 61 12 CALL cPLAY_SOUND
+$0855 o0855:   cd 61 12 CALL cPLAY_SOUND_2
 $0858          3e 04    MVI A, #04
 $085a          32 22 22 STA $2222
 $085d          21 91 21 LXI H, #2191
@@ -1241,7 +1252,7 @@ $091c          3e 05    MVI A, #05
 $091e o091e:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
 $0921 o0921:   c2 82 03 JNZ jo0382
 $0924          21 4e 13 LXI H, #134e
-$0927 o0927:   cd 61 12 CALL cPLAY_SOUND
+$0927 o0927:   cd 61 12 CALL cPLAY_SOUND_2
 $092a o092a:   c3 82 03 JMP jo0382
 $092d          21 c3 21 LXI H, #21c3
 $0930          3e 05    MVI A, #05
@@ -1339,7 +1350,7 @@ $0a0f          3e 01    MVI A, #01
 $0a11 o0a11:   ca 24 0a JZ j0a24
 $0a14 jo0a14:  cd 91 1d CALL co1d91 ;o0a06
 $0a17          21 e3 12 LXI H, #12e3
-$0a1a o0a1a:   cd 61 12 CALL cPLAY_SOUND
+$0a1a o0a1a:   cd 61 12 CALL cPLAY_SOUND_2
 $0a1d          3e c8    MVI A, #c8
 $0a1f          32 08 22 STA $2208
 $0a22          3e 5a    MVI A, #5a
@@ -1357,7 +1368,7 @@ $0a37          66       MOV H,M
 $0a38          6f       MOV L,A
 $0a39 o0a39:   cd 5c 0e CALL c0e5c
 $0a3c          21 dd 12 LXI H, #12dd
-$0a3f o0a3f:   cd 61 12 CALL cPLAY_SOUND
+$0a3f o0a3f:   cd 61 12 CALL cPLAY_SOUND_2
 $0a42          21 92 21 LXI H, GAME_STATE2
 $0a45          3e 01    MVI A, #01
 $0a47 o0a47:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
@@ -1378,7 +1389,7 @@ $0a6d o0a6d:   c3 1e 06 JMP joEND_MAIN_LOOP
 $0a70          21 71 11 LXI H, #1171
 $0a73 o0a73:   cd 5c 0e CALL c0e5c
 $0a76          21 35 13 LXI H, #1335
-$0a79 o0a79:   cd 61 12 CALL cPLAY_SOUND
+$0a79 o0a79:   cd 61 12 CALL cPLAY_SOUND_2
 $0a7c          3a 1a 22 LDA $221a
 $0a7f          3d       DCR A
 $0a80          32 1a 22 STA $221a
@@ -1418,7 +1429,7 @@ $0ad4          19       DAD D
 $0ad5          46       MOV B,M
 $0ad6 o0ad6:   cd 76 1d CALL co1d76
 $0ad9          21 dd 12 LXI H, #12dd
-$0adc o0adc:   cd 61 12 CALL cPLAY_SOUND
+$0adc o0adc:   cd 61 12 CALL cPLAY_SOUND_2
 $0adf          3e 0f    MVI A, #0f
 $0ae1          32 a5 21 STA $21a5
 $0ae4          3e 64    MVI A, #64
@@ -1478,7 +1489,7 @@ $0b5d o0b5d:   cd 9c 1d CALL co1d9c
 $0b60 o0b60:   c2 19 14 JNZ jo1419
 $0b63 o0b63:   cd 76 1d CALL co1d76
 $0b66          21 e0 12 LXI H, #12e0
-$0b69 o0b69:   cd 61 12 CALL cPLAY_SOUND
+$0b69 o0b69:   cd 61 12 CALL cPLAY_SOUND_2
 $0b6c o0b6c:   c3 19 14 JMP jo1419
  
 $0b6f c0b6f:   16 00    MVI D, #00 ;o09cc,o0a00,jo0b52
@@ -1579,7 +1590,7 @@ $0c2e o0c2e:   cd 81 1d CALL co1d81
 $0c31          06 09    MVI B, #09
 $0c33 o0c33:   cd 81 1d CALL co1d81
 $0c36          21 21 13 LXI H, #1321
-$0c39 o0c39:   cd 61 12 CALL cPLAY_SOUND
+$0c39 o0c39:   cd 61 12 CALL cPLAY_SOUND_2
 $0c3c          21 8a 23 LXI H, #238a
 $0c3f          3a be 23 LDA $23be
 $0c42          e6 f0    ANI #f0
@@ -1669,7 +1680,7 @@ $0ce8 o0ce8:   cd 92 02 CALL cADD_BONUS_HL
 $0ceb          3e 0a    MVI A, #0a
 $0ced          32 a7 21 STA $21a7
 $0cf0          21 32 13 LXI H, #1332
-$0cf3 o0cf3:   cd 61 12 CALL cPLAY_SOUND
+$0cf3 o0cf3:   cd 61 12 CALL cPLAY_SOUND_2
 $0cf6 o0cf6:   c3 1e 06 JMP joEND_MAIN_LOOP
 $0cf9 j0cf9:   21 65 11 LXI H, #1165 ;o0ce2
 $0cfc o0cfc:   cd 5c 0e CALL c0e5c
@@ -1686,7 +1697,7 @@ $0d18 o0d18:   cd 6f 0e CALL c0e6f
 $0d1b          3e 3c    MVI A, #3c
 $0d1d          32 a7 21 STA $21a7
 $0d20          21 35 13 LXI H, #1335
-$0d23 jo0d23:  cd 61 12 CALL cPLAY_SOUND ;o0d4a
+$0d23 jo0d23:  cd 61 12 CALL cPLAY_SOUND_2 ;o0d4a
 $0d26 o0d26:   c3 1e 06 JMP joEND_MAIN_LOOP
 $0d29 j0d29:   21 c5 21 LXI H, #21c5 ;o0cd9,o0d0f,o0d12
 $0d2c          7e       MOV A,M
@@ -1751,14 +1762,14 @@ $0dbf o0dbf:   ca d1 0d JZ j0dd1
 $0dc2          21 65 11 LXI H, #1165
 $0dc5 o0dc5:   cd 92 02 CALL cADD_BONUS_HL
 $0dc8          21 e0 12 LXI H, #12e0
-$0dcb o0dcb:   cd 61 12 CALL cPLAY_SOUND
+$0dcb o0dcb:   cd 61 12 CALL cPLAY_SOUND_2
 $0dce o0dce:   c3 e1 0d JMP j0de1
 $0dd1 j0dd1:   21 71 11 LXI H, #1171 ;o0dbf
 $0dd4 o0dd4:   cd 92 02 CALL cADD_BONUS_HL
 $0dd7          eb       XCHG
 $0dd8 o0dd8:   cd 5c 0e CALL c0e5c
 $0ddb          21 f2 12 LXI H, #12f2
-$0dde o0dde:   cd 61 12 CALL cPLAY_SOUND
+$0dde o0dde:   cd 61 12 CALL cPLAY_SOUND_2
 $0de1 j0de1:   3a 91 21 LDA $2191 ;o0da2,o0db9,o0dce
 $0de4          e6 df    ANI #df
 $0de6          32 91 21 STA $2191
@@ -2128,7 +2139,7 @@ $107d jo107d:  cd e1 03 CALL cCLEAR_ATH_BIT_OF_HL ;o10b2
 $1080          e5       PUSH H
 $1081          c5       PUSH B
 $1082          21 16 13 LXI H, #1316
-$1085 o1085:   cd 61 12 CALL cPLAY_SOUND
+$1085 o1085:   cd 61 12 CALL cPLAY_SOUND_2
 $1088          21 a7 21 LXI H, #21a7
 $108b          7e       MOV A,M
 $108c          b7       ORA A
@@ -2282,7 +2293,7 @@ $118b          ff       DB #ff
 $118c          ff       DB #ff
  
 $118d c118d:   3e ff    MVI A, #ff ;o123b,o125b
-$118f          d3 09    OUT #09
+$118f          d3 09    OUT TONE_ENABLE_DUR
 $1191          11 ac 12 LXI D, #12ac
 $1194          7d       MOV A,L
 $1195          93       SUB E
@@ -2297,11 +2308,11 @@ $119f          9c       SBB H
 $11a0          f8       RM
 $11a1          7e       MOV A,M
 $11a2          2f       CMA
-$11a3          d3 0a    OUT #0a
+$11a3          d3 0a    OUT TONE_PITCH
 $11a5          23       INX H
 $11a6          7e       MOV A,M
 $11a7          2f       CMA
-$11a8          d3 09    OUT #09
+$11a8          d3 09    OUT TONE_ENABLE_DUR
 $11aa          2f       CMA
 $11ab          22 b1 21 SHLD $21b1
 $11ae          11 fc 11 LXI D, #11fc
@@ -2357,7 +2368,7 @@ $120e o120e:   c2 22 12 JNZ jo1222
 $1211          3e 06    MVI A, #06
 $1213 o1213:   cd d6 03 CALL cSET_ATH_BIT_OF_HL
 $1216          3e fe    MVI A, #fe
-$1218          d3 09    OUT #09
+$1218          d3 09    OUT TONE_ENABLE_DUR
 $121a          3e 02    MVI A, #02
 $121c          32 98 21 STA $2198
 $121f o121f:   c3 1e 06 JMP joEND_MAIN_LOOP
@@ -2366,7 +2377,7 @@ $1225          3e 06    MVI A, #06
 $1227 o1227:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
 $122a o122a:   c2 55 12 JNZ jo1255
 $122d          3e ff    MVI A, #ff
-$122f          d3 09    OUT #09
+$122f          d3 09    OUT TONE_ENABLE_DUR
 $1231          2a b1 21 LHLD $21b1
 $1234          23       INX H
 $1235          7e       MOV A,M
@@ -2378,7 +2389,7 @@ $1241 j1241:   3a b3 21 LDA $21b3 ;o1238
 $1244          fe 00    CPI #00
 $1246 o1246:   c2 58 12 JNZ jo1258
 $1249          3e ff    MVI A, #ff
-$124b          d3 09    OUT #09
+$124b          d3 09    OUT TONE_ENABLE_DUR
 $124d          3e 0c    MVI A, #0c
 $124f          32 98 21 STA $2198
 $1252 o1252:   c3 1e 06 JMP joEND_MAIN_LOOP
@@ -2387,7 +2398,7 @@ $1258 jo1258:  cd 8c 12 CALL c128c ;o1246
 $125b o125b:   cd 8d 11 CALL c118d
 $125e o125e:   c3 1e 06 JMP joEND_MAIN_LOOP
  
-$1261 cPLAY_SOUND:
+$1261 cPLAY_SOUND_2:
                eb       XCHG ;o0546,o0563,o059c,o06fd,o07bc,o0855,o0927,o0a1a,o0a3f,o0a79,o0adc,o0b69,o0c39,o0cf3,jo0d23,o0dcb,o0dde,o1085,o14bd,o14ef,o1585,o15a6,o15d0,o15f5,o1786,o1859,o18c7,o18e4,o1a27,o1ae4,o1b72,o1f70
 $1262          2a be 21 LHLD $21be
 $1265          01 be 21 LXI B, #21be
@@ -2616,7 +2627,7 @@ $137c          fe 21    CPI #21
 $137e          91       SUB C
 $137f          21 3e 03 LXI H, #033e
 $1382 o1382:   cd e1 03 CALL cCLEAR_ATH_BIT_OF_HL
-$1385          d3 0f    OUT #0f
+$1385          d3 0f    OUT LAMP_3
 $1387          21 e0 23 LXI H, #23e0
 $138a          11 3b 23 LXI D, #233b
 $138d j138d:   46       MOV B,M ;o13aa
@@ -2791,7 +2802,7 @@ $14b1 o14b1:   cd 81 1d CALL co1d81
 $14b4          21 61 11 LXI H, #1161
 $14b7 o14b7:   cd 92 02 CALL cADD_BONUS_HL
 $14ba          21 d7 12 LXI H, #12d7
-$14bd o14bd:   cd 61 12 CALL cPLAY_SOUND
+$14bd o14bd:   cd 61 12 CALL cPLAY_SOUND_2
 $14c0          3a c6 21 LDA $21c6
 $14c3          fe 00    CPI #00
 $14c5 o14c5:   c2 19 14 JNZ jo1419
@@ -2812,7 +2823,7 @@ $14e7          19       DAD D
 $14e8          46       MOV B,M
 $14e9 o14e9:   cd 76 1d CALL co1d76
 $14ec          21 d7 12 LXI H, #12d7
-$14ef o14ef:   cd 61 12 CALL cPLAY_SOUND
+$14ef o14ef:   cd 61 12 CALL cPLAY_SOUND_2
 $14f2          3e 0a    MVI A, #0a
 $14f4          32 a4 21 STA $21a4
 $14f7 o14f7:   c3 1e 06 JMP joEND_MAIN_LOOP
@@ -2872,7 +2883,7 @@ $157a          3e 04    MVI A, #04
 $157c j157c:   32 11 22 STA $2211 ;o1577
 $157f o157f:   cd 02 04 CALL c0402
 $1582          21 38 13 LXI H, #1338
-$1585 o1585:   cd 61 12 CALL cPLAY_SOUND
+$1585 o1585:   cd 61 12 CALL cPLAY_SOUND_2
 $1588 j1588:   21 90 21 LXI H, GAME_STATE ;o155a,o1565
 $158b          3e 03    MVI A, #03
 $158d o158d:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
@@ -2884,7 +2895,7 @@ $159b o159b:   cd 81 1d CALL co1d81
 $159e          06 31    MVI B, #31
 $15a0 o15a0:   cd 91 1d CALL co1d91
 $15a3 j15a3:   21 ed 12 LXI H, #12ed ;o1590,o1598
-$15a6 o15a6:   cd 61 12 CALL cPLAY_SOUND
+$15a6 o15a6:   cd 61 12 CALL cPLAY_SOUND_2
 $15a9 o15a9:   c3 19 14 JMP jo1419
 ; outlane handler
 $15ac          3e ff    MVI A, #ff
@@ -2901,7 +2912,7 @@ $15c4 o15c4:   cd d6 03 CALL cSET_ATH_BIT_OF_HL
 $15c7          21 65 11 LXI H, #1165
 $15ca o15ca:   cd 92 02 CALL cADD_BONUS_HL
 $15cd          21 4b 13 LXI H, #134b
-$15d0 o15d0:   cd 61 12 CALL cPLAY_SOUND
+$15d0 o15d0:   cd 61 12 CALL cPLAY_SOUND_2
 $15d3 o15d3:   c3 19 14 JMP jo1419
 ; inlane routine
 $15d6          21 90 21 LXI H, GAME_STATE
@@ -2915,7 +2926,7 @@ $15e9 o15e9:   cd e1 03 CALL cCLEAR_ATH_BIT_OF_HL
 $15ec          21 65 11 LXI H, #1165
 $15ef o15ef:   cd 5c 0e CALL c0e5c
 $15f2          21 35 13 LXI H, #1335
-$15f5 o15f5:   cd 61 12 CALL cPLAY_SOUND
+$15f5 o15f5:   cd 61 12 CALL cPLAY_SOUND_2
 $15f8 o15f8:   c3 19 14 JMP jo1419
 $15fb          21 92 21 LXI H, GAME_STATE2
 $15fe          3e 00    MVI A, #00
@@ -3070,7 +3081,7 @@ $177c          b0       ORA B
 $177d          32 9e 23 STA $239e
 $1780 o1780:   c3 d0 16 JMP jDECREASE_CREDIT
 $1783 j1783:   21 da 12 LXI H, #12da ;o16ea
-$1786 o1786:   cd 61 12 CALL cPLAY_SOUND
+$1786 o1786:   cd 61 12 CALL cPLAY_SOUND_2
 $1789 j1789:   3e 06    MVI A, #06 ;o1603,o1612,o161d,o16f2
 $178b o178b:   c3 76 03 JMP j0376
  
@@ -3173,7 +3184,7 @@ $184e          21 92 21 LXI H, GAME_STATE2
 $1851          3e 04    MVI A, #04
 $1853 o1853:   cd d6 03 CALL cSET_ATH_BIT_OF_HL
 $1856          21 e8 12 LXI H, #12e8
-$1859 o1859:   cd 61 12 CALL cPLAY_SOUND
+$1859 o1859:   cd 61 12 CALL cPLAY_SOUND_2
 $185c o185c:   cd a8 1b CALL c1ba8
 $185f          eb       XCHG
 $1860          21 c6 21 LXI H, #21c6
@@ -3221,7 +3232,7 @@ $18bc o18bc:   cd 6f 0e CALL c0e6f
 $18bf          3e 3c    MVI A, #3c
 $18c1          32 ae 21 STA $21ae
 $18c4          21 35 13 LXI H, #1335
-$18c7 o18c7:   cd 61 12 CALL cPLAY_SOUND
+$18c7 o18c7:   cd 61 12 CALL cPLAY_SOUND_2
 $18ca o18ca:   c3 19 14 JMP jo1419
 $18cd          21 65 11 LXI H, #1165
 $18d0 o18d0:   cd 99 0e CALL c0e99
@@ -3231,7 +3242,7 @@ $18d9 o18d9:   cd 92 02 CALL cADD_BONUS_HL
 $18dc          3e 0a    MVI A, #0a
 $18de          32 ae 21 STA $21ae
 $18e1          21 32 13 LXI H, #1332
-$18e4 o18e4:   cd 61 12 CALL cPLAY_SOUND
+$18e4 o18e4:   cd 61 12 CALL cPLAY_SOUND_2
 $18e7 o18e7:   c3 1e 06 JMP joEND_MAIN_LOOP
 $18ea j18ea:   21 65 11 LXI H, #1165 ;o18d3
 $18ed o18ed:   cd 5c 0e CALL c0e5c
@@ -3368,7 +3379,7 @@ $1a1c          3e 7a    MVI A, #7a
 $1a1e          32 a3 21 STA $21a3
 $1a21 o1a21:   c3 2a 1a JMP j1a2a
 $1a24 j1a24:   21 ff 12 LXI H, #12ff ;o1a14
-$1a27 o1a27:   cd 61 12 CALL cPLAY_SOUND
+$1a27 o1a27:   cd 61 12 CALL cPLAY_SOUND_2
 $1a2a j1a2a:   3e 00    MVI A, #00 ;o1a21
 $1a2c          32 9b 23 STA BALL_IN_PLAY_1
 $1a2f          32 bb 23 STA BALL_IN_PLAY_2
@@ -3418,7 +3429,7 @@ $1a74          3a 47 22 LDA $2247
 $1a77          e6 f7    ANI #f7
 $1a79          32 47 22 STA $2247
 $1a7c          3e 07    MVI A, #07
-$1a7e          21 b3 23 LXI H, #23b3
+$1a7e          21 b3 23 LXI H, HIGH_SCORE_DISP3
 $1a81          11 93 23 LXI D, HIGH_SCORE_NOW
 $1a84 o1a84:   cd cf 0e CALL cCOPY_FROM_HL_TO_DE
 $1a87 o1a87:   c3 1e 06 JMP joEND_MAIN_LOOP
@@ -3457,7 +3468,7 @@ $1ada          3d       DCR A
 $1adb          32 12 22 STA $2212
 $1ade o1ade:   ca ef 1a JZ j1aef
 $1ae1          21 21 13 LXI H, #1321
-$1ae4 o1ae4:   cd 61 12 CALL cPLAY_SOUND
+$1ae4 o1ae4:   cd 61 12 CALL cPLAY_SOUND_2
 $1ae7          3e a0    MVI A, #a0
 $1ae9          32 a1 21 STA $21a1
 $1aec o1aec:   c3 1e 06 JMP joEND_MAIN_LOOP
@@ -3513,7 +3524,7 @@ $1b67          21 92 21 LXI H, GAME_STATE2
 $1b6a          3e 07    MVI A, #07
 $1b6c o1b6c:   cd d6 03 CALL cSET_ATH_BIT_OF_HL
 $1b6f          21 46 13 LXI H, #1346
-$1b72 o1b72:   cd 61 12 CALL cPLAY_SOUND
+$1b72 o1b72:   cd 61 12 CALL cPLAY_SOUND_2
 $1b75          3a 14 22 LDA $2214
 $1b78          3d       DCR A
 $1b79          32 14 22 STA $2214
@@ -3582,14 +3593,14 @@ $1c07          e6 20    ANI #20
 $1c09 o1c09:   c2 c3 1c JNZ j1cc3
 $1c0c          fb       EI
 $1c0d          21 2d 22 LXI H, HIGH_SCORE_START
-$1c10          11 b3 23 LXI D, #23b3
+$1c10          11 b3 23 LXI D, HIGH_SCORE_DISP3
 $1c13          3e 07    MVI A, #07
 $1c15 o1c15:   cd ea 0e CALL cWRITE_TO_RAM
 $1c18          21 89 11 LXI H, #1189
 $1c1b          3a 47 22 LDA $2247
 $1c1e          e6 08    ANI #08
 $1c20 o1c20:   c2 26 1c JNZ j1c26
-$1c23          21 b3 23 LXI H, #23b3
+$1c23          21 b3 23 LXI H, HIGH_SCORE_DISP3
 $1c26 j1c26:   11 93 23 LXI D, HIGH_SCORE_NOW ;o1c20
 $1c29          3e 07    MVI A, #07
 $1c2b o1c2b:   cd cf 0e CALL cCOPY_FROM_HL_TO_DE
@@ -3692,7 +3703,7 @@ $1d1d          3e 05    MVI A, #05
 $1d1f o1d1f:   cd d6 03 CALL cSET_ATH_BIT_OF_HL
 $1d22          3a c2 21 LDA $21c2
 $1d25          2f       CMA
-$1d26          d3 05    OUT #05
+$1d26          d3 05    OUT DIP_SWITCH_PORT
 $1d28          3e 80    MVI A, #80
 $1d2a          32 93 21 STA $2193
 $1d2d          3e 06    MVI A, #06
@@ -3977,7 +3988,7 @@ $1f65          11 2d 22 LXI D, HIGH_SCORE_START
 $1f68          3e 07    MVI A, #07
 $1f6a o1f6a:   cd cf 0e CALL cCOPY_FROM_HL_TO_DE
 $1f6d          21 51 13 LXI H, #1351
-$1f70 o1f70:   cd 61 12 CALL cPLAY_SOUND
+$1f70 o1f70:   cd 61 12 CALL cPLAY_SOUND_2
 $1f73          3a 47 22 LDA $2247
 $1f76          f6 08    ORI #08
 $1f78          32 47 22 STA $2247

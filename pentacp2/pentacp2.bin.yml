@@ -1,6 +1,10 @@
 addresses:
    HIGH_SCORE_START : $222D         
+   HIGH_SCORE_DISP   : $2323
+   HIGH_SCORE_DISP2   : $2330
    HIGH_SCORE_NOW  : $2393
+   HIGH_SCORE_DISP3 : $23B3
+   HIGH_SCORE_DISP4 : $23D3
    PRICE_1   : $237F         
    PRICE_2   : $239F 
    PRICE_3   : $23BF 
@@ -72,6 +76,7 @@ labels:
    2_LSHIFT_A : $03f9
    COPY_FROM_HL_TO_DE : $0ecf # A is # bytes, D is dest, H is souce
    PLAY_SOUND : $1261
+   PLAY_SOUND_2 : $1261
    DECREASE_CREDIT : $16d0
    SWITCH_HANDLER : $0386
    END_MAIN_LOOP : $061e
@@ -105,6 +110,14 @@ inPorts:
    PRICE_CENTS_07_PORT : $02
    PRICE_TENS_07_PORT : $03
    PRICE_89_CAB : $04
+
+outPorts:
+   TONE_ENABLE_DUR : $09
+   TONE_PITCH : $0A
+   LAMP_1 : $0D
+   LAMP_2 : $0E
+   LAMP_3 : $0F
+   
 # bit 10 -> credit button?
 # bit 80 -> for the 80/90a
 # bit 20 -> flipper switch?
@@ -132,3 +145,7 @@ notes:
   $15d6 : "inlane routine"
   $1609 : "check if credits"
   $1c39 : "seems pointless"
+
+ # 12ac - 137e maybe sound data?
+ # 1e82 seems like it - it hits either way
+# 12ad maybe music or $134e
