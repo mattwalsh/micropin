@@ -2620,48 +2620,48 @@ j129a:  MOV E,M ;o1294
         DB #00
         DB #ff
 ; call to the post
-        DB #65
+        DB #66
         DB #0c
-        DB #87
+        DB #86
         DB #0c
-        DB #aa
+        DB #a0
         DB #0c
-        DB #ca
+        DB #98
         DB #0c
-        DB #ca
-        DB #00
-        DB #ca
-        DB #08
-        DB #ca
-        DB #08
-        DB #ca
-        DB #08
-        DB #aa
-        DB #00
-        DB #aa
+        DB #86
         DB #0c
-        DB #aa
-        DB #00
-        DB #aa
-        DB #08
-        DB #aa
-        DB #08
-        DB #aa
-        DB #08
-        DB #87
-        DB #00
-        DB #87
+        DB #a0
         DB #0c
-        DB #aa
+        DB #86
         DB #0c
-        DB #87
+        DB #98
         DB #0c
-        DB #65
+        DB #86
         DB #0c
-        DB #65
-        DB #20
-        DB #65
-        DB #20
+        DB #6c
+        DB #0c
+        DB #78
+        DB #0c
+        DB #66
+        DB #0f
+        DB #ff
+        DB #ff
+        DB #ff
+        DB #ff
+        DB #ff
+        DB #ff
+        DB #ff
+        DB #ff
+        DB #ff
+        DB #ff
+        DB #ff
+        DB #ff
+        DB #ff
+        DB #ff
+        DB #ff
+        DB #ff
+        DB #ff
+        DB #ff
         DB #ff
         DB #fe
 jc137d: LXI H, #2191 ;o0140,o13b2,o1d6f
