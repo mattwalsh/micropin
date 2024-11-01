@@ -155,6 +155,10 @@ outPorts:
    DIP_SWITCH_PORT : $05
 
 notes:
+  $002f:  "TRAP"
+  $003C:  "RST7.5"
+  $0034:  "RST6.5"
+  $002C:  "RST5.5"
   $005D : "hard reset routine"
   $01D6 : "read in the ones place"
   $020e : "load dip switches, set # balls per game"
