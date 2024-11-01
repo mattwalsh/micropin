@@ -70,6 +70,7 @@ CREDIT_MUSIC EQU 0x1341
 NEXT_PLAYER_MUSIC EQU 0x1346
 OUTLANE_MUSIC EQU 0x134b
 SILENCE_MUSIC EQU 0x134e
+POPCORN_MUSIC EQU 0x136a
 HIGH_SCORE_MUSIC EQU 0x1351
 
 ; INPUT PORTS
@@ -81,9 +82,14 @@ PRICE_89_CAB EQU 0x4
 ; OUTPUT PORTS
 TONE_ENABLE_DUR EQU 0x9
 TONE_PITCH EQU 0xa
-LAMP_1 EQU 0xd
-LAMP_2 EQU 0xe
-LAMP_3 EQU 0xf
+LAMP_0 EQU 0x0
+LAMP_1 EQU 0x1
+LAMP_2 EQU 0x2
+LAMP_3 EQU 0x3
+LAMP_4 EQU 0x4
+LAMP_d EQU 0xd
+LAMP_e EQU 0xe
+LAMP_f EQU 0xf
 DIP_SWITCH_PORT EQU 0x5
 $0000 o0000:   c3 40 00 JMP j0040
 $0003 o0003:   cd b4 06 CALL jcCREDIT_HANDLER
@@ -115,12 +121,15 @@ $0028          76       HLT
 $0029          76       HLT
 $002a          76       HLT
 $002b          46       MOV B,M
+; RST5.5
 $002c o002c:   c3 30 03 JMP jo0330
+; TRAP
 $002f          76       HLT
 $0030          76       HLT
 $0031          76       HLT
 $0032          76       HLT
 $0033          00       NOP
+; RST6.5
 $0034 o0034:   c3 86 03 JMP joSWITCH_HANDLER
 $0037          76       HLT
 $0038          76       HLT
@@ -133,7 +142,7 @@ $0042          32 da 23 STA CREDITS_4
 $0045          16 05    MVI D, #05
 $0047 j0047:   21 10 27 LXI H, #2710 ;o0053
 $004a j004a:   2b       DCX H ;o004f
-$004b          d3 0f    OUT LAMP_3
+$004b          d3 0f    OUT LAMP_f
 $004d          7c       MOV A,H
 $004e          b7       ORA A
 $004f o004f:   c2 4a 00 JNZ j004a
@@ -152,8 +161,8 @@ $0065          bc       CMP H
 $0066 o0066:   c2 60 00 JNZ j0060
 $0069 j0069:   31 90 21 LXI SP, GAME_STATE ;o0024,o005a
 $006c          3e 07    MVI A, #07
-$006e j006e:   d3 0e    OUT LAMP_2 ;o0073
-$0070          d3 0d    OUT LAMP_1
+$006e j006e:   d3 0e    OUT LAMP_e ;o0073
+$0070          d3 0d    OUT LAMP_d
 $0072          3d       DCR A
 $0073 o0073:   f2 6e 00 JP j006e
 $0076          21 97 21 LXI H, #2197
@@ -356,7 +365,7 @@ $0224 o0224:   c2 28 02 JNZ j0228
 $0227          04       INR B
 $0228 j0228:   78       MOV A,B ;o021b,o0224
 $0229          32 13 22 STA BALLS_PER_GAME
-$022c j022c:   d3 0f    OUT LAMP_3 ;o028f,o1c7b,o1cc0,o1ccb,o1cd9,o1d63
+$022c j022c:   d3 0f    OUT LAMP_f ;o028f,o1c7b,o1cc0,o1ccb,o1cd9,o1d63
 $022e          fb       EI
 $022f          00       NOP
 $0230          fb       EI
@@ -464,12 +473,12 @@ $02ed          36 ff    MVI M, #ff
 $02ef          23       INX H
 $02f0          36 88    MVI M, #88
 $02f2          3e 00    MVI A, #00
-$02f4          d3 00    OUT #00
-$02f6          d3 01    OUT #01
-$02f8          d3 02    OUT #02
-$02fa          d3 03    OUT #03
-$02fc          d3 04    OUT #04
-$02fe          d3 0f    OUT LAMP_3
+$02f4          d3 00    OUT LAMP_0
+$02f6          d3 01    OUT LAMP_1
+$02f8          d3 02    OUT LAMP_2
+$02fa          d3 03    OUT LAMP_3
+$02fc          d3 04    OUT LAMP_4
+$02fe          d3 0f    OUT LAMP_f
 $0300 o0300:   c3 43 01 JMP j0143
  
 $0303 c0303:   11 3b 23 LXI D, #233b ;co0317,o13b5
@@ -518,7 +527,7 @@ $0348          1c       INR E
 $0349 o0349:   c3 40 03 JMP j0340
 $034c j034c:   7b       MOV A,E ;o0345
 $034d          2f       CMA
-$034e          d3 0e    OUT LAMP_2
+$034e          d3 0e    OUT LAMP_e
 $0350          2f       CMA
 $0351          21 93 21 LXI H, #2193
 $0354 o0354:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
@@ -558,7 +567,7 @@ $0396          1c       INR E
 $0397 o0397:   c3 8e 03 JMP j038e
 $039a j039a:   7b       MOV A,E ;o0393
 $039b          2f       CMA
-$039c          d3 0d    OUT LAMP_1
+$039c          d3 0d    OUT LAMP_d
 $039e          2f       CMA
 $039f          21 94 21 LXI H, STATE_OUTLANE_1
 $03a2 o03a2:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
@@ -764,11 +773,11 @@ $04cd j04cd:   77       MOV M,A ;o04d0
 $04ce          23       INX H
 $04cf          05       DCR B
 $04d0 o04d0:   c2 cd 04 JNZ j04cd
-$04d3          d3 00    OUT #00
-$04d5          d3 01    OUT #01
-$04d7          d3 02    OUT #02
-$04d9          d3 03    OUT #03
-$04db          d3 04    OUT #04
+$04d3          d3 00    OUT LAMP_0
+$04d5          d3 01    OUT LAMP_1
+$04d7          d3 02    OUT LAMP_2
+$04d9          d3 03    OUT LAMP_3
+$04db          d3 04    OUT LAMP_4
 $04dd          d3 05    OUT DIP_SWITCH_PORT
 $04df          d3 06    OUT #06
 $04e1          d3 07    OUT #07
@@ -947,19 +956,19 @@ $0655          3e 40    MVI A, #40
 $0657 o0657:   cd cf 0e CALL cCOPY_FROM_HL_TO_DE
 $065a          3a c9 21 LDA $21c9
 $065d          2f       CMA
-$065e          d3 00    OUT #00
+$065e          d3 00    OUT LAMP_0
 $0660          3a ca 21 LDA $21ca
 $0663          2f       CMA
-$0664          d3 01    OUT #01
+$0664          d3 01    OUT LAMP_1
 $0666          3a cb 21 LDA $21cb
 $0669          2f       CMA
-$066a          d3 02    OUT #02
+$066a          d3 02    OUT LAMP_2
 $066c          3a cc 21 LDA $21cc
 $066f          2f       CMA
-$0670          d3 03    OUT #03
+$0670          d3 03    OUT LAMP_3
 $0672          3a cd 21 LDA $21cd
 $0675          2f       CMA
-$0676          d3 04    OUT #04
+$0676          d3 04    OUT LAMP_4
 $0678 o0678:   c3 a4 06 JMP j06a4
 $067b j067b:   21 80 23 LXI H, #2380 ;o064c
 $067e          11 c0 23 LXI D, #23c0
@@ -967,19 +976,19 @@ $0681          3e 40    MVI A, #40
 $0683 o0683:   cd cf 0e CALL cCOPY_FROM_HL_TO_DE
 $0686          3a ce 21 LDA $21ce
 $0689          2f       CMA
-$068a          d3 00    OUT #00
+$068a          d3 00    OUT LAMP_0
 $068c          3a cf 21 LDA $21cf
 $068f          2f       CMA
-$0690          d3 01    OUT #01
+$0690          d3 01    OUT LAMP_1
 $0692          3a d0 21 LDA $21d0
 $0695          2f       CMA
-$0696          d3 02    OUT #02
+$0696          d3 02    OUT LAMP_2
 $0698          3a d1 21 LDA $21d1
 $069b          2f       CMA
-$069c          d3 03    OUT #03
+$069c          d3 03    OUT LAMP_3
 $069e          3a d2 21 LDA $21d2
 $06a1          2f       CMA
-$06a2          d3 04    OUT #04
+$06a2          d3 04    OUT LAMP_4
 ; check credit button
 $06a4 j06a4:   db 04    IN PRICE_89_CAB ;o0678
 $06a6          e6 10    ANI #10
@@ -2675,22 +2684,21 @@ $1366          0c       DB #0c
 $1367          66       DB #66
 $1368          0f       DB #0f
 $1369          ff       DB #ff
-
-$136a          55       DB #ff
-$136b          0c       DB #0c
-$136c          98       DB #f3
-$136d          0c       DB #0c
-$136e          85       DB #ff
-$136f          0c       DB #0c
-$1370          7f       DB #bf
-$1371          0c       DB #0c
-$1372          72       DB #98
-$1373          0c       DB #0c
-$1374          7f       DB #bf
-$1375          0c       DB #7f
-$1376          7f       DB #0f
-$1377          0c       DB #7f
-$1378          ff       DB #0f
+POPCORN_MUSIC          f1       DB #f1
+$136b          04       DB #04
+$136c          d6       DB #d6
+$136d          04       DB #04
+$136e          f1       DB #f1
+$136f          04       DB #04
+$1370          b4       DB #b4
+$1371          04       DB #04
+$1372          8f       DB #8f
+$1373          04       DB #04
+$1374          b4       DB #b4
+$1375          04       DB #04
+$1376          70       DB #70
+$1377          0c       DB #0c
+$1378          ff       DB #ff
 $1379          ff       DB #ff
 $137a          ff       DB #ff
 $137b          ff       DB #ff
@@ -2699,7 +2707,7 @@ $137c          fe       DB #fe
 $137d jc137d:  21 91 21 LXI H, #2191 ;o0140,o13b2,o1d6f
 $1380          3e 03    MVI A, #03
 $1382 o1382:   cd e1 03 CALL cCLEAR_ATH_BIT_OF_HL
-$1385          d3 0f    OUT LAMP_3
+$1385          d3 0f    OUT LAMP_f
 $1387          21 e0 23 LXI H, #23e0
 $138a          11 3b 23 LXI D, #233b
 $138d j138d:   46       MOV B,M ;o13aa
@@ -3153,7 +3161,7 @@ $1779          3a 9e 23 LDA $239e
 $177c          b0       ORA B
 $177d          32 9e 23 STA $239e
 $1780 o1780:   c3 d0 16 JMP jDECREASE_CREDIT
-$1783 j1783:   21 da 12 LXI H, START_PLAYER_MUSIC ;o16ea
+$1783 j1783:   21 6a 13 LXI H, POPCORN_MUSIC ;o16ea
 $1786 o1786:   cd 61 12 CALL cPLAY_SOUND
 $1789 j1789:   3e 06    MVI A, #06 ;o1603,o1612,o161d,o16f2
 $178b o178b:   c3 76 03 JMP j0376

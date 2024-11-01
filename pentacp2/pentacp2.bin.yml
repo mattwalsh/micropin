@@ -108,7 +108,8 @@ labels:
    END_MAIN_LOOP : $061e
    SAVE_BDPSW : $0624
    RESTORE_BDPSW : $0630
-   CREDIT_HANDLER : $6B4
+   CREDIT_HANDLER : $06B4
+   LAMP_COPY : $0657
    CHECK_ATH_BIT_OF_HL: $03ee
    CLEAR_ATH_BIT_OF_HL: $03e1
    SET_ATH_BIT_OF_HL: $03d6
@@ -142,9 +143,14 @@ inPorts:
 outPorts:
    TONE_ENABLE_DUR : $09
    TONE_PITCH : $0A
-   LAMP_1 : $0D
-   LAMP_2 : $0E
-   LAMP_3 : $0F
+   LAMP_0 : $00
+   LAMP_1 : $01
+   LAMP_2 : $02
+   LAMP_3 : $03
+   LAMP_4 : $04
+   LAMP_d : $0D
+   LAMP_e : $0E
+   LAMP_f : $0F
    
 # bit 10 -> credit button?
 # bit 80 -> for the 80/90a
