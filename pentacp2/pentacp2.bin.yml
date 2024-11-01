@@ -94,6 +94,7 @@ addresses:
    NEXT_PLAYER_MUSIC : $1346
    OUTLANE_MUSIC : $134b
    SILENCE_MUSIC : $134e
+   POPCORN_MUSIC : $136a
 
    HIGH_SCORE_MUSIC : $1351
 
@@ -102,7 +103,6 @@ labels:
    2_LSHIFT_A : $03f9
    COPY_FROM_HL_TO_DE : $0ecf # A is # bytes, D is dest, H is souce
    PLAY_SOUND : $1261
-   PLAY_SOUND_2 : $1261
    DECREASE_CREDIT : $16d0
    SWITCH_HANDLER : $0386
    END_MAIN_LOOP : $061e

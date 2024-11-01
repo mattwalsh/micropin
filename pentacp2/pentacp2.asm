@@ -801,7 +801,7 @@ o052e:  CALL cSET_ATH_BIT_OF_HL
         STA $219d
 o0540:  JMP jo0382
 jTILT2: LXI H, BONUS_MUSIC ;o04ab,o04b3
-o0546:  CALL cPLAY_SOUND_2
+o0546:  CALL cPLAY_SOUND
 o0549:  JMP jo0382
         LDA $221b
         DCR A
@@ -812,7 +812,7 @@ o0553:  JZ j0569
         MVI A, #fa
         STA $219e
         LXI H, SILENCE_END_LOOP_MUSIC
-o0563:  CALL cPLAY_SOUND_2
+o0563:  CALL cPLAY_SOUND
 o0566:  JMP joEND_MAIN_LOOP
 j0569:  LDA $2247 ;o0553
         ANI #bf
@@ -834,7 +834,7 @@ o0591:  CALL cTILT_HELPER
         MVI A, #7d
         STA $21a2
         LXI H, BONUS_MUSIC
-o059c:  CALL cPLAY_SOUND_2
+o059c:  CALL cPLAY_SOUND
 o059f:  JMP joEND_MAIN_LOOP
 j05a2:  LDA STATE_OUTLANE_1 ;o0588,o058e
         ANI #77
@@ -1004,7 +1004,7 @@ o06e9:  CALL co1d81
         STA CREDITS_2
         STA CREDITS_3
         LXI H, CREDIT_MUSIC
-o06fd:  CALL cPLAY_SOUND_2
+o06fd:  CALL cPLAY_SOUND
         LXI H, #224a
         DCR M
         RNZ
@@ -1112,7 +1112,7 @@ o079f:  CALL cSET_ATH_BIT_OF_HL
         MOV L,B
         PUSH D
 ; computed sound?
-o07bc:  CALL cPLAY_SOUND_2
+o07bc:  CALL cPLAY_SOUND
         POP D
         LXI H, #0829
         DAD D
@@ -1187,7 +1187,7 @@ o0803:  JMP joEND_MAIN_LOOP
 o084c:  CALL cCHECK_ATH_BIT_OF_HL
 o084f:  JNZ jo0382
         LXI H, SILENCE_MUSIC
-o0855:  CALL cPLAY_SOUND_2
+o0855:  CALL cPLAY_SOUND
         MVI A, #04
         STA $2222
         LXI H, #2191
@@ -1270,7 +1270,7 @@ o0906:  JMP joEND_MAIN_LOOP
 o091e:  CALL cCHECK_ATH_BIT_OF_HL
 o0921:  JNZ jo0382
         LXI H, SILENCE_MUSIC
-o0927:  CALL cPLAY_SOUND_2
+o0927:  CALL cPLAY_SOUND
 o092a:  JMP jo0382
         LXI H, #21c3
         MVI A, #05
@@ -1368,7 +1368,7 @@ o0a0b:  CALL cCHECK_ATH_BIT_OF_HL
 o0a11:  JZ j0a24
 jo0a14: CALL co1d91 ;o0a06
         LXI H, OOPS_MUSIC
-o0a1a:  CALL cPLAY_SOUND_2
+o0a1a:  CALL cPLAY_SOUND
         MVI A, #c8
         STA $2208
         MVI A, #5a
@@ -1386,7 +1386,7 @@ o0a27:  JMP jo1419
         MOV L,A
 o0a39:  CALL c0e5c
         LXI H, UNKNOWN_MUSIC
-o0a3f:  CALL cPLAY_SOUND_2
+o0a3f:  CALL cPLAY_SOUND
         LXI H, GAME_STATE2
         MVI A, #01
 o0a47:  CALL cCHECK_ATH_BIT_OF_HL
@@ -1407,7 +1407,7 @@ o0a6d:  JMP joEND_MAIN_LOOP
         LXI H, #1171
 o0a73:  CALL c0e5c
         LXI H, SPREAD_HRM_MUSIC
-o0a79:  CALL cPLAY_SOUND_2
+o0a79:  CALL cPLAY_SOUND
         LDA $221a
         DCR A
         STA $221a
@@ -1447,7 +1447,7 @@ o0acb:  JZ j0aec
         MOV B,M
 o0ad6:  CALL co1d76
         LXI H, UNKNOWN_MUSIC
-o0adc:  CALL cPLAY_SOUND_2
+o0adc:  CALL cPLAY_SOUND
         MVI A, #0f
         STA $21a5
         MVI A, #64
@@ -1507,7 +1507,7 @@ o0b5d:  CALL co1d9c
 o0b60:  JNZ jo1419
 o0b63:  CALL co1d76
         LXI H, LOW_MUSIC
-o0b69:  CALL cPLAY_SOUND_2
+o0b69:  CALL cPLAY_SOUND
 o0b6c:  JMP jo1419
 c0b6f:  MVI D, #00 ;o09cc,o0a00,jo0b52
         MOV E,A
@@ -1607,7 +1607,7 @@ o0c2e:  CALL co1d81
         MVI B, #09
 o0c33:  CALL co1d81
         LXI H, MORSE_CODE_MUSIC
-o0c39:  CALL cPLAY_SOUND_2
+o0c39:  CALL cPLAY_SOUND
         LXI H, #238a
         LDA $23be
         ANI #f0
@@ -1697,7 +1697,7 @@ o0ce8:  CALL cADD_BONUS_HL
         MVI A, #0a
         STA $21a7
         LXI H, BUMPER_25_MUSIC
-o0cf3:  CALL cPLAY_SOUND_2
+o0cf3:  CALL cPLAY_SOUND
 o0cf6:  JMP joEND_MAIN_LOOP
 j0cf9:  LXI H, #1165 ;o0ce2
 o0cfc:  CALL c0e5c
@@ -1714,7 +1714,7 @@ o0d18:  CALL c0e6f
         MVI A, #3c
         STA $21a7
         LXI H, SPREAD_HRM_MUSIC
-jo0d23: CALL cPLAY_SOUND_2 ;o0d4a
+jo0d23: CALL cPLAY_SOUND ;o0d4a
 o0d26:  JMP joEND_MAIN_LOOP
 j0d29:  LXI H, #21c5 ;o0cd9,o0d0f,o0d12
         MOV A,M
@@ -1779,14 +1779,14 @@ o0dbf:  JZ j0dd1
         LXI H, #1165
 o0dc5:  CALL cADD_BONUS_HL
         LXI H, LOW_MUSIC
-o0dcb:  CALL cPLAY_SOUND_2
+o0dcb:  CALL cPLAY_SOUND
 o0dce:  JMP j0de1
 j0dd1:  LXI H, #1171 ;o0dbf
 o0dd4:  CALL cADD_BONUS_HL
         XCHG
 o0dd8:  CALL c0e5c
         LXI H, LIT_STANDUP_MUSIC
-o0dde:  CALL cPLAY_SOUND_2
+o0dde:  CALL cPLAY_SOUND
 j0de1:  LDA $2191 ;o0da2,o0db9,o0dce
         ANI #df
         STA $2191
@@ -2147,7 +2147,7 @@ jo107d: CALL cCLEAR_ATH_BIT_OF_HL ;o10b2
         PUSH H
         PUSH B
         LXI H, SPREAD_TAKEOVER_MUSIC
-o1085:  CALL cPLAY_SOUND_2
+o1085:  CALL cPLAY_SOUND
         LXI H, #21a7
         MOV A,M
         ORA A
@@ -2412,7 +2412,7 @@ jo1255: CALL cCLEAR_ATH_BIT_OF_HL ;o122a
 jo1258: CALL c128c ;o1246
 o125b:  CALL cTONE_PLAY
 o125e:  JMP joEND_MAIN_LOOP
-cPLAY_SOUND_2:
+cPLAY_SOUND:
               XCHG ;o0546,o0563,o059c,o06fd,o07bc,o0855,o0927,o0a1a,o0a3f,o0a79,o0adc,o0b69,o0c39,o0cf3,jo0d23,o0dcb,o0dde,o1085,o14bd,o14ef,o1585,o15a6,o15d0,o15f5,o1786,o1859,o18c7,o18e4,o1a27,o1ae4,o1b72,o1f70
         LHLD $21be
         LXI B, #21be
@@ -2645,25 +2645,26 @@ j129a:  MOV E,M ;o1294
         DB #66
         DB #0f
         DB #ff
-        DB #ff
-        DB #ff
-        DB #ff
-        DB #ff
-        DB #ff
-        DB #ff
-        DB #ff
-        DB #ff
-        DB #ff
-        DB #ff
-        DB #ff
-        DB #ff
-        DB #ff
-        DB #ff
-        DB #ff
-        DB #ff
-        DB #ff
-        DB #ff
-        DB #fe
+
+        DB #f1       
+        DB #04       
+        DB #d6      
+        DB #04       
+        DB #f1       
+        DB #04       
+        DB #b4       
+        DB #04       
+        DB #8f       
+        DB #04       
+        DB #b4       
+        DB #04       
+        DB #70       
+        DB #0c       
+        DB #ff       
+        DB #ff       
+        DB #ff       
+        DB #ff       
+        DB #fe       
 jc137d: LXI H, #2191 ;o0140,o13b2,o1d6f
         MVI A, #03
 o1382:  CALL cCLEAR_ATH_BIT_OF_HL
@@ -2843,7 +2844,7 @@ o14b1:  CALL co1d81
         LXI H, #1161
 o14b7:  CALL cADD_BONUS_HL
         LXI H, #12d7
-o14bd:  CALL cPLAY_SOUND_2
+o14bd:  CALL cPLAY_SOUND
         LDA $21c6
         CPI #00
 o14c5:  JNZ jo1419
@@ -2864,7 +2865,7 @@ o14de:  JZ j14fa
         MOV B,M
 o14e9:  CALL co1d76
         LXI H, #12d7
-o14ef:  CALL cPLAY_SOUND_2
+o14ef:  CALL cPLAY_SOUND
         MVI A, #0a
         STA $21a4
 o14f7:  JMP joEND_MAIN_LOOP
@@ -2924,7 +2925,7 @@ o1577:  JP j157c
 j157c:  STA $2211 ;o1577
 o157f:  CALL c0402
         LXI H, LONGER_BUMPER_25_MUSIC
-o1585:  CALL cPLAY_SOUND_2
+o1585:  CALL cPLAY_SOUND
 j1588:  LXI H, GAME_STATE ;o155a,o1565
         MVI A, #03
 o158d:  CALL cCHECK_ATH_BIT_OF_HL
@@ -2936,7 +2937,7 @@ o159b:  CALL co1d81
         MVI B, #31
 o15a0:  CALL co1d91
 j15a3:  LXI H, LIL_VICTORY_MUSIC ;o1590,o1598
-o15a6:  CALL cPLAY_SOUND_2
+o15a6:  CALL cPLAY_SOUND
 o15a9:  JMP jo1419
 ; outlane handler
         MVI A, #ff
@@ -2953,7 +2954,7 @@ o15c4:  CALL cSET_ATH_BIT_OF_HL
         LXI H, #1165
 o15ca:  CALL cADD_BONUS_HL
         LXI H, OUTLANE_MUSIC
-o15d0:  CALL cPLAY_SOUND_2
+o15d0:  CALL cPLAY_SOUND
 o15d3:  JMP jo1419
 ; inlane routine
         LXI H, GAME_STATE
@@ -2967,7 +2968,7 @@ o15e9:  CALL cCLEAR_ATH_BIT_OF_HL
         LXI H, #1165
 o15ef:  CALL c0e5c
         LXI H, SPREAD_HRM_MUSIC
-o15f5:  CALL cPLAY_SOUND_2
+o15f5:  CALL cPLAY_SOUND
 o15f8:  JMP jo1419
         LXI H, GAME_STATE2
         MVI A, #00
@@ -3121,8 +3122,8 @@ o176d:  JMP jDECREASE_CREDIT
         ORA B
         STA $239e
 o1780:  JMP jDECREASE_CREDIT
-j1783:  LXI H, START_PLAYER_MUSIC ;o16ea
-o1786:  CALL cPLAY_SOUND_2
+j1783:  LXI H, #136a ;o16ea
+o1786:  CALL cPLAY_SOUND
 j1789:  MVI A, #06 ;o1603,o1612,o161d,o16f2
 o178b:  JMP j0376
 jc178e: LXI H, #17a0 ;o01a5,o169f,o179c
@@ -3224,7 +3225,7 @@ o184b:  CALL cSET_ATH_BIT_OF_HL
         MVI A, #04
 o1853:  CALL cSET_ATH_BIT_OF_HL
         LXI H, OOPS2_MUSIC
-o1859:  CALL cPLAY_SOUND_2
+o1859:  CALL cPLAY_SOUND
 o185c:  CALL c1ba8
         XCHG
         LXI H, #21c6
@@ -3272,7 +3273,7 @@ o18bc:  CALL c0e6f
         MVI A, #3c
         STA $21ae
         LXI H, SPREAD_HRM_MUSIC
-o18c7:  CALL cPLAY_SOUND_2
+o18c7:  CALL cPLAY_SOUND
 o18ca:  JMP jo1419
         LXI H, #1165
 o18d0:  CALL c0e99
@@ -3282,7 +3283,7 @@ o18d9:  CALL cADD_BONUS_HL
         MVI A, #0a
         STA $21ae
         LXI H, BUMPER_25_MUSIC
-o18e4:  CALL cPLAY_SOUND_2
+o18e4:  CALL cPLAY_SOUND
 o18e7:  JMP joEND_MAIN_LOOP
 j18ea:  LXI H, #1165 ;o18d3
 o18ed:  CALL c0e5c
@@ -3419,7 +3420,7 @@ o1a14:  JZ j1a24
         STA $21a3
 o1a21:  JMP j1a2a
 j1a24:  LXI H, GAME_OVER_MUSIC ;o1a14
-o1a27:  CALL cPLAY_SOUND_2
+o1a27:  CALL cPLAY_SOUND
 j1a2a:  MVI A, #00 ;o1a21
         STA BALL_IN_PLAY_1
         STA BALL_IN_PLAY_2
@@ -3507,7 +3508,7 @@ o1ad4:  JMP joEND_MAIN_LOOP
         STA $2212
 o1ade:  JZ j1aef
         LXI H, MORSE_CODE_MUSIC
-o1ae4:  CALL cPLAY_SOUND_2
+o1ae4:  CALL cPLAY_SOUND
         MVI A, #a0
         STA $21a1
 o1aec:  JMP joEND_MAIN_LOOP
@@ -3563,7 +3564,7 @@ o1b64:  CALL co1d81
         MVI A, #07
 o1b6c:  CALL cSET_ATH_BIT_OF_HL
         LXI H, NEXT_PLAYER_MUSIC
-o1b72:  CALL cPLAY_SOUND_2
+o1b72:  CALL cPLAY_SOUND
         LDA $2214
         DCR A
         STA $2214
@@ -4016,7 +4017,7 @@ o1f61:  CALL c1f36
         MVI A, #07
 o1f6a:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, HIGH_SCORE_MUSIC
-o1f70:  CALL cPLAY_SOUND_2
+o1f70:  CALL cPLAY_SOUND
         LDA $2247
         ORI #08
         STA $2247
