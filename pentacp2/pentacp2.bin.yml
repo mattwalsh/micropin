@@ -74,6 +74,9 @@ addresses:
    GAME_STATE2 : $2192 
    STACK_SCRATCH : $2195
 
+   LEFT_SLING_TONE : $12b9
+   RIGHT_SLING_TONE : $12bc
+
    SILENCE_END_LOOP_MUSIC : $12bf
    TILT_MUSIC : $12c2
    BONUS_MUSIC : $12c2
@@ -87,6 +90,7 @@ addresses:
    GAME_OVER_MUSIC : $12ff
    SPREAD_TAKEOVER_MUSIC : $1316
    MORSE_CODE_MUSIC : $1321
+   BUMPER_25_MUSIC_2 : $12ad
    BUMPER_25_MUSIC : $1332
    SPREAD_HRM_MUSIC : $1335
    LONGER_BUMPER_25_MUSIC: $1338
@@ -178,7 +182,8 @@ notes:
   $06a4 : "check credit button"
   $07bc : "computed sound?"
   $1181 : "default high score"
-  $1351 : "call to the post"
+  $1351 : "godfather"
+  $136a : "popcorn"
   $1536 : "10,000 / EB lane"
   $15ac : "outlane handler"
   $15b9 : "don't let outlane scrore > 1x"

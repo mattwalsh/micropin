@@ -50,6 +50,8 @@ HARD_RESET EQU 0x5d
 GAME_STATE EQU 0x2190
 GAME_STATE2 EQU 0x2192
 STACK_SCRATCH EQU 0x2195
+LEFT_SLING_TONE EQU 0x12b9
+RIGHT_SLING_TONE EQU 0x12bc
 SILENCE_END_LOOP_MUSIC EQU 0x12bf
 TILT_MUSIC EQU 0x12c2
 BONUS_MUSIC EQU 0x12c2
@@ -63,6 +65,7 @@ LIT_STANDUP_MUSIC EQU 0x12f2
 GAME_OVER_MUSIC EQU 0x12ff
 SPREAD_TAKEOVER_MUSIC EQU 0x1316
 MORSE_CODE_MUSIC EQU 0x1321
+BUMPER_25_MUSIC_2 EQU 0x12ad
 BUMPER_25_MUSIC EQU 0x1332
 SPREAD_HRM_MUSIC EQU 0x1335
 LONGER_BUMPER_25_MUSIC EQU 0x1338
@@ -938,7 +941,8 @@ o064c:  JZ j067b
         LXI H, #23a0
         LXI D, #23c0
         MVI A, #40
-o0657:  CALL cCOPY_FROM_HL_TO_DE
+oLAMP_COPY:
+              CALL cCOPY_FROM_HL_TO_DE
         LDA $21c9
         CMA
         OUT LAMP_0
@@ -1931,7 +1935,7 @@ o0eca:  CALL cCOPY_FROM_HL_TO_DE
         RET
 
 cCOPY_FROM_HL_TO_DE:
-              ORA A ;o00c8,o00d3,o019d,o01b0,o0657,o0683,o0c02,o0e61,o0e74,o0e90,o0ea2,o0eb4,o0eca,o0f41,o0f7d,o0f91,o0fa2,o0fc3,o0fdb,o0ffc,o1015,o1022,o1039,o104f,o1062,o10cb,o10d6,o112a,o1637,o16ba,o16c5,o1865,o18a6,o1a84,o1b09,o1b14,o1bf6,o1c01,o1c2b,o1c89,o1ca6,o1f40,o1f4e,o1f5a,o1f6a,o1f8a,o1f9b,o1fa5,o1fb3,o1fbd,o1fc7,o1fd0,o1fe6
+              ORA A ;o00c8,o00d3,o019d,o01b0,oLAMP_COPY,o0683,o0c02,o0e61,o0e74,o0e90,o0ea2,o0eb4,o0eca,o0f41,o0f7d,o0f91,o0fa2,o0fc3,o0fdb,o0ffc,o1015,o1022,o1039,o104f,o1062,o10cb,o10d6,o112a,o1637,o16ba,o16c5,o1865,o18a6,o1a84,o1b09,o1b14,o1bf6,o1c01,o1c2b,o1c89,o1ca6,o1f40,o1f4e,o1f5a,o1f6a,o1f8a,o1f9b,o1fa5,o1fb3,o1fbd,o1fc7,o1fd0,o1fe6
 j0ed0:  SBI #02 ;o0edc
 o0ed2:  JM j0ee0
         MOV B,A
@@ -2476,11 +2480,11 @@ j129a:  MOV E,M ;o1294
         DB #65
         DB #08
         DB #ff
-        DB #1c
-        DB #0c
+        DB #74
+        DB #08
         DB #ff
-        DB #1c
-        DB #0c
+        DB #69
+        DB #08
         DB #ff
         DB #1c
         DB #00
@@ -2628,7 +2632,7 @@ j129a:  MOV E,M ;o1294
         DB #ca
         DB #00
         DB #ff
-; call to the post
+; godfather
         DB #66
         DB #0c
         DB #86
@@ -2654,6 +2658,7 @@ j129a:  MOV E,M ;o1294
         DB #66
         DB #0f
         DB #ff
+; popcorn
         DB #f1
         DB #04
         DB #d6
@@ -2666,8 +2671,8 @@ j129a:  MOV E,M ;o1294
         DB #04
         DB #b4
         DB #04
-        DB #70
-        DB #0c
+        DB #78
+        DB #06
         DB #ff
         DB #ff
         DB #ff
@@ -3130,7 +3135,7 @@ o176d:  JMP jDECREASE_CREDIT
         ORA B
         STA $239e
 o1780:  JMP jDECREASE_CREDIT
-j1783:  LXI H, POPCORN_MUSIC ;o16ea
+j1783:  LXI H, LEFT_SLING_TONE ;o16ea
 o1786:  CALL cPLAY_SOUND
 j1789:  MVI A, #06 ;o1603,o1612,o161d,o16f2
 o178b:  JMP j0376

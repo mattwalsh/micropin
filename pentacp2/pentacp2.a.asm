@@ -50,6 +50,8 @@ HARD_RESET EQU 0x5d
 GAME_STATE EQU 0x2190
 GAME_STATE2 EQU 0x2192
 STACK_SCRATCH EQU 0x2195
+LEFT_SLING_TONE EQU 0x12b9
+RIGHT_SLING_TONE EQU 0x12bc
 SILENCE_END_LOOP_MUSIC EQU 0x12bf
 TILT_MUSIC EQU 0x12c2
 BONUS_MUSIC EQU 0x12c2
@@ -63,6 +65,7 @@ LIT_STANDUP_MUSIC EQU 0x12f2
 GAME_OVER_MUSIC EQU 0x12ff
 SPREAD_TAKEOVER_MUSIC EQU 0x1316
 MORSE_CODE_MUSIC EQU 0x1321
+BUMPER_25_MUSIC_2 EQU 0x12ad
 BUMPER_25_MUSIC EQU 0x1332
 SPREAD_HRM_MUSIC EQU 0x1335
 LONGER_BUMPER_25_MUSIC EQU 0x1338
@@ -953,7 +956,8 @@ $064c o064c:   ca 7b 06 JZ j067b
 $064f          21 a0 23 LXI H, #23a0
 $0652          11 c0 23 LXI D, #23c0
 $0655          3e 40    MVI A, #40
-$0657 o0657:   cd cf 0e CALL cCOPY_FROM_HL_TO_DE
+$0657 oLAMP_COPY:
+               cd cf 0e CALL cCOPY_FROM_HL_TO_DE
 $065a          3a c9 21 LDA $21c9
 $065d          2f       CMA
 $065e          d3 00    OUT LAMP_0
@@ -1955,7 +1959,7 @@ $0ece          c9       RET
 
  
 $0ecf cCOPY_FROM_HL_TO_DE:
-               b7       ORA A ;o00c8,o00d3,o019d,o01b0,o0657,o0683,o0c02,o0e61,o0e74,o0e90,o0ea2,o0eb4,o0eca,o0f41,o0f7d,o0f91,o0fa2,o0fc3,o0fdb,o0ffc,o1015,o1022,o1039,o104f,o1062,o10cb,o10d6,o112a,o1637,o16ba,o16c5,o1865,o18a6,o1a84,o1b09,o1b14,o1bf6,o1c01,o1c2b,o1c89,o1ca6,o1f40,o1f4e,o1f5a,o1f6a,o1f8a,o1f9b,o1fa5,o1fb3,o1fbd,o1fc7,o1fd0,o1fe6
+               b7       ORA A ;o00c8,o00d3,o019d,o01b0,oLAMP_COPY,o0683,o0c02,o0e61,o0e74,o0e90,o0ea2,o0eb4,o0eca,o0f41,o0f7d,o0f91,o0fa2,o0fc3,o0fdb,o0ffc,o1015,o1022,o1039,o104f,o1062,o10cb,o10d6,o112a,o1637,o16ba,o16c5,o1865,o18a6,o1a84,o1b09,o1b14,o1bf6,o1c01,o1c2b,o1c89,o1ca6,o1f40,o1f4e,o1f5a,o1f6a,o1f8a,o1f9b,o1fa5,o1fb3,o1fbd,o1fc7,o1fd0,o1fe6
 $0ed0 j0ed0:   de 02    SBI #02 ;o0edc
 $0ed2 o0ed2:   fa e0 0e JM j0ee0
 $0ed5          47       MOV B,A
@@ -2494,7 +2498,7 @@ $12aa          e1       POP H
 $12ab          c9       RET
 
 $12ac          ff       DB #ff
-$12ad          ca       DB #ca
+BUMPER_25_MUSIC_2          ca       DB #ca
 $12ae          08       DB #08
 $12af          ff       DB #ff
 $12b0          aa       DB #aa
@@ -2506,11 +2510,11 @@ $12b5          ff       DB #ff
 $12b6          65       DB #65
 $12b7          08       DB #08
 $12b8          ff       DB #ff
-$12b9          1c       DB #1c
-$12ba          0c       DB #0c
+LEFT_SLING_TONE          74       DB #74
+$12ba          08       DB #08
 $12bb          ff       DB #ff
-$12bc          1c       DB #1c
-$12bd          0c       DB #0c
+RIGHT_SLING_TONE          69       DB #69
+$12bd          08       DB #08
 $12be          ff       DB #ff
 SILENCE_END_LOOP_MUSIC          1c       DB #1c
 $12c0          00       DB #00
@@ -2658,7 +2662,7 @@ $134d          ff       DB #ff
 SILENCE_MUSIC          ca       DB #ca
 $134f          00       DB #00
 $1350          ff       DB #ff
-; call to the post
+; godfather
 HIGH_SCORE_MUSIC          66       DB #66
 $1352          0c       DB #0c
 $1353          86       DB #86
@@ -2684,6 +2688,7 @@ $1366          0c       DB #0c
 $1367          66       DB #66
 $1368          0f       DB #0f
 $1369          ff       DB #ff
+; popcorn
 POPCORN_MUSIC          f1       DB #f1
 $136b          04       DB #04
 $136c          d6       DB #d6
@@ -2696,8 +2701,8 @@ $1372          8f       DB #8f
 $1373          04       DB #04
 $1374          b4       DB #b4
 $1375          04       DB #04
-$1376          70       DB #70
-$1377          0c       DB #0c
+$1376          78       DB #78
+$1377          06       DB #06
 $1378          ff       DB #ff
 $1379          ff       DB #ff
 $137a          ff       DB #ff
@@ -3161,7 +3166,7 @@ $1779          3a 9e 23 LDA $239e
 $177c          b0       ORA B
 $177d          32 9e 23 STA $239e
 $1780 o1780:   c3 d0 16 JMP jDECREASE_CREDIT
-$1783 j1783:   21 6a 13 LXI H, POPCORN_MUSIC ;o16ea
+$1783 j1783:   21 b9 12 LXI H, LEFT_SLING_TONE ;o16ea
 $1786 o1786:   cd 61 12 CALL cPLAY_SOUND
 $1789 j1789:   3e 06    MVI A, #06 ;o1603,o1612,o161d,o16f2
 $178b o178b:   c3 76 03 JMP j0376
