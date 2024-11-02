@@ -143,26 +143,28 @@ inPorts:
    PRICE_CENTS_07_PORT : $02
    PRICE_TENS_07_PORT : $03
    PRICE_89_CAB : $04
+# bit 10 -> credit button?
+# bit 80 -> for the 80/90a
+# bit 20 -> flipper switch?
+# bits 0F -> when game started? 
+   DIP_SWITCH_PORT : $05
 
 outPorts:
-   TONE_ENABLE_DUR : $09
-   TONE_PITCH : $0A
    LAMP_0 : $00
    LAMP_1 : $01
    LAMP_2 : $02
    LAMP_3 : $03
    LAMP_4 : $04
-   LAMP_d : $0D
-   LAMP_e : $0E
-   LAMP_f : $0F
+   COIL_5 : $05
+   COIL_6 : $06
+   COIL_7 : $07
+   COIL_8 : $08
+   TONE_ENABLE_DUR : $09
+   TONE_PITCH : $0A
+   LAMP_D : $0D
+   LAMP_E : $0E
+   LAMP_F : $0F
    
-# bit 10 -> credit button?
-# bit 80 -> for the 80/90a
-# bit 20 -> flipper switch?
-# bits 0F -> when game started? 
-
-
-   DIP_SWITCH_PORT : $05
 
 notes:
   $002f:  "TRAP"
@@ -181,6 +183,8 @@ notes:
   $0630 : "restore A, SP, B, D, H"
   $06a4 : "check credit button"
   $07bc : "computed sound?"
+  $0840 : "left flipper"
+  $089a : "right flipper"
   $1181 : "default high score"
   $1351 : "godfather"
   $136a : "popcorn"

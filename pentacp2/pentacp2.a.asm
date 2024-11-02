@@ -81,19 +81,23 @@ MYSTERY_PORT_1 EQU 0x1
 PRICE_CENTS_07_PORT EQU 0x2
 PRICE_TENS_07_PORT EQU 0x3
 PRICE_89_CAB EQU 0x4
+DIP_SWITCH_PORT EQU 0x5
 
 ; OUTPUT PORTS
-TONE_ENABLE_DUR EQU 0x9
-TONE_PITCH EQU 0xa
 LAMP_0 EQU 0x0
 LAMP_1 EQU 0x1
 LAMP_2 EQU 0x2
 LAMP_3 EQU 0x3
 LAMP_4 EQU 0x4
-LAMP_d EQU 0xd
-LAMP_e EQU 0xe
-LAMP_f EQU 0xf
-DIP_SWITCH_PORT EQU 0x5
+COIL_5 EQU 0x5
+COIL_6 EQU 0x6
+COIL_7 EQU 0x7
+COIL_8 EQU 0x8
+TONE_ENABLE_DUR EQU 0x9
+TONE_PITCH EQU 0xa
+LAMP_D EQU 0xd
+LAMP_E EQU 0xe
+LAMP_F EQU 0xf
 $0000 o0000:   c3 40 00 JMP j0040
 $0003 o0003:   cd b4 06 CALL jcCREDIT_HANDLER
 $0006 o0006:   c3 82 03 JMP jo0382
@@ -145,7 +149,7 @@ $0042          32 da 23 STA CREDITS_4
 $0045          16 05    MVI D, #05
 $0047 j0047:   21 10 27 LXI H, #2710 ;o0053
 $004a j004a:   2b       DCX H ;o004f
-$004b          d3 0f    OUT LAMP_f
+$004b          d3 0f    OUT LAMP_F
 $004d          7c       MOV A,H
 $004e          b7       ORA A
 $004f o004f:   c2 4a 00 JNZ j004a
@@ -164,8 +168,8 @@ $0065          bc       CMP H
 $0066 o0066:   c2 60 00 JNZ j0060
 $0069 j0069:   31 90 21 LXI SP, GAME_STATE ;o0024,o005a
 $006c          3e 07    MVI A, #07
-$006e j006e:   d3 0e    OUT LAMP_e ;o0073
-$0070          d3 0d    OUT LAMP_d
+$006e j006e:   d3 0e    OUT LAMP_E ;o0073
+$0070          d3 0d    OUT LAMP_D
 $0072          3d       DCR A
 $0073 o0073:   f2 6e 00 JP j006e
 $0076          21 97 21 LXI H, #2197
@@ -225,7 +229,7 @@ $00f8 o00f8:   ca 43 01 JZ j0143
 $00fb j00fb:   3e 07    MVI A, #07 ;o00f2
 $00fd          32 c2 21 STA $21c2
 $0100          2f       CMA
-$0101          d3 05    OUT DIP_SWITCH_PORT
+$0101          d3 05    OUT COIL_5
 $0103          3e 06    MVI A, #06
 $0105          32 a6 21 STA $21a6
 $0108 j0108:   fb       EI ;o010d
@@ -235,15 +239,15 @@ $010d o010d:   c2 08 01 JNZ j0108
 $0110          3e 28    MVI A, #28
 $0112          32 c2 21 STA $21c2
 $0115          2f       CMA
-$0116          d3 05    OUT DIP_SWITCH_PORT
+$0116          d3 05    OUT COIL_5
 $0118          3e 20    MVI A, #20
 $011a          32 c4 21 STA $21c4
 $011d          2f       CMA
-$011e          d3 07    OUT #07
+$011e          d3 07    OUT COIL_7
 $0120          3e 02    MVI A, #02
 $0122          32 c5 21 STA $21c5
 $0125          2f       CMA
-$0126          d3 08    OUT #08
+$0126          d3 08    OUT COIL_8
 $0128          3e 06    MVI A, #06
 $012a          32 a6 21 STA $21a6
 $012d j012d:   fb       EI ;o0132
@@ -251,10 +255,10 @@ $012e          3a a6 21 LDA $21a6
 $0131          b7       ORA A
 $0132 o0132:   c2 2d 01 JNZ j012d
 $0135          3e ff    MVI A, #ff
-$0137          d3 05    OUT DIP_SWITCH_PORT
-$0139          d3 06    OUT #06
-$013b          d3 07    OUT #07
-$013d          d3 08    OUT #08
+$0137          d3 05    OUT COIL_5
+$0139          d3 06    OUT COIL_6
+$013b          d3 07    OUT COIL_7
+$013d          d3 08    OUT COIL_8
 $013f          f3       DI
 $0140 o0140:   cd 7d 13 CALL jc137d
 $0143 j0143:   db 04    IN PRICE_89_CAB ;o00f8,o0300
@@ -354,7 +358,7 @@ $0207          32 9f 23 STA PRICE_2
 $020a          32 bf 23 STA PRICE_3
 $020d          fb       EI
 ; load dip switches, set # balls per game
-$020e          db 05    IN #05
+$020e          db 05    IN DIP_SWITCH_PORT
 $0210          21 16 22 LXI H, DIP_SWITCHES
 $0213          77       MOV M,A
 $0214          06 03    MVI B, #03
@@ -368,7 +372,7 @@ $0224 o0224:   c2 28 02 JNZ j0228
 $0227          04       INR B
 $0228 j0228:   78       MOV A,B ;o021b,o0224
 $0229          32 13 22 STA BALLS_PER_GAME
-$022c j022c:   d3 0f    OUT LAMP_f ;o028f,o1c7b,o1cc0,o1ccb,o1cd9,o1d63
+$022c j022c:   d3 0f    OUT LAMP_F ;o028f,o1c7b,o1cc0,o1ccb,o1cd9,o1d63
 $022e          fb       EI
 $022f          00       NOP
 $0230          fb       EI
@@ -378,16 +382,16 @@ $0233          00       NOP
 $0234          f3       DI
 $0235          3a c2 21 LDA $21c2
 $0238          2f       CMA
-$0239          d3 05    OUT DIP_SWITCH_PORT
+$0239          d3 05    OUT COIL_5
 $023b          3a c3 21 LDA $21c3
 $023e          2f       CMA
-$023f          d3 06    OUT #06
+$023f          d3 06    OUT COIL_6
 $0241          3a c4 21 LDA $21c4
 $0244          2f       CMA
-$0245          d3 07    OUT #07
+$0245          d3 07    OUT COIL_7
 $0247          3a c5 21 LDA $21c5
 $024a          2f       CMA
-$024b          d3 08    OUT #08
+$024b          d3 08    OUT COIL_8
 $024d          fb       EI
 $024e          00       NOP
 $024f          fb       EI
@@ -481,7 +485,7 @@ $02f6          d3 01    OUT LAMP_1
 $02f8          d3 02    OUT LAMP_2
 $02fa          d3 03    OUT LAMP_3
 $02fc          d3 04    OUT LAMP_4
-$02fe          d3 0f    OUT LAMP_f
+$02fe          d3 0f    OUT LAMP_F
 $0300 o0300:   c3 43 01 JMP j0143
  
 $0303 c0303:   11 3b 23 LXI D, #233b ;co0317,o13b5
@@ -530,7 +534,7 @@ $0348          1c       INR E
 $0349 o0349:   c3 40 03 JMP j0340
 $034c j034c:   7b       MOV A,E ;o0345
 $034d          2f       CMA
-$034e          d3 0e    OUT LAMP_e
+$034e          d3 0e    OUT LAMP_E
 $0350          2f       CMA
 $0351          21 93 21 LXI H, #2193
 $0354 o0354:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
@@ -570,7 +574,7 @@ $0396          1c       INR E
 $0397 o0397:   c3 8e 03 JMP j038e
 $039a j039a:   7b       MOV A,E ;o0393
 $039b          2f       CMA
-$039c          d3 0d    OUT LAMP_d
+$039c          d3 0d    OUT LAMP_D
 $039e          2f       CMA
 $039f          21 94 21 LXI H, STATE_OUTLANE_1
 $03a2 o03a2:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
@@ -781,10 +785,10 @@ $04d5          d3 01    OUT LAMP_1
 $04d7          d3 02    OUT LAMP_2
 $04d9          d3 03    OUT LAMP_3
 $04db          d3 04    OUT LAMP_4
-$04dd          d3 05    OUT DIP_SWITCH_PORT
-$04df          d3 06    OUT #06
-$04e1          d3 07    OUT #07
-$04e3          d3 08    OUT #08
+$04dd          d3 05    OUT COIL_5
+$04df          d3 06    OUT COIL_6
+$04e1          d3 07    OUT COIL_7
+$04e3          d3 08    OUT COIL_8
 $04e5          3e 00    MVI A, #00
 $04e7          3e 0f    MVI A, #0f
 $04e9          32 cc 23 STA $23cc
@@ -1130,10 +1134,10 @@ $07a2          3e 09    MVI A, #09
 $07a4          32 99 21 STA $2199
 $07a7          3a c3 21 LDA $21c3
 $07aa          2f       CMA
-$07ab          d3 06    OUT #06
+$07ab          d3 06    OUT COIL_6
 $07ad          3a c4 21 LDA $21c4
 $07b0          2f       CMA
-$07b1          d3 07    OUT #07
+$07b1          d3 07    OUT COIL_7
 $07b3          21 1b 08 LXI H, #081b
 $07b6          19       DAD D
 $07b7          46       MOV B,M
@@ -1156,12 +1160,12 @@ $07ce          3a c3 21 LDA $21c3
 $07d1          e6 30    ANI #30
 $07d3          32 c3 21 STA $21c3
 $07d6          2f       CMA
-$07d7          d3 06    OUT #06
+$07d7          d3 06    OUT COIL_6
 $07d9          3a c4 21 LDA $21c4
 $07dc          e6 20    ANI #20
 $07de          32 c4 21 STA $21c4
 $07e1          2f       CMA
-$07e2          d3 07    OUT #07
+$07e2          d3 07    OUT COIL_7
 $07e4          3a ad 21 LDA $21ad
 $07e7          b7       ORA A
 $07e8 o07e8:   c2 1e 06 JNZ joEND_MAIN_LOOP
@@ -1209,7 +1213,8 @@ $0836          11 3a c3 LXI D, #c33a
 $0839          21 f6 10 LXI H, #10f6
 $083c          32 c3 21 STA $21c3
 $083f          2f       CMA
-$0840          d3 06    OUT #06
+; left flipper
+$0840          d3 06    OUT COIL_6
 $0842          3e 09    MVI A, #09
 $0844          32 a8 21 STA $21a8
 $0847          21 90 21 LXI H, GAME_STATE
@@ -1243,7 +1248,8 @@ $0891 j0891:   3a c3 21 LDA $21c3 ;o0878
 $0894          e6 2f    ANI #2f
 $0896          32 c3 21 STA $21c3
 $0899          2f       CMA
-$089a          d3 06    OUT #06
+; right flipper
+$089a          d3 06    OUT COIL_6
 $089c          3e 06    MVI A, #06
 $089e          32 a8 21 STA $21a8
 $08a1 o08a1:   c3 1e 06 JMP joEND_MAIN_LOOP
@@ -1292,7 +1298,7 @@ $0909          3a c3 21 LDA $21c3
 $090c          f6 20    ORI #20
 $090e          32 c3 21 STA $21c3
 $0911          2f       CMA
-$0912          d3 06    OUT #06
+$0912          d3 06    OUT COIL_6
 $0914          3e 09    MVI A, #09
 $0916          32 a9 21 STA $21a9
 $0919          21 90 21 LXI H, GAME_STATE
@@ -1318,7 +1324,7 @@ $094e j094e:   3a c3 21 LDA $21c3 ;o0935
 $0951          e6 1f    ANI #1f
 $0953          32 c3 21 STA $21c3
 $0956          2f       CMA
-$0957          d3 06    OUT #06
+$0957          d3 06    OUT COIL_6
 $0959          3e 06    MVI A, #06
 $095b          32 a9 21 STA $21a9
 $095e o095e:   c3 1e 06 JMP joEND_MAIN_LOOP
@@ -1568,7 +1574,7 @@ $0b94          3a c4 21 LDA $21c4
 $0b97          e6 1f    ANI #1f
 $0b99          32 c4 21 STA $21c4
 $0b9c          2f       CMA
-$0b9d          d3 07    OUT #07
+$0b9d          d3 07    OUT COIL_7
 $0b9f          21 c5 21 LXI H, #21c5
 $0ba2          3e 01    MVI A, #01
 $0ba4 o0ba4:   cd e1 03 CALL cCLEAR_ATH_BIT_OF_HL
@@ -2712,7 +2718,7 @@ $137c          fe       DB #fe
 $137d jc137d:  21 91 21 LXI H, #2191 ;o0140,o13b2,o1d6f
 $1380          3e 03    MVI A, #03
 $1382 o1382:   cd e1 03 CALL cCLEAR_ATH_BIT_OF_HL
-$1385          d3 0f    OUT LAMP_f
+$1385          d3 0f    OUT LAMP_F
 $1387          21 e0 23 LXI H, #23e0
 $138a          11 3b 23 LXI D, #233b
 $138d j138d:   46       MOV B,M ;o13aa
@@ -3791,7 +3797,7 @@ $1d1d          3e 05    MVI A, #05
 $1d1f o1d1f:   cd d6 03 CALL cSET_ATH_BIT_OF_HL
 $1d22          3a c2 21 LDA $21c2
 $1d25          2f       CMA
-$1d26          d3 05    OUT DIP_SWITCH_PORT
+$1d26          d3 05    OUT COIL_5
 $1d28          3e 80    MVI A, #80
 $1d2a          32 93 21 STA $2193
 $1d2d          3e 06    MVI A, #06
