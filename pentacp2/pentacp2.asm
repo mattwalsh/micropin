@@ -576,45 +576,48 @@ j039a:  MOV A,E ;o0393
 o03a2:  CALL cCHECK_ATH_BIT_OF_HL
 o03a5:  JNZ jo0382
 o03a8:  CALL cSET_ATH_BIT_OF_HL
-        XCHG
-        DAD H
-        LXI D, #03c6
-        DAD D
-        MOV A,M
-        INX H
-        MOV H,M
-        MOV L,A
-        PCHL
-        MOV H,B
-        RLC
-        MOV H,M
-        RLC
-        MOV L,H
-        RLC
-        MOV M,D
-        RLC
-        MOV A,B
-        RLC
-        MOV A,M
-        RLC
-        ADD H
-        RLC
-        ADD D
-        INX B
-        (SHLX)
-        DCR B
-        CMP H
-        INX D
+        DB #eb
+        DB #29
+        DB #11
+        DB #c6
+        DB #03
+        DB #19
+        DB #7e
+        DB #23
+        DB #66
+        DB #6f
+        DB #e9
+        DB #60
+        DB #07
+        DB #66
+        DB #07
+        DB #6c
+        DB #07
+        DB #72
+        DB #07
+        DB #78
+        DB #07
+        DB #7e
+        DB #07
+        DB #84
+        DB #07
+        DB #82
+        DB #03
+        DB #d9
+        DB #05
+        DB #bc
+        DB #13
         DB #03
         DB #00
         DB #7b
         DB #04
-        STC
-        (DSUB)
-        DAD B
-        DAD B
-        EI
-        DCR D
+; left flipper vector
+        DB #37
+        DB #08
+        DB #09
+        DB #09
+        DB #fb
+        DB #15
         DB #7b
         DB #04
 cSET_ATH_BIT_OF_HL:
@@ -1201,11 +1204,11 @@ o0803:  JMP joEND_MAIN_LOOP
         DB #11
         DB #49
         DB #11
+; left flipper
         LDA $21c3
         ORI #10
         STA $21c3
         CMA
-; left flipper
         OUT COIL_6
         MVI A, #09
         STA $21a8
@@ -1236,11 +1239,11 @@ o0883:  JNZ joEND_MAIN_LOOP
         LXI H, STATE_OUTLANE_1
 o088b:  CALL cCLEAR_ATH_BIT_OF_HL
 o088e:  JMP joEND_MAIN_LOOP
+; right flipper
 j0891:  LDA $21c3 ;o0878
         ANI #2f
         STA $21c3
         CMA
-; right flipper
         OUT COIL_6
         MVI A, #06
         STA $21a8
@@ -2495,10 +2498,10 @@ j129a:  MOV E,M ;o1294
         DB #65
         DB #08
         DB #ff
-        DB #74
+        DB #33
         DB #08
         DB #ff
-        DB #69
+        DB #3c
         DB #08
         DB #ff
         DB #1c
@@ -2547,9 +2550,9 @@ j129a:  MOV E,M ;o1294
         DB #15
         DB #0c
         DB #ff
-        DB #4c
+        DB #33
         DB #08
-        DB #65
+        DB #43
         DB #0c
         DB #ff
         DB #78
@@ -2687,7 +2690,7 @@ j129a:  MOV E,M ;o1294
         DB #b4
         DB #04
         DB #78
-        DB #06
+        DB #04
         DB #ff
         DB #ff
         DB #ff
@@ -3150,7 +3153,7 @@ o176d:  JMP jDECREASE_CREDIT
         ORA B
         STA $239e
 o1780:  JMP jDECREASE_CREDIT
-j1783:  LXI H, LEFT_SLING_TONE ;o16ea
+j1783:  LXI H, POPCORN_MUSIC ;o16ea
 o1786:  CALL cPLAY_SOUND
 j1789:  MVI A, #06 ;o1603,o1612,o161d,o16f2
 o178b:  JMP j0376
