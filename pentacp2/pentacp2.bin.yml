@@ -137,6 +137,8 @@ not_code:
    OUTANE_HANDLER_PTR : [$145b, $145c]
    INLANE_HANDLER_PTR : [$145d, $145e]
    MUSIC : [$12ac, $137c]
+   DUNNO : [$0819,$0836]
+   COIL_VECTORS_HRM : [$03ab, $03d5]
 
 inPorts:
    MYSTERY_PORT_1 : $01
@@ -183,8 +185,8 @@ notes:
   $0630 : "restore A, SP, B, D, H"
   $06a4 : "check credit button"
   $07bc : "computed sound?"
-  $0840 : "left flipper"
-  $089a : "right flipper"
+  $0837 : "left flipper"
+  $0891 : "right flipper"
   $1181 : "default high score"
   $1351 : "godfather"
   $136a : "popcorn"
@@ -194,6 +196,7 @@ notes:
   $15d6 : "inlane routine"
   $1609 : "check if credits"
   $1c39 : "seems pointless"
+  $03ce : "left flipper vector"
 
  # 12ac - 137e maybe sound data?
  # 1e82 seems like it - it hits either way

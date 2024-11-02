@@ -1171,29 +1171,38 @@ o0803:  JMP joEND_MAIN_LOOP
         LXI H, #21c4
         JMP $c421
         LXI H, #21c4
-        CNZ $ad21
-        STAX D
-        ORA B
-        STAX D
-        ORA E
-        STAX D
-        ORA M
-        STAX D
-        CMP C
-        STAX D
-        CMP H
-        STAX D
-        CMP A
-        STAX D
-        MOV D,L
-        LXI D, #1159
-        MOV E,L
-        LXI D, #1151
-        MOV C,L
-        LXI D, #114d
-        MOV C,C
-        LXI D, #c33a
-        LXI H, #10f6
+        DB #c4
+        DB #21
+        DB #ad
+        DB #12
+        DB #b0
+        DB #12
+        DB #b3
+        DB #12
+        DB #b6
+        DB #12
+        DB #b9
+        DB #12
+        DB #bc
+        DB #12
+        DB #bf
+        DB #12
+        DB #55
+        DB #11
+        DB #59
+        DB #11
+        DB #5d
+        DB #11
+        DB #51
+        DB #11
+        DB #4d
+        DB #11
+        DB #4d
+        DB #11
+        DB #49
+        DB #11
+        LDA $21c3
+        ORI #10
         STA $21c3
         CMA
 ; left flipper

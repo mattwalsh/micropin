@@ -1188,29 +1188,38 @@ $080d          c3 21 c4 JMP $c421
 $0810          21 c4 21 LXI H, #21c4
 $0813          c3 21 c4 JMP $c421
 $0816          21 c4 21 LXI H, #21c4
-$0819          c4 21 ad CNZ $ad21
-$081c          12       STAX D
-$081d          b0       ORA B
-$081e          12       STAX D
-$081f          b3       ORA E
-$0820          12       STAX D
-$0821          b6       ORA M
-$0822          12       STAX D
-$0823          b9       CMP C
-$0824          12       STAX D
-$0825          bc       CMP H
-$0826          12       STAX D
-$0827          bf       CMP A
-$0828          12       STAX D
-$0829          55       MOV D,L
-$082a          11 59 11 LXI D, #1159
-$082d          5d       MOV E,L
-$082e          11 51 11 LXI D, #1151
-$0831          4d       MOV C,L
-$0832          11 4d 11 LXI D, #114d
-$0835          49       MOV C,C
-$0836          11 3a c3 LXI D, #c33a
-$0839          21 f6 10 LXI H, #10f6
+$0819          c4       DB #c4
+$081a          21       DB #21
+$081b          ad       DB #ad
+$081c          12       DB #12
+$081d          b0       DB #b0
+$081e          12       DB #12
+$081f          b3       DB #b3
+$0820          12       DB #12
+$0821          b6       DB #b6
+$0822          12       DB #12
+$0823          b9       DB #b9
+$0824          12       DB #12
+$0825          bc       DB #bc
+$0826          12       DB #12
+$0827          bf       DB #bf
+$0828          12       DB #12
+$0829          55       DB #55
+$082a          11       DB #11
+$082b          59       DB #59
+$082c          11       DB #11
+$082d          5d       DB #5d
+$082e          11       DB #11
+$082f          51       DB #51
+$0830          11       DB #11
+$0831          4d       DB #4d
+$0832          11       DB #11
+$0833          4d       DB #4d
+$0834          11       DB #11
+$0835          49       DB #49
+$0836          11       DB #11
+$0837          3a c3 21 LDA $21c3
+$083a          f6 10    ORI #10
 $083c          32 c3 21 STA $21c3
 $083f          2f       CMA
 ; left flipper
