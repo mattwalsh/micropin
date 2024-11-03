@@ -10,6 +10,7 @@ PRICE_2 EQU 0x239f
 PRICE_3 EQU 0x23bf
 PRICE_4 EQU 0x23df
 CREDITS_1 EQU 0x237a
+ROLLOVERS EQU 0x21c6
 PL13_SCORE_1 EQU 0x2367
 PL13_SCORE_2 EQU 0x236f
 PL24_SCORE_1 EQU 0x2373
@@ -110,13 +111,11 @@ $0011          32 7a 23 STA CREDITS_1
 $0014 j0014:   3a 7a 23 LDA CREDITS_1 ;o000d
 $0017          c9       RET
 
-$0018          76       HLT
-$0019          76       HLT
-$001a          76       HLT
-$001b          76       HLT
-$001c          76       HLT
-$001d          76       HLT
-$001e          76       HLT
+ 
+$0018 c0018:   21 7d 11 LXI H, #117d ;jo151f
+$001b o001b:   cd 5c 0e CALL cADD_BONUS
+$001e          c9       RET
+
 $001f          76       HLT
 $0020          76       HLT
 $0021          76       HLT
@@ -297,7 +296,7 @@ $0198          11 20 23 LXI D, #2320
 $019b          3e 2e    MVI A, #2e
 $019d o019d:   cd cf 0e CALL cCOPY_FROM_HL_TO_DE
 $01a0          06 01    MVI B, #01
-$01a2          11 c6 21 LXI D, #21c6
+$01a2          11 c6 21 LXI D, ROLLOVERS
 $01a5 o01a5:   cd 8e 17 CALL jc178e
 $01a8          21 c9 21 LXI H, #21c9
 $01ab          11 ce 21 LXI D, #21ce
@@ -416,7 +415,7 @@ $0272          2b       DCX H
 $0273          22 f9 21 SHLD $21f9
 $0276          6e       MOV L,M
 $0277          67       MOV H,A
-$0278 o0278:   cd 3c 0f CALL c0f3c
+$0278 o0278:   cd 3c 0f CALL cADD_PTS
 $027b j027b:   fb       EI ;o025c,o026d
 $027c          21 92 21 LXI H, GAME_STATE2
 $027f          3e 07    MVI A, #07
@@ -1442,7 +1441,7 @@ $0a35          7e       MOV A,M
 $0a36          23       INX H
 $0a37          66       MOV H,M
 $0a38          6f       MOV L,A
-$0a39 o0a39:   cd 5c 0e CALL c0e5c
+$0a39 o0a39:   cd 5c 0e CALL cADD_BONUS
 $0a3c          21 dd 12 LXI H, UNKNOWN_MUSIC
 $0a3f o0a3f:   cd 61 12 CALL cPLAY_SOUND
 $0a42          21 92 21 LXI H, GAME_STATE2
@@ -1463,7 +1462,7 @@ $0a68          3e 28    MVI A, #28
 $0a6a          32 9c 21 STA $219c
 $0a6d o0a6d:   c3 1e 06 JMP joEND_MAIN_LOOP
 $0a70          21 71 11 LXI H, #1171
-$0a73 o0a73:   cd 5c 0e CALL c0e5c
+$0a73 o0a73:   cd 5c 0e CALL cADD_BONUS
 $0a76          21 35 13 LXI H, SPREAD_HRM_MUSIC
 $0a79 o0a79:   cd 61 12 CALL cPLAY_SOUND
 $0a7c          3a 1a 22 LDA $221a
@@ -1759,9 +1758,9 @@ $0cf0          21 32 13 LXI H, BUMPER_25_MUSIC
 $0cf3 o0cf3:   cd 61 12 CALL cPLAY_SOUND
 $0cf6 o0cf6:   c3 1e 06 JMP joEND_MAIN_LOOP
 $0cf9 j0cf9:   21 65 11 LXI H, #1165 ;o0ce2
-$0cfc o0cfc:   cd 5c 0e CALL c0e5c
+$0cfc o0cfc:   cd 5c 0e CALL cADD_BONUS
 $0cff          21 5b 23 LXI H, #235b
-$0d02 o0d02:   cd 3c 0f CALL c0f3c
+$0d02 o0d02:   cd 3c 0f CALL cADD_PTS
 $0d05          21 5b 23 LXI H, #235b
 $0d08 o0d08:   cd 99 0e CALL c0e99
 $0d0b          21 0c 22 LXI H, #220c
@@ -1843,7 +1842,7 @@ $0dce o0dce:   c3 e1 0d JMP j0de1
 $0dd1 j0dd1:   21 71 11 LXI H, #1171 ;o0dbf
 $0dd4 o0dd4:   cd 92 02 CALL cADD_BONUS_HL
 $0dd7          eb       XCHG
-$0dd8 o0dd8:   cd 5c 0e CALL c0e5c
+$0dd8 o0dd8:   cd 5c 0e CALL cADD_BONUS
 $0ddb          21 f2 12 LXI H, LIT_STANDUP_MUSIC
 $0dde o0dde:   cd 61 12 CALL cPLAY_SOUND
 $0de1 j0de1:   3a 91 21 LDA $2191 ;o0da2,o0db9,o0dce
@@ -1934,7 +1933,8 @@ $0e59          e6 00    ANI #00
 $0e5b          c9       RET
 
  
-$0e5c c0e5c:   11 f3 21 LXI D, SPREAD_1 ;o0a39,o0a73,o0cfc,o0dd8,o154f,o15ef,o18ed
+$0e5c cADD_BONUS:
+               11 f3 21 LXI D, SPREAD_1 ;o001b,o0a39,o0a73,o0cfc,o0dd8,o154f,o15ef,o18ed
 $0e5f          3e 08    MVI A, #08
 $0e61 o0e61:   cd cf 0e CALL cCOPY_FROM_HL_TO_DE
 $0e64          21 5b 23 LXI H, #235b
@@ -2068,7 +2068,8 @@ $0f3a          12       STAX D
 $0f3b          c9       RET
 
  
-$0f3c c0f3c:   11 f3 21 LXI D, SPREAD_1 ;o0278,o0d02,o1722,o172d,o18f3
+$0f3c cADD_PTS:
+               11 f3 21 LXI D, SPREAD_1 ;o0278,o0d02,o1722,o172d,o18f3
 $0f3f          3e 08    MVI A, #08
 $0f41 o0f41:   cd cf 0e CALL cCOPY_FROM_HL_TO_DE
 $0f44          21 7e 23 LXI H, #237e
@@ -2305,6 +2306,7 @@ $1142          32 8c 23 STA $238c
 $1145          32 ac 23 STA $23ac
 $1148          c9       RET
 
+; scores
 $1149          00       DB #00
 $114a          00       DB #00
 $114b          00       DB #00
@@ -2908,7 +2910,7 @@ $149c          3e 02    MVI A, #02
 $149e o149e:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
 $14a1 o14a1:   c2 19 14 JNZ jo1419
 $14a4          79       MOV A,C
-$14a5          21 c6 21 LXI H, #21c6
+$14a5          21 c6 21 LXI H, ROLLOVERS
 $14a8 o14a8:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
 $14ab o14ab:   ca 19 14 JZ jo1419
 $14ae o14ae:   cd e1 03 CALL cCLEAR_ATH_BIT_OF_HL
@@ -2917,7 +2919,7 @@ $14b4          21 61 11 LXI H, #1161
 $14b7 o14b7:   cd 92 02 CALL cADD_BONUS_HL
 $14ba          21 d7 12 LXI H, BONUS_MUSIC
 $14bd o14bd:   cd 61 12 CALL cPLAY_SOUND
-$14c0          3a c6 21 LDA $21c6
+$14c0          3a c6 21 LDA ROLLOVERS
 $14c3          fe 00    CPI #00
 $14c5 o14c5:   c2 19 14 JNZ jo1419
 $14c8          3e 3d    MVI A, #3d
@@ -2948,16 +2950,17 @@ $1501 o1501:   cd 9c 1d CALL co1d9c
 $1504 o1504:   c2 17 15 JNZ jo1517
 $1507          06 38    MVI B, #38
 $1509 o1509:   cd 9c 1d CALL co1d9c
-$150c o150c:   c2 22 15 JNZ j1522
+$150c o150c:   c2 1f 15 JNZ jo151f
 $150f          06 11    MVI B, #11
 $1511 o1511:   cd 76 1d CALL co1d76
-$1514 o1514:   c3 22 15 JMP j1522
+$1514 o1514:   c3 1f 15 JMP jo151f
 $1517 jo1517:  cd 81 1d CALL co1d81 ;o1504
 $151a          06 38    MVI B, #38
 $151c o151c:   cd 76 1d CALL co1d76
-$151f o151f:   c3 22 15 JMP j1522
-$1522 j1522:   3e ff    MVI A, #ff ;o150c,o1514,o151f
-$1524          32 c6 21 STA $21c6
+$151f jo151f:  cd 18 00 CALL c0018 ;o150c,o1514
+; reset rollovers
+$1522          3e ff    MVI A, #ff
+$1524          32 c6 21 STA ROLLOVERS
 $1527          97       SUB A
 $1528          32 05 22 STA $2205
 $152b o152b:   c3 1e 06 JMP joEND_MAIN_LOOP
@@ -2975,7 +2978,7 @@ $1544          3e 02    MVI A, #02
 $1546 o1546:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
 $1549 o1549:   c2 19 14 JNZ jo1419
 $154c          21 7d 11 LXI H, #117d
-$154f o154f:   cd 5c 0e CALL c0e5c
+$154f o154f:   cd 5c 0e CALL cADD_BONUS
 $1552          21 90 21 LXI H, GAME_STATE
 $1555          3e 04    MVI A, #04
 $1557 o1557:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
@@ -3038,7 +3041,7 @@ $15e3 o15e3:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
 $15e6 o15e6:   ca 19 14 JZ jo1419
 $15e9 o15e9:   cd e1 03 CALL cCLEAR_ATH_BIT_OF_HL
 $15ec          21 65 11 LXI H, #1165
-$15ef o15ef:   cd 5c 0e CALL c0e5c
+$15ef o15ef:   cd 5c 0e CALL cADD_BONUS
 $15f2          21 35 13 LXI H, SPREAD_HRM_MUSIC
 $15f5 o15f5:   cd 61 12 CALL cPLAY_SOUND
 $15f8 o15f8:   c3 19 14 JMP jo1419
@@ -3113,7 +3116,7 @@ $16aa          3a b6 23 LDA $23b6
 $16ad          e6 7f    ANI #7f
 $16af          32 b6 23 STA $23b6
 $16b2          21 d3 21 LXI H, #21d3
-$16b5          11 c6 21 LXI D, #21c6
+$16b5          11 c6 21 LXI D, ROLLOVERS
 $16b8          3e 10    MVI A, #10
 $16ba o16ba:   cd cf 0e CALL cCOPY_FROM_HL_TO_DE
 $16bd          21 c9 21 LXI H, #21c9
@@ -3157,11 +3160,11 @@ $1719          f5       PUSH PSW
 $171a          3e 1f    MVI A, #1f
 $171c          32 7e 23 STA $237e
 $171f          21 49 11 LXI H, #1149
-$1722 o1722:   cd 3c 0f CALL c0f3c
+$1722 o1722:   cd 3c 0f CALL cADD_PTS
 $1725          3e 2f    MVI A, #2f
 $1727          32 7e 23 STA $237e
 $172a          21 49 11 LXI H, #1149
-$172d o172d:   cd 3c 0f CALL c0f3c
+$172d o172d:   cd 3c 0f CALL cADD_PTS
 $1730          f1       POP PSW
 $1731          32 7e 23 STA $237e
 $1734          fb       EI
@@ -3303,7 +3306,7 @@ $1856          21 e8 12 LXI H, OOPS2_MUSIC
 $1859 o1859:   cd 61 12 CALL cPLAY_SOUND
 $185c o185c:   cd a8 1b CALL c1ba8
 $185f          eb       XCHG
-$1860          21 c6 21 LXI H, #21c6
+$1860          21 c6 21 LXI H, ROLLOVERS
 $1863          3e 10    MVI A, #10
 $1865 o1865:   cd cf 0e CALL cCOPY_FROM_HL_TO_DE
 $1868          21 90 21 LXI H, GAME_STATE
@@ -3361,9 +3364,9 @@ $18e1          21 32 13 LXI H, BUMPER_25_MUSIC
 $18e4 o18e4:   cd 61 12 CALL cPLAY_SOUND
 $18e7 o18e7:   c3 1e 06 JMP joEND_MAIN_LOOP
 $18ea j18ea:   21 65 11 LXI H, #1165 ;o18d3
-$18ed o18ed:   cd 5c 0e CALL c0e5c
+$18ed o18ed:   cd 5c 0e CALL cADD_BONUS
 $18f0          21 5b 23 LXI H, #235b
-$18f3 o18f3:   cd 3c 0f CALL c0f3c
+$18f3 o18f3:   cd 3c 0f CALL cADD_PTS
 $18f6          21 5b 23 LXI H, #235b
 $18f9 o18f9:   cd 99 0e CALL c0e99
 $18fc o18fc:   cd ea 17 CALL c17ea
@@ -3595,7 +3598,7 @@ $1af8          32 18 22 STA $2218
 $1afb          3a ce 21 LDA $21ce
 $1afe          32 19 22 STA $2219
 $1b01 o1b01:   cd a8 1b CALL c1ba8
-$1b04          11 c6 21 LXI D, #21c6
+$1b04          11 c6 21 LXI D, ROLLOVERS
 $1b07          3e 10    MVI A, #10
 $1b09 o1b09:   cd cf 0e CALL cCOPY_FROM_HL_TO_DE
 $1b0c          21 c9 21 LXI H, #21c9

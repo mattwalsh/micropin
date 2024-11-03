@@ -11,6 +11,7 @@ addresses:
    PRICE_3   : $23BF 
    PRICE_4   : $23DF 
    CREDITS_1 : $237A
+   ROLLOVERS : $21C6
 
 # 52 54 56 58 5A 5c 5e 1360 1362 
 
@@ -122,6 +123,8 @@ labels:
    TILT_HELPER : $044f
    TILT2 : $0543
    TONE_PLAY : $118d
+   ADD_BONUS : $0e5c
+   ADD_PTS : $0f3c
 
 not_code:
    COIN : [$03ca , $03cb] 
@@ -188,6 +191,7 @@ notes:
   $07bc : "computed sound?"
   $0837 : "left flipper"
   $0891 : "right flipper"
+  $1149 : "scores"
   $1181 : "default high score"
   $1351 : "godfather"
   $136a : "popcorn"
@@ -198,6 +202,7 @@ notes:
   $1609 : "check if credits"
   $1c39 : "seems pointless"
   $03ce : "left flipper vector"
+  $1522 : "reset rollovers"
 
  # 12ac - 137e maybe sound data?
  # 1e82 seems like it - it hits either way
