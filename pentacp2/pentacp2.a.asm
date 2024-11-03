@@ -54,7 +54,7 @@ LEFT_SLING_TONE EQU 0x12b9
 RIGHT_SLING_TONE EQU 0x12bc
 SILENCE_END_LOOP_MUSIC EQU 0x12bf
 TILT_MUSIC EQU 0x12c2
-BONUS_MUSIC EQU 0x12c2
+BONUS_MUSIC EQU 0x12d7
 START_PLAYER_MUSIC EQU 0x12da
 UNKNOWN_MUSIC EQU 0x12dd
 LOW_MUSIC EQU 0x12e0
@@ -831,7 +831,7 @@ $0538          32 1b 22 STA $221b
 $053b          3e 02    MVI A, #02
 $053d          32 9d 21 STA $219d
 $0540 o0540:   c3 82 03 JMP jo0382
-$0543 jTILT2:  21 c2 12 LXI H, BONUS_MUSIC ;o04ab,o04b3
+$0543 jTILT2:  21 c2 12 LXI H, TILT_MUSIC ;o04ab,o04b3
 $0546 o0546:   cd 61 12 CALL cPLAY_SOUND
 $0549 o0549:   c3 82 03 JMP jo0382
 $054c          3a 1b 22 LDA $221b
@@ -864,7 +864,7 @@ $058e o058e:   c2 a2 05 JNZ j05a2
 $0591 o0591:   cd 4f 04 CALL cTILT_HELPER
 $0594          3e 7d    MVI A, #7d
 $0596          32 a2 21 STA $21a2
-$0599          21 c2 12 LXI H, BONUS_MUSIC
+$0599          21 c2 12 LXI H, TILT_MUSIC
 $059c o059c:   cd 61 12 CALL cPLAY_SOUND
 $059f o059f:   c3 1e 06 JMP joEND_MAIN_LOOP
 $05a2 j05a2:   3a 94 21 LDA STATE_OUTLANE_1 ;o0588,o058e
@@ -1061,50 +1061,60 @@ $0721 j0721:   3a 94 21 LDA STATE_OUTLANE_1 ;o0713
 $0724          e6 bb    ANI #bb
 $0726          32 94 21 STA STATE_OUTLANE_1
 $0729 o0729:   c3 1e 06 JMP joEND_MAIN_LOOP
-$072c          aa       XRA D
-$072d          0b       DCX B
-$072e          06 12    MVI B, #12
-$0730          ce 07    ACI #07
-$0732          1e 06    MVI E, #06
-$0734          2a 0a 70 LHLD $700a
-$0737          0a       LDAX B
-$0738          4c       MOV C,H
-$0739          05       DCR B
-$073a          ad       XRA L
-$073b          05       DCR B
-$073c          a4       ANA H
-$073d          08       (DSUB)
-$073e          02       STAX B
-$073f          19       DAD D
-$0740          d7       RST 2
-$0741          1a       LDAX D
+$072c          aa       DB #aa
+$072d          0b       DB #0b
+$072e          06       DB #06
+$072f          12       DB #12
+$0730          ce       DB #ce
+$0731          07       DB #07
+$0732          1e       DB #1e
+$0733          06       DB #06
+$0734          2a       DB #2a
+$0735          0a       DB #0a
+$0736          70       DB #70
+$0737          0a       DB #0a
+$0738          4c       DB #4c
+$0739          05       DB #05
+$073a          ad       DB #ad
+$073b          05       DB #05
+$073c          a4       DB #a4
+$073d          08       DB #08
+$073e          02       DB #02
+$073f          19       DB #19
+$0740          d7       DB #d7
+$0741          1a       DB #1a
 $0742          84       DB #84
 $0743          05       DB #05
-$0744          62       MOV H,D
-$0745          1a       LDAX D
-$0746          d5       PUSH D
-$0747          14       INR D
-$0748          be       CMP M
-$0749          0a       LDAX B
-$074a          8f       ADC A
-$074b          0b       DCX B
-$074c          ae       XRA M
-$074d          0c       INR C
-$074e          70       MOV M,B
-$074f          08       (DSUB)
-$0750          2d       DCR L
-$0751          09       DAD B
-$0752          1e 06    MVI E, #06
-$0754          0b       DCX B
-$0755          07       RLC
-$0756          66       MOV H,M
-$0757          1d       DCR E
-$0758          f3       DI
-$0759          07       RLC
-$075a          cd 18 9d CALL $9d18
-$075d          0d       DCR C
-$075e          1e 06    MVI E, #06
-$0760          11 00 00 LXI D, #0000
+$0744          62       DB #62
+$0745          1a       DB #1a
+$0746          d5       DB #d5
+$0747          14       DB #14
+$0748          be       DB #be
+$0749          0a       DB #0a
+$074a          8f       DB #8f
+$074b          0b       DB #0b
+$074c          ae       DB #ae
+$074d          0c       DB #0c
+$074e          70       DB #70
+$074f          08       DB #08
+$0750          2d       DB #2d
+$0751          09       DB #09
+$0752          1e       DB #1e
+$0753          06       DB #06
+$0754          0b       DB #0b
+$0755          07       DB #07
+$0756          66       DB #66
+$0757          1d       DB #1d
+$0758          f3       DB #f3
+$0759          07       DB #07
+$075a          cd       DB #cd
+$075b          18       DB #18
+$075c          9d       DB #9d
+$075d          0d       DB #0d
+$075e          1e       DB #1e
+$075f          06 11    MVI B, #11
+$0761          00       NOP
+$0762          00       NOP
 $0763 o0763:   c3 8f 07 JMP j078f
 $0766          11 01 00 LXI D, #0001
 $0769 o0769:   c3 8f 07 JMP j078f
@@ -2528,16 +2538,16 @@ $12b5          ff       DB #ff
 $12b6          65       DB #65
 $12b7          08       DB #08
 $12b8          ff       DB #ff
-LEFT_SLING_TONE          2c       DB #33
-$12ba          08       DB #06
+LEFT_SLING_TONE          33       DB #33
+$12ba          08       DB #08
 $12bb          ff       DB #ff
 RIGHT_SLING_TONE          3c       DB #3c
-$12bd          08       DB #06
+$12bd          08       DB #08
 $12be          ff       DB #ff
 SILENCE_END_LOOP_MUSIC          1c       DB #1c
 $12c0          00       DB #00
 $12c1          ff       DB #ff
-BONUS_MUSIC          43       DB #43
+TILT_MUSIC          43       DB #43
 $12c3          08       DB #08
 $12c4          87       DB #87
 $12c5          08       DB #08
@@ -2558,7 +2568,7 @@ $12d3          08       DB #08
 $12d4          87       DB #87
 $12d5          08       DB #08
 $12d6          ff       DB #ff
-$12d7          55       DB #55
+BONUS_MUSIC          55       DB #55
 $12d8          08       DB #08
 $12d9          ff       DB #ff
 START_PLAYER_MUSIC          3c       DB #3c
@@ -2580,9 +2590,9 @@ $12e9          02       DB #02
 $12ea          15       DB #15
 $12eb          0c       DB #0c
 $12ec          ff       DB #ff
-LIL_VICTORY_MUSIC          4c       DB #4c
+LIL_VICTORY_MUSIC          33       DB #33
 $12ee          08       DB #08
-$12ef          65       DB #65
+$12ef          43       DB #43
 $12f0          0c       DB #0c
 $12f1          ff       DB #ff
 LIT_STANDUP_MUSIC          78       DB #78
@@ -2720,7 +2730,7 @@ $1373          04       DB #04
 $1374          b4       DB #b4
 $1375          04       DB #04
 $1376          78       DB #78
-$1377          06       DB #04
+$1377          04       DB #04
 $1378          ff       DB #ff
 $1379          ff       DB #ff
 $137a          ff       DB #ff
@@ -2905,7 +2915,7 @@ $14ae o14ae:   cd e1 03 CALL cCLEAR_ATH_BIT_OF_HL
 $14b1 o14b1:   cd 81 1d CALL co1d81
 $14b4          21 61 11 LXI H, #1161
 $14b7 o14b7:   cd 92 02 CALL cADD_BONUS_HL
-$14ba          21 d7 12 LXI H, #12d7
+$14ba          21 d7 12 LXI H, BONUS_MUSIC
 $14bd o14bd:   cd 61 12 CALL cPLAY_SOUND
 $14c0          3a c6 21 LDA $21c6
 $14c3          fe 00    CPI #00
@@ -2926,7 +2936,7 @@ $14e4          21 2d 15 LXI H, #152d
 $14e7          19       DAD D
 $14e8          46       MOV B,M
 $14e9 o14e9:   cd 76 1d CALL co1d76
-$14ec          21 d7 12 LXI H, #12d7
+$14ec          21 d7 12 LXI H, BONUS_MUSIC
 $14ef o14ef:   cd 61 12 CALL cPLAY_SOUND
 $14f2          3e 0a    MVI A, #0a
 $14f4          32 a4 21 STA $21a4

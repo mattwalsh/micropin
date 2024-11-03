@@ -13,8 +13,20 @@ addresses:
    BALL_IN_PLAY_3 : $23DB
    BALLS_PER_GAME : $2213
    DIP_SWITCHES: $2216
+  
+    #  bit 2 - has outlane triggered?
+   GAME_STATE : $2190
 
+not_code:
+   DUNNO : [$079b, $07b8]
+   DUNNO_VECTORS : [$06ae, $06de]
+   COIL_VECTORS_HRM : [$03a3, $03cd]
+   COIL_VECTORS_HRM : [$03a3, $03cd]
+   MUSIC : [$132f, $13dd]
 
+labels:
+   SET_ATH_BIT_OF_HL : $03ce
+   PLAY_SOUND : $12e4
 
 inPorts:
    MYSTERY_PORT_1 : $01
@@ -22,6 +34,22 @@ inPorts:
    PRICE_TENS_07_PORT : $03
    PRICE_89_CAB : $04
    DIP_SWITCH_PORT : $05
+
+outPorts:
+   LAMP_0 : $00
+   LAMP_1 : $01
+   LAMP_2 : $02
+   LAMP_3 : $03
+   LAMP_4 : $04
+   COIL_5 : $05
+   COIL_6 : $06
+   COIL_7 : $07
+   COIL_8 : $08
+   TONE_ENABLE_DUR : $09
+   TONE_PITCH : $0A
+   LAMP_D : $0D
+   LAMP_E : $0E
+   LAMP_F : $0F
 
 notes:
   $1c39 : "seems pointless"

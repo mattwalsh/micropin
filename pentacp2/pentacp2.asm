@@ -54,7 +54,7 @@ LEFT_SLING_TONE EQU 0x12b9
 RIGHT_SLING_TONE EQU 0x12bc
 SILENCE_END_LOOP_MUSIC EQU 0x12bf
 TILT_MUSIC EQU 0x12c2
-BONUS_MUSIC EQU 0x12c2
+BONUS_MUSIC EQU 0x12d7
 START_PLAYER_MUSIC EQU 0x12da
 UNKNOWN_MUSIC EQU 0x12dd
 LOW_MUSIC EQU 0x12e0
@@ -819,7 +819,7 @@ o052e:  CALL cSET_ATH_BIT_OF_HL
         MVI A, #02
         STA $219d
 o0540:  JMP jo0382
-jTILT2: LXI H, BONUS_MUSIC ;o04ab,o04b3
+jTILT2: LXI H, TILT_MUSIC ;o04ab,o04b3
 o0546:  CALL cPLAY_SOUND
 o0549:  JMP jo0382
         LDA $221b
@@ -852,7 +852,7 @@ o058e:  JNZ j05a2
 o0591:  CALL cTILT_HELPER
         MVI A, #7d
         STA $21a2
-        LXI H, BONUS_MUSIC
+        LXI H, TILT_MUSIC
 o059c:  CALL cPLAY_SOUND
 o059f:  JMP joEND_MAIN_LOOP
 j05a2:  LDA STATE_OUTLANE_1 ;o0588,o058e
@@ -1044,50 +1044,60 @@ j0721:  LDA STATE_OUTLANE_1 ;o0713
         ANI #bb
         STA STATE_OUTLANE_1
 o0729:  JMP joEND_MAIN_LOOP
-        XRA D
-        DCX B
-        MVI B, #12
-        ACI #07
-        MVI E, #06
-        LHLD $700a
-        LDAX B
-        MOV C,H
-        DCR B
-        XRA L
-        DCR B
-        ANA H
-        (DSUB)
-        STAX B
-        DAD D
-        RST 2
-        LDAX D
+        DB #aa
+        DB #0b
+        DB #06
+        DB #12
+        DB #ce
+        DB #07
+        DB #1e
+        DB #06
+        DB #2a
+        DB #0a
+        DB #70
+        DB #0a
+        DB #4c
+        DB #05
+        DB #ad
+        DB #05
+        DB #a4
+        DB #08
+        DB #02
+        DB #19
+        DB #d7
+        DB #1a
         DB #84
         DB #05
-        MOV H,D
-        LDAX D
-        PUSH D
-        INR D
-        CMP M
-        LDAX B
-        ADC A
-        DCX B
-        XRA M
-        INR C
-        MOV M,B
-        (DSUB)
-        DCR L
-        DAD B
-        MVI E, #06
-        DCX B
-        RLC
-        MOV H,M
-        DCR E
-        DI
-        RLC
-        CALL $9d18
-        DCR C
-        MVI E, #06
-        LXI D, #0000
+        DB #62
+        DB #1a
+        DB #d5
+        DB #14
+        DB #be
+        DB #0a
+        DB #8f
+        DB #0b
+        DB #ae
+        DB #0c
+        DB #70
+        DB #08
+        DB #2d
+        DB #09
+        DB #1e
+        DB #06
+        DB #0b
+        DB #07
+        DB #66
+        DB #1d
+        DB #f3
+        DB #07
+        DB #cd
+        DB #18
+        DB #9d
+        DB #0d
+        DB #1e
+        MVI B, #11
+        NOP
+        NOP
 o0763:  JMP j078f
         LXI D, #0001
 o0769:  JMP j078f
@@ -2874,7 +2884,7 @@ o14ae:  CALL cCLEAR_ATH_BIT_OF_HL
 o14b1:  CALL co1d81
         LXI H, #1161
 o14b7:  CALL cADD_BONUS_HL
-        LXI H, #12d7
+        LXI H, BONUS_MUSIC
 o14bd:  CALL cPLAY_SOUND
         LDA $21c6
         CPI #00
@@ -2895,7 +2905,7 @@ o14de:  JZ j14fa
         DAD D
         MOV B,M
 o14e9:  CALL co1d76
-        LXI H, #12d7
+        LXI H, BONUS_MUSIC
 o14ef:  CALL cPLAY_SOUND
         MVI A, #0a
         STA $21a4

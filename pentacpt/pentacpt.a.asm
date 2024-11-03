@@ -12,6 +12,7 @@ BALL_IN_PLAY_2 EQU 0x23bb
 BALL_IN_PLAY_3 EQU 0x23db
 BALLS_PER_GAME EQU 0x2213
 DIP_SWITCHES EQU 0x2216
+GAME_STATE EQU 0x2190
 
 ; INPUT PORTS
 MYSTERY_PORT_1 EQU 0x1
@@ -19,30 +20,22 @@ PRICE_CENTS_07_PORT EQU 0x2
 PRICE_TENS_07_PORT EQU 0x3
 PRICE_89_CAB EQU 0x4
 DIP_SWITCH_PORT EQU 0x5
-; BOGUS address $00c3 found in          c2 c3 00 JNZ $00c3 at $003b
-; BOGUS address $13de found in          cd de 13 CALL $13de at $0110
-; BOGUS address $e806 found in          e2 06 e8 JPO $e806 at $03ae
-; BOGUS address $cc21 found in          cd 21 cc CALL $cc21 at $043d
-; BOGUS address $ca21 found in          cc 21 ca CZ $ca21 at $0443
-; BOGUS address $0447 found in          cd 47 04 CALL $0447 at $0473
-; BOGUS address $0447 found in          cd 47 04 CALL $0447 at $0583
-; BOGUS address $761a found in          d2 1a 76 JNC $761a at $06c2
-; BOGUS address $1a09 found in          f4 09 1a CP $1a09 at $06d4
-; BOGUS address $c421 found in          c3 21 c4 JMP $c421 at $078f
-; BOGUS address $c421 found in          c3 21 c4 JMP $c421 at $0795
-; BOGUS address $3021 found in          c4 21 30 CNZ $3021 at $079b
-; BOGUS address $3a11 found in          cc 11 3a CZ $3a11 at $07b7
-; BOGUS address $f621 found in          c3 21 f6 JMP $f621 at $07ba
-; BOGUS address $c221 found in          c4 21 c2 CNZ $c221 at $0ca7
-; BOGUS address $ec21 found in          c2 21 ec JNZ $ec21 at $0cad
-; BOGUS address $ff08 found in          ca 08 ff JZ $ff08 at $1330
-; BOGUS address $ca08 found in          ca 08 ca JZ $ca08 at $13bb
-; BOGUS address $ca08 found in          ca 08 ca JZ $ca08 at $13bf
-; BOGUS address $ff00 found in          ca 00 ff JZ $ff00 at $13d1
-; BOGUS address $13de found in          c2 de 13 JNZ $13de at $1413
-; BOGUS address $6b14 found in          dc 14 6b CC $6b14 at $149a
-; BOGUS address $f114 found in          ea 14 f1 JPE $f114 at $14a0
-; BOGUS address $13de found in          cd de 13 CALL $13de at $1d70
+
+; OUTPUT PORTS
+LAMP_0 EQU 0x0
+LAMP_1 EQU 0x1
+LAMP_2 EQU 0x2
+LAMP_3 EQU 0x3
+LAMP_4 EQU 0x4
+COIL_5 EQU 0x5
+COIL_6 EQU 0x6
+COIL_7 EQU 0x7
+COIL_8 EQU 0x8
+TONE_ENABLE_DUR EQU 0x9
+TONE_PITCH EQU 0xa
+LAMP_D EQU 0xd
+LAMP_E EQU 0xe
+LAMP_F EQU 0xf
 $0000 o0000:   c3 40 00 JMP j0040
 $0003          76       HLT
 $0004          76       HLT
@@ -94,14 +87,14 @@ $0037          76       HLT
 $0038          76       HLT
 $0039          76       HLT
 $003a          76       HLT
-$003b          c2 c3 00 DB 0xc2,0xc3,0x0  ; (was:          c2 c3 00 JNZ $00c3)
+$003b          c2 c3 00 JNZ $00c3
 $003e          28 76    (LDHI) #76
 $0040 j0040:   3e 20    MVI A, #20 ;o0000
 $0042          32 df 23 STA PRICE_4
 $0045          16 05    MVI D, #05
 $0047 j0047:   21 10 27 LXI H, #2710 ;o0053
 $004a j004a:   2b       DCX H ;o004f
-$004b          d3 0f    OUT #0f
+$004b          d3 0f    OUT LAMP_F
 $004d          7c       MOV A,H
 $004e          b7       ORA A
 $004f o004f:   c2 4a 00 JNZ j004a
@@ -119,10 +112,10 @@ $0065          bc       CMP H
 $0066 o0066:   c2 60 00 JNZ j0060
 $0069          3e 64    MVI A, #64
 $006b          32 40 22 STA $2240
-$006e j006e:   31 90 21 LXI SP, #2190 ;o0024,o005a
+$006e j006e:   31 90 21 LXI SP, GAME_STATE ;o0024,o005a
 $0071          3e 07    MVI A, #07
-$0073 j0073:   d3 0e    OUT #0e ;o0078
-$0075          d3 0d    OUT #0d
+$0073 j0073:   d3 0e    OUT LAMP_E ;o0078
+$0075          d3 0d    OUT LAMP_D
 $0077          3d       DCR A
 $0078 o0078:   f2 73 00 JP j0073
 $007b          21 97 21 LXI H, #2197
@@ -135,7 +128,7 @@ $0084 o0084:   c2 80 00 JNZ j0080
 $0087          3e 05    MVI A, #05
 $0089          32 a3 21 STA $21a3
 $008c          3e fe    MVI A, #fe
-$008e          d3 09    OUT #09
+$008e          d3 09    OUT TONE_ENABLE_DUR
 $0090          3e 02    MVI A, #02
 $0092          32 98 21 STA $2198
 $0095          3e ff    MVI A, #ff
@@ -149,9 +142,9 @@ $00a8          22 be 21 SHLD $21be
 $00ab          22 c0 21 SHLD $21c0
 $00ae          3e 0f    MVI A, #0f
 $00b0          32 f8 21 STA $21f8
-$00b3          3a 90 21 LDA $2190
+$00b3          3a 90 21 LDA GAME_STATE
 $00b6          f6 05    ORI #05
-$00b8          32 90 21 STA $2190
+$00b8          32 90 21 STA GAME_STATE
 $00bb          3e 0c    MVI A, #0c
 $00bd          30       SIM
 $00be          db 04    IN PRICE_89_CAB
@@ -162,7 +155,7 @@ $00c8 o00c8:   ca 13 01 JZ j0113
 $00cb j00cb:   3e 07    MVI A, #07 ;o0321
 $00cd          32 c2 21 STA $21c2
 $00d0          2f       CMA
-$00d1          d3 05    OUT #05
+$00d1          d3 05    OUT COIL_5
 $00d3          3e 06    MVI A, #06
 $00d5          32 a6 21 STA $21a6
 $00d8 j00d8:   fb       EI ;o00dd
@@ -172,15 +165,15 @@ $00dd o00dd:   c2 d8 00 JNZ j00d8
 $00e0          3e 28    MVI A, #28
 $00e2          32 c2 21 STA $21c2
 $00e5          2f       CMA
-$00e6          d3 05    OUT #05
+$00e6          d3 05    OUT COIL_5
 $00e8          3e 20    MVI A, #20
 $00ea          32 c4 21 STA $21c4
 $00ed          2f       CMA
-$00ee          d3 07    OUT #07
+$00ee          d3 07    OUT COIL_7
 $00f0          3e 02    MVI A, #02
 $00f2          32 c5 21 STA $21c5
 $00f5          2f       CMA
-$00f6          d3 08    OUT #08
+$00f6          d3 08    OUT COIL_8
 $00f8          3e 06    MVI A, #06
 $00fa          32 a6 21 STA $21a6
 $00fd j00fd:   fb       EI ;o0102
@@ -188,12 +181,12 @@ $00fe          3a a6 21 LDA $21a6
 $0101          b7       ORA A
 $0102 o0102:   c2 fd 00 JNZ j00fd
 $0105          3e ff    MVI A, #ff
-$0107          d3 05    OUT #05
-$0109          d3 06    OUT #06
-$010b          d3 07    OUT #07
-$010d          d3 08    OUT #08
+$0107          d3 05    OUT COIL_5
+$0109          d3 06    OUT COIL_6
+$010b          d3 07    OUT COIL_7
+$010d          d3 08    OUT COIL_8
 $010f          f3       DI
-$0110          cd de 13 DB 0xcd,0xde,0x13  ; (was:          cd de 13 CALL $13de)
+$0110 o0110:   cd de 13 CALL jc13de
 $0113 j0113:   db 04    IN PRICE_89_CAB ;o00c8,o02dc
 $0115          e6 20    ANI #20
 $0117 o0117:   c2 38 01 JNZ jo0138
@@ -307,7 +300,7 @@ $0200 o0200:   c2 04 02 JNZ j0204
 $0203          04       INR B
 $0204 j0204:   78       MOV A,B ;o01f7,o0200
 $0205          32 13 22 STA BALLS_PER_GAME
-$0208 j0208:   d3 0f    OUT #0f ;o026b,o1c5b,o1cb8,o1ce9,o1cf7,o1d64
+$0208 j0208:   d3 0f    OUT LAMP_F ;o026b,o1c5b,o1cb8,o1ce9,o1cf7,o1d64
 $020a          fb       EI
 $020b          00       NOP
 $020c          fb       EI
@@ -317,16 +310,16 @@ $020f          00       NOP
 $0210          f3       DI
 $0211          3a c2 21 LDA $21c2
 $0214          2f       CMA
-$0215          d3 05    OUT #05
+$0215          d3 05    OUT COIL_5
 $0217          3a c3 21 LDA $21c3
 $021a          2f       CMA
-$021b          d3 06    OUT #06
+$021b          d3 06    OUT COIL_6
 $021d          3a c4 21 LDA $21c4
 $0220          2f       CMA
-$0221          d3 07    OUT #07
+$0221          d3 07    OUT COIL_7
 $0223          3a c5 21 LDA $21c5
 $0226          2f       CMA
-$0227          d3 08    OUT #08
+$0227          d3 08    OUT COIL_8
 $0229          fb       EI
 $022a          00       NOP
 $022b          fb       EI
@@ -361,6 +354,7 @@ $0263          3a b6 23 LDA $23b6
 $0266          e6 7f    ANI #7f
 $0268          32 b6 23 STA $23b6
 $026b o026b:   c3 08 02 JMP j0208
+ 
 $026e c026e:   eb       XCHG ;o074a,o0d7c,o0e56,o0e65,o1518,o1626,o1947
 $026f          2a f9 21 LHLD $21f9
 $0272          73       MOV M,E
@@ -369,6 +363,7 @@ $0274          72       MOV M,D
 $0275          23       INX H
 $0276          22 f9 21 SHLD $21f9
 $0279          c9       RET
+
 $027a j027a:   3a 91 21 LDA $2191 ;o012d
 $027d          47       MOV B,A
 $027e          e6 01    ANI #01
@@ -412,13 +407,14 @@ $02c9          36 ff    MVI M, #ff
 $02cb          23       INX H
 $02cc          36 88    MVI M, #88
 $02ce          3e 00    MVI A, #00
-$02d0          d3 00    OUT #00
-$02d2          d3 01    OUT #01
-$02d4          d3 02    OUT #02
-$02d6          d3 03    OUT #03
-$02d8          d3 04    OUT #04
-$02da          d3 0f    OUT #0f
+$02d0          d3 00    OUT LAMP_0
+$02d2          d3 01    OUT LAMP_1
+$02d4          d3 02    OUT LAMP_2
+$02d6          d3 03    OUT LAMP_3
+$02d8          d3 04    OUT LAMP_4
+$02da          d3 0f    OUT LAMP_F
 $02dc o02dc:   c3 13 01 JMP j0113
+ 
 $02df c02df:   11 3b 23 LXI D, #233b ;co02f3,o1416
 $02e2          01 00 00 LXI B, #0000
 $02e5          21 00 00 LXI H, #0000
@@ -430,6 +426,8 @@ $02ec          7b       MOV A,E
 $02ed          fe 5d    CPI #5d
 $02ef o02ef:   c2 e8 02 JNZ j02e8
 $02f2          c9       RET
+
+ 
 $02f3 co02f3:  cd df 02 CALL c02df ;o00c5
 $02f6          eb       XCHG
 $02f7          2a 23 22 LHLD $2223
@@ -441,11 +439,13 @@ $02fe o02fe:   ca 04 03 JZ j0304
 $0301 j0301:   7a       MOV A,D ;o0306
 $0302          bc       CMP H
 $0303          c9       RET
+
 $0304 j0304:   7a       MOV A,D ;o02fe
 $0305          b7       ORA A
 $0306 o0306:   c2 01 03 JNZ j0301
 $0309          3c       INR A
 $030a          c9       RET
+
 $030b j030b:   21 eb 11 LXI H, #11eb ;o00c2
 $030e          11 28 22 LXI D, #2228
 $0311          3e 08    MVI A, #08
@@ -456,9 +456,9 @@ $031c          3e 08    MVI A, #08
 $031e o031e:   cd 60 0f CALL c0f60
 $0321 o0321:   c3 cb 00 JMP j00cb
 $0324 jo0324:  cd 0e 06 CALL c060e ;o002c
-$0327          3a 90 21 LDA $2190
+$0327          3a 90 21 LDA GAME_STATE
 $032a          f6 80    ORI #80
-$032c          32 90 21 STA $2190
+$032c          32 90 21 STA GAME_STATE
 $032f          97       SUB A
 $0330          32 0c 22 STA $220c
 $0333          db 01    IN MYSTERY_PORT_1
@@ -471,7 +471,7 @@ $0340          1c       INR E
 $0341 o0341:   c3 38 03 JMP j0338
 $0344 j0344:   7b       MOV A,E ;o033d
 $0345          2f       CMA
-$0346          d3 0e    OUT #0e
+$0346          d3 0e    OUT LAMP_E
 $0348          2f       CMA
 $0349          21 93 21 LXI H, #2193
 $034c o034c:   cd e6 03 CALL c03e6
@@ -481,7 +481,7 @@ $0355          3a 91 21 LDA $2191
 $0358          e6 02    ANI #02
 $035a o035a:   c4 fa 03 CNZ c03fa
 $035d o035d:   cd 1a 06 CALL c061a
-$0360 o0360:   cd ce 03 CALL c03ce
+$0360 o0360:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $0363          eb       XCHG
 $0364          29       DAD H
 $0365          11 ae 03 LXI D, #03ae
@@ -497,6 +497,7 @@ $0374          21 93 21 LXI H, #2193
 $0377 jo0377:  cd d9 03 CALL c03d9 ;o0371
 $037a jo037a:  cd 1a 06 CALL c061a ;o0339,o034f,o0387,o039d,o047e,o0535,o053e,o070e,o074d,o07d1,o07e2,o07ea,o08c6,o08cf,o0987
 $037d          c9       RET
+
 $037e jo037e:  cd 0e 06 CALL c060e ;o0034
 $0381          11 00 00 LXI D, #0000
 $0384          db 00    IN #00
@@ -509,50 +510,65 @@ $038e          1c       INR E
 $038f o038f:   c3 86 03 JMP j0386
 $0392 j0392:   7b       MOV A,E ;o038b
 $0393          2f       CMA
-$0394          d3 0d    OUT #0d
+$0394          d3 0d    OUT LAMP_D
 $0396          2f       CMA
 $0397          21 94 21 LXI H, #2194
 $039a o039a:   cd e6 03 CALL c03e6
 $039d o039d:   c2 7a 03 JNZ jo037a
-$03a0 o03a0:   cd ce 03 CALL c03ce
-$03a3          eb       XCHG
-$03a4          29       DAD H
-$03a5          11 be 03 LXI D, #03be
-$03a8          19       DAD D
-$03a9          7e       MOV A,M
-$03aa          23       INX H
-$03ab          66       MOV H,M
-$03ac          6f       MOV L,A
-$03ad          e9       PCHL
-$03ae          e2 06 e8 DB 0xe2,0x6,0xe8  ; (was:          e2 06 e8 JPO $e806)
-$03b1          06 ee    MVI B, #ee
-$03b3          06 f4    MVI B, #f4
-$03b5          06 fa    MVI B, #fa
-$03b7          06 00    MVI B, #00
-$03b9          07       RLC
-$03ba          06 07    MVI B, #07
-$03bc          7a       MOV A,D
-$03bd          03       INX B
-$03be          cb       (RSTV)
-$03bf          05       DCR B
-$03c0          1d       DCR E
-$03c1          14       INR D
-$03c2          2a 09 73 LHLD $7309
-$03c5          04       INR B
-$03c6          b9       CMP C
-$03c7          07       RLC
-$03c8          77       MOV M,A
-$03c9          08       (DSUB)
-$03ca          57       MOV D,A
-$03cb          16 73    MVI D, #73
-$03cd          04       INR B
-$03ce c03ce:   c5       PUSH B ;o0360,o03a0,o0408,o048b,o0523,o0632,o0721,o0960,o09db,o0aa7,o0ab6,o0add,o0b88,o0bd9,o0c2d,o0d0f,o0d2c,o0d32,o0de3,jo10fb,jo1130,o127b,o1296,o1306,o1422,o145c,o14fa,o15c4,o1620,o16b3,o1766,jo1794,jo17b2,o18b9,o18c1,o1a08,jo1a69,o1a7c,o1b67,o1c22,o1c5e,o1d20,o1d57,o1d7a,o1d7e,o1d95
+$03a0 o03a0:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
+$03a3          eb       DB #eb
+$03a4          29       DB #29
+$03a5          11       DB #11
+$03a6          be       DB #be
+$03a7          03       DB #03
+$03a8          19       DB #19
+$03a9          7e       DB #7e
+$03aa          23       DB #23
+$03ab          66       DB #66
+$03ac          6f       DB #6f
+$03ad          e9       DB #e9
+$03ae          e2       DB #e2
+$03af          06       DB #06
+$03b0          e8       DB #e8
+$03b1          06       DB #06
+$03b2          ee       DB #ee
+$03b3          06       DB #06
+$03b4          f4       DB #f4
+$03b5          06       DB #06
+$03b6          fa       DB #fa
+$03b7          06       DB #06
+$03b8          00       DB #00
+$03b9          07       DB #07
+$03ba          06       DB #06
+$03bb          07       DB #07
+$03bc          7a       DB #7a
+$03bd          03       DB #03
+$03be          cb       DB #cb
+$03bf          05       DB #05
+$03c0          1d       DB #1d
+$03c1          14       DB #14
+$03c2          2a       DB #2a
+$03c3          09       DB #09
+$03c4          73       DB #73
+$03c5          04       DB #04
+$03c6          b9       DB #b9
+$03c7          07       DB #07
+$03c8          77       DB #77
+$03c9          08       DB #08
+$03ca          57       DB #57
+$03cb          16       DB #16
+$03cc          73       DB #73
+$03cd          04       DB #04
+ 
+$03ce cSET_ATH_BIT_OF_HL:
+               c5       PUSH B ;o0360,o03a0,o0408,o048b,o0523,o0632,o0721,o0960,o09db,o0aa7,o0ab6,o0add,o0b88,o0bd9,o0c2d,o0d0f,o0d2c,o0d32,o0de3,jo10fb,jo1130,o127b,o1296,o1306,o1422,o145c,o14fa,o15c4,o1620,o16b3,o1766,jo1794,jo17b2,o18b9,o18c1,o1a08,jo1a69,o1a7c,o1b67,o1c22,o1c5e,o1d20,o1d57,o1d7a,o1d7e,o1d95
 $03cf          47       MOV B,A
 $03d0 o03d0:   cd f1 03 CALL c03f1
 $03d3          4e       MOV C,M
 $03d4          b1       ORA C
 $03d5          77       MOV M,A
 $03d6 o03d6:   c3 ee 03 JMP j03ee
+ 
 $03d9 c03d9:   c5       PUSH B ;jo0377,o041b,o05af,jo0638,o0808,o0911,o09b4,o09ba,o09c0,o0a07,o0a25,o0ace,jo0ae3,o0b34,o0b42,o0c7c,o0c8c,jo1100,o113d,o1142,jo12a5,jo12d8,o13e3,o1442,o1452,jo1463,o150f,o159d,o1645,o1703,o170b,o1729,o1991,o199d,o19af,jo19d3,o1a9b,o1aa0,o1aad,jo1c28,o1c4a,o1d4f,o1d6c,o1d85,o1d8d,o1d99
 $03da          47       MOV B,A
 $03db o03db:   cd f1 03 CALL c03f1
@@ -562,6 +578,7 @@ $03e0          7e       MOV A,M
 $03e1          a1       ANA C
 $03e2          77       MOV M,A
 $03e3 o03e3:   c3 ee 03 JMP j03ee
+ 
 $03e6 c03e6:   c5       PUSH B ;o01f4,o01fd,o025d,o034c,o039a,o0401,o05a4,o062c,o0645,o0660,o077a,o07ce,o07df,o07f2,o07fd,o08c3,o08fb,o0906,o0a1f,o0aac,o0ac8,o0af2,o0b2e,o0b3c,o0beb,o0c21,o0cc4,o0d09,o0d6a,o0fda,o0fe1,o0fe8,o1029,o10f4,o1129,o128e,o12aa,o1302,o143a,o1456,o14ff,o1509,o1597,o15a2,o15b3,o15be,o15e9,o161a,o1637,o163f,o165c,o169e,o16a6,o1756,o175e,o1865,o187b,o18db,o1997,jo19c7,o19da,o19f3,o1c58,o1cf1,o1d89,o1da0
 $03e7          47       MOV B,A
 $03e8 o03e8:   cd f1 03 CALL c03f1
@@ -571,19 +588,22 @@ $03ed          a1       ANA C
 $03ee j03ee:   78       MOV A,B ;o03d6,o03e3
 $03ef          c1       POP B
 $03f0          c9       RET
+
+ 
 $03f1 c03f1:   4f       MOV C,A ;o03d0,o03db,o03e8
 $03f2          3e 01    MVI A, #01
 $03f4 j03f4:   0d       DCR C ;o03f7
 $03f5          f8       RM
 $03f6          87       ADD A
 $03f7 o03f7:   c3 f4 03 JMP j03f4
+ 
 $03fa c03fa:   3a 11 22 LDA $2211 ;o035a,o0c24,o15db
 $03fd          47       MOV B,A
 $03fe o03fe:   cd 1f 04 CALL c041f
 $0401 o0401:   cd e6 03 CALL c03e6
 $0404 o0404:   ca 0b 04 JZ j040b
 $0407          eb       XCHG
-$0408 o0408:   cd ce 03 CALL c03ce
+$0408 o0408:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $040b j040b:   78       MOV A,B ;o0404
 $040c          3c       INR A
 $040d          fe 05    CPI #05
@@ -594,6 +614,8 @@ $0417 o0417:   cd 1f 04 CALL c041f
 $041a          eb       XCHG
 $041b o041b:   cd d9 03 CALL c03d9
 $041e          c9       RET
+
+ 
 $041f c041f:   16 00    MVI D, #00 ;o03fe,o0417
 $0421          5f       MOV E,A
 $0422          21 38 04 LXI H, #0438
@@ -612,15 +634,16 @@ $0434          eb       XCHG
 $0435          19       DAD D
 $0436          eb       XCHG
 $0437          c9       RET
+
 $0438          04       INR B
 $0439          00       NOP
 $043a          01 02 05 LXI B, #0502
-$043d          cd 21 cc DB 0xcd,0x21,0xcc  ; (was:          cd 21 cc CALL $cc21)
+$043d          cd 21 cc CALL $cc21
 $0440          21 cc 21 LXI H, #21cc
-$0443          cc 21 ca DB 0xcc,0x21,0xca  ; (was:          cc 21 ca CZ $ca21)
+$0443          cc 21 ca CZ $ca21
 $0446          21 3a 90 LXI H, #903a
 $0449          21 f6 05 LXI H, #05f6
-$044c          32 90 21 STA $2190
+$044c          32 90 21 STA GAME_STATE
 $044f          3e 00    MVI A, #00
 $0451          32 0c 22 STA $220c
 $0454          3e ff    MVI A, #ff
@@ -629,6 +652,8 @@ $0459          3a 94 21 LDA $2194
 $045c          f6 30    ORI #30
 $045e          32 94 21 STA $2194
 $0461          c9       RET
+
+ 
 $0462 c0462:   3a 92 21 LDA $2192 ;o047b,o057d
 $0465          e6 40    ANI #40
 $0467          c8       RZ
@@ -637,9 +662,11 @@ $046b          b7       ORA A
 $046c o046c:   ca 71 04 JZ j0471
 $046f          bf       CMP A
 $0470          c9       RET
+
 $0471 j0471:   3d       DCR A ;o046c
 $0472          c9       RET
-$0473          cd 47 04 DB 0xcd,0x47,0x4  ; (was:          cd 47 04 CALL $0447)
+
+$0473          cd 47 04 CALL $0447
 $0476          3e 7d    MVI A, #7d
 $0478          32 a2 21 STA $21a2
 $047b o047b:   cd 62 04 CALL c0462
@@ -648,7 +675,7 @@ $0481          3e fa    MVI A, #fa
 $0483          32 9e 21 STA $219e
 $0486          21 b6 23 LXI H, #23b6
 $0489          3e 05    MVI A, #05
-$048b o048b:   cd ce 03 CALL c03ce
+$048b o048b:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $048e          3e ff    MVI A, #ff
 $0490          32 80 23 STA $2380
 $0493          32 81 23 STA $2381
@@ -674,23 +701,23 @@ $04c2 j04c2:   77       MOV M,A ;o04c5
 $04c3          23       INX H
 $04c4          05       DCR B
 $04c5 o04c5:   c2 c2 04 JNZ j04c2
-$04c8          d3 00    OUT #00
-$04ca          d3 01    OUT #01
-$04cc          d3 02    OUT #02
-$04ce          d3 03    OUT #03
-$04d0          d3 04    OUT #04
-$04d2          d3 05    OUT #05
-$04d4          d3 06    OUT #06
-$04d6          d3 07    OUT #07
-$04d8          d3 08    OUT #08
+$04c8          d3 00    OUT LAMP_0
+$04ca          d3 01    OUT LAMP_1
+$04cc          d3 02    OUT LAMP_2
+$04ce          d3 03    OUT LAMP_3
+$04d0          d3 04    OUT LAMP_4
+$04d2          d3 05    OUT COIL_5
+$04d4          d3 06    OUT COIL_6
+$04d6          d3 07    OUT COIL_7
+$04d8          d3 08    OUT COIL_8
 $04da          3e 00    MVI A, #00
 $04dc          3e 0f    MVI A, #0f
 $04de          32 cc 23 STA $23cc
 $04e1          32 d6 23 STA $23d6
 $04e4          32 de 23 STA $23de
-$04e7          3a 90 21 LDA $2190
+$04e7          3a 90 21 LDA GAME_STATE
 $04ea          e6 f7    ANI #f7
-$04ec          32 90 21 STA $2190
+$04ec          32 90 21 STA GAME_STATE
 $04ef          3a 96 23 LDA $2396
 $04f2          e6 ef    ANI #ef
 $04f4          32 96 23 STA $2396
@@ -714,7 +741,7 @@ $051c          04       INR B
 $051d o051d:   c3 18 05 JMP j0518
 $0520 j0520:   78       MOV A,B ;o0519
 $0521          c6 04    ADI #04
-$0523 o0523:   cd ce 03 CALL c03ce
+$0523 o0523:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $0526          3e 01    MVI A, #01
 $0528          32 14 22 STA $2214
 $052b          3e 28    MVI A, #28
@@ -723,7 +750,7 @@ $0530          3e 02    MVI A, #02
 $0532          32 9d 21 STA $219d
 $0535 o0535:   c3 7a 03 JMP jo037a
 $0538 j0538:   21 45 13 LXI H, #1345 ;o04a3,o04ab
-$053b o053b:   cd e4 12 CALL c12e4
+$053b o053b:   cd e4 12 CALL cPLAY_SOUND
 $053e o053e:   c3 7a 03 JMP jo037a
 $0541          3a 1b 22 LDA $221b
 $0544          3d       DCR A
@@ -734,7 +761,7 @@ $054d          32 9d 21 STA $219d
 $0550          3e fa    MVI A, #fa
 $0552          32 9e 21 STA $219e
 $0555          21 42 13 LXI H, #1342
-$0558 o0558:   cd e4 12 CALL c12e4
+$0558 o0558:   cd e4 12 CALL cPLAY_SOUND
 $055b o055b:   c3 08 06 JMP jo0608
 $055e j055e:   3e 05    MVI A, #05 ;o0548
 $0560          32 a3 21 STA $21a3
@@ -750,11 +777,11 @@ $0578          e6 80    ANI #80
 $057a o057a:   ca 94 05 JZ j0594
 $057d o057d:   cd 62 04 CALL c0462
 $0580 o0580:   c2 94 05 JNZ j0594
-$0583          cd 47 04 DB 0xcd,0x47,0x4  ; (was:          cd 47 04 CALL $0447)
+$0583          cd 47 04 CALL $0447
 $0586          3e 7d    MVI A, #7d
 $0588          32 a2 21 STA $21a2
 $058b          21 45 13 LXI H, #1345
-$058e o058e:   cd e4 12 CALL c12e4
+$058e o058e:   cd e4 12 CALL cPLAY_SOUND
 $0591 o0591:   c3 08 06 JMP jo0608
 $0594 j0594:   3a 94 21 LDA $2194 ;o057a,o0580
 $0597          e6 77    ANI #77
@@ -811,6 +838,7 @@ $0606          6f       MOV L,A
 $0607          e9       PCHL
 $0608 jo0608:  cd 1a 06 CALL c061a ;o055b,o0573,o0591,o059c,o05a7,o05c8,o0684,o06a5,o076a,o0772,o077d,o0785,o0800,o080b,o081e,o084f,o085f,o0874,o08e8,o08f3,o0909,o0914,o0927,o0a0a,o0a17,o0a2d,o0a3a,o0a45,o0b54,o0b77,o0b90,o0ba2,o0bd0,o0c27,o0c7f,o0c8f,o0d55,o0d8a,o0db7,o0e7a,o12a2,o12c1,o12d5,o12e1,o1558,o1587,o1955,o197f,o1a4b,o1a58,o1ab5,o1ac7,o1acf,o1ae7,jo1ba0,o1d74
 $060b o060b:   c3 da 05 JMP j05da
+ 
 $060e c060e:   22 95 21 SHLD $2195 ;jo0324,o0352,jo037e,o05f4,o1467
 $0611          e3       XTHL
 $0612          c5       PUSH B
@@ -819,12 +847,15 @@ $0614          f5       PUSH PSW
 $0615          e5       PUSH H
 $0616          2a 95 21 LHLD $2195
 $0619          c9       RET
+
+ 
 $061a c061a:   e1       POP H ;o035d,jo037a,jo0608,jo147a
 $061b          f1       POP PSW
 $061c          d1       POP D
 $061d          c1       POP B
 $061e          e3       XTHL
 $061f          c9       RET
+
 $0620          21 f8 21 LXI H, #21f8
 $0623          35       DCR M
 ; push A, SP, B, D, H
@@ -833,7 +864,7 @@ $0627          21 91 21 LXI H, #2191
 $062a          3e 04    MVI A, #04
 $062c o062c:   cd e6 03 CALL c03e6
 $062f o062f:   c2 38 06 JNZ jo0638
-$0632 o0632:   cd ce 03 CALL c03ce
+$0632 o0632:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $0635 o0635:   c3 3b 06 JMP j063b
 $0638 jo0638:  cd d9 03 CALL c03d9 ;o062f
 $063b j063b:   3e 04    MVI A, #04 ;o0635
@@ -854,81 +885,91 @@ $0660 o0660:   cd e6 03 CALL c03e6
 $0663 o0663:   ca 87 06 JZ j0687
 $0666          3a c9 21 LDA $21c9
 $0669          2f       CMA
-$066a          d3 00    OUT #00
+$066a          d3 00    OUT LAMP_0
 $066c          3a ca 21 LDA $21ca
 $066f          2f       CMA
-$0670          d3 01    OUT #01
+$0670          d3 01    OUT LAMP_1
 $0672          3a cb 21 LDA $21cb
 $0675          2f       CMA
-$0676          d3 02    OUT #02
+$0676          d3 02    OUT LAMP_2
 $0678          3a cc 21 LDA $21cc
 $067b          2f       CMA
-$067c          d3 03    OUT #03
+$067c          d3 03    OUT LAMP_3
 $067e          3a cd 21 LDA $21cd
 $0681          2f       CMA
-$0682          d3 04    OUT #04
+$0682          d3 04    OUT LAMP_4
 $0684 o0684:   c3 08 06 JMP jo0608
 $0687 j0687:   3a ce 21 LDA $21ce ;o0663
 $068a          2f       CMA
-$068b          d3 00    OUT #00
+$068b          d3 00    OUT LAMP_0
 $068d          3a cf 21 LDA $21cf
 $0690          2f       CMA
-$0691          d3 01    OUT #01
+$0691          d3 01    OUT LAMP_1
 $0693          3a d0 21 LDA $21d0
 $0696          2f       CMA
-$0697          d3 02    OUT #02
+$0697          d3 02    OUT LAMP_2
 $0699          3a d1 21 LDA $21d1
 $069c          2f       CMA
-$069d          d3 03    OUT #03
+$069d          d3 03    OUT LAMP_3
 $069f          3a d2 21 LDA $21d2
 $06a2          2f       CMA
-$06a3          d3 04    OUT #04
+$06a3          d3 04    OUT LAMP_4
 $06a5 o06a5:   c3 08 06 JMP jo0608
 $06a8 j06a8:   21 a0 23 LXI H, #23a0 ;o0648
 $06ab o06ab:   c3 4e 06 JMP j064e
-$06ae          82       ADD D
-$06af          0c       INR C
-$06b0          89       ADC C
-$06b1          12       STAX D
-$06b2          50       MOV D,B
-$06b3          07       RLC
+$06ae          82       DB #82
+$06af          0c       DB #0c
+$06b0          89       DB #89
+$06b1          12       DB #12
+$06b2          50       DB #50
+$06b3          07       DB #07
 ; credit handler
-$06b4          b8       CMP B
-$06b5          1a       LDAX D
-$06b6          11 0b 57 LXI D, #570b
-$06b9          0b       DCX B
-$06ba          41       MOV B,C
-$06bb          05       DCR B
-$06bc          9f       SBB A
-$06bd          05       DCR B
-$06be          21 08 70 LXI H, #7008
-$06c1          19       DAD D
-$06c2          d2 1a 76 DB 0xd2,0x1a,0x76  ; (was:          d2 1a 76 JNC $761a)
-$06c5          05       DCR B
-$06c6          20       RIM
-$06c7          06 36    MVI B, #36
-$06c9          15       DCR D
-$06ca          a5       ANA L
-$06cb          0b       DCX B
-$06cc          67       MOV H,A
-$06cd          0c       INR C
-$06ce          42       MOV B,D
-$06cf          0d       DCR C
-$06d0          ed       (LHLX)
-$06d1          07       RLC
-$06d2          f6 08    ORI #08
-$06d4          f4 09 1a DB 0xf4,0x9,0x1a  ; (was:          f4 09 1a CP $1a09)
-$06d7          0a       LDAX B
-$06d8          67       MOV H,A
-$06d9          1d       DCR E
-$06da          75       MOV M,L
-$06db          07       RLC
-$06dc          3b       DCX SP
-$06dd          19       DAD D
-$06de          2e 0e    MVI L, #0e
-$06e0 o06e0:   d2 08 11 JNC jo1108
-$06e3          00       NOP
-$06e4          00       NOP
+$06b4          b8       DB #b8
+$06b5          1a       DB #1a
+$06b6          11       DB #11
+$06b7          0b       DB #0b
+$06b8          57       DB #57
+$06b9          0b       DB #0b
+$06ba          41       DB #41
+$06bb          05       DB #05
+$06bc          9f       DB #9f
+$06bd          05       DB #05
+$06be          21       DB #21
+$06bf          08       DB #08
+$06c0          70       DB #70
+$06c1          19       DB #19
+$06c2          d2       DB #d2
+$06c3          1a       DB #1a
+$06c4          76       DB #76
+$06c5          05       DB #05
+$06c6          20       DB #20
+$06c7          06       DB #06
+$06c8          36       DB #36
+$06c9          15       DB #15
+$06ca          a5       DB #a5
+$06cb          0b       DB #0b
+$06cc          67       DB #67
+$06cd          0c       DB #0c
+$06ce          42       DB #42
+$06cf          0d       DB #0d
+$06d0          ed       DB #ed
+$06d1          07       DB #07
+$06d2          f6       DB #f6
+$06d3          08       DB #08
+$06d4          f4       DB #f4
+$06d5          09       DB #09
+$06d6          1a       DB #1a
+$06d7          0a       DB #0a
+$06d8          67       DB #67
+$06d9          1d       DB #1d
+$06da          75       DB #75
+$06db          07       DB #07
+$06dc          3b       DB #3b
+$06dd          19       DB #19
+$06de          2e       DB #2e
+$06df          0e d2    MVI C, #d2
+$06e1          08       (DSUB)
+$06e2          11 00 00 LXI D, #0000
 $06e5 o06e5:   c3 11 07 JMP j0711
 $06e8          11 01 00 LXI D, #0001
 $06eb o06eb:   c3 11 07 JMP j0711
@@ -956,15 +997,15 @@ $071d          46       MOV B,M
 $071e          23       INX H
 $071f          66       MOV H,M
 $0720          68       MOV L,B
-$0721 o0721:   cd ce 03 CALL c03ce
+$0721 o0721:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $0724          3e 09    MVI A, #09
 $0726          32 99 21 STA $2199
 $0729          3a c3 21 LDA $21c3
 $072c          2f       CMA
-$072d          d3 06    OUT #06
+$072d          d3 06    OUT COIL_6
 $072f          3a c4 21 LDA $21c4
 $0732          2f       CMA
-$0733          d3 07    OUT #07
+$0733          d3 07    OUT COIL_7
 $0735          21 9d 07 LXI H, #079d
 $0738          19       DAD D
 $0739          46       MOV B,M
@@ -972,7 +1013,7 @@ $073a          23       INX H
 $073b          66       MOV H,M
 $073c          68       MOV L,B
 $073d          d5       PUSH D
-$073e o073e:   cd e4 12 CALL c12e4
+$073e o073e:   cd e4 12 CALL cPLAY_SOUND
 $0741          d1       POP D
 $0742          21 ab 07 LXI H, #07ab
 $0745          19       DAD D
@@ -986,19 +1027,19 @@ $0750          3a c3 21 LDA $21c3
 $0753          e6 30    ANI #30
 $0755          32 c3 21 STA $21c3
 $0758          2f       CMA
-$0759          d3 06    OUT #06
+$0759          d3 06    OUT COIL_6
 $075b          3a c4 21 LDA $21c4
 $075e          e6 20    ANI #20
 $0760          32 c4 21 STA $21c4
 $0763          2f       CMA
-$0764          d3 07    OUT #07
+$0764          d3 07    OUT COIL_7
 $0766          3a ad 21 LDA $21ad
 $0769          b7       ORA A
 $076a o076a:   c2 08 06 JNZ jo0608
 $076d          3e 06    MVI A, #06
 $076f          32 ad 21 STA $21ad
 $0772 o0772:   c3 08 06 JMP jo0608
-$0775          21 90 21 LXI H, #2190
+$0775          21 90 21 LXI H, GAME_STATE
 $0778          3e 02    MVI A, #02
 $077a o077a:   cd e6 03 CALL c03e6
 $077d o077d:   c2 08 06 JNZ jo0608
@@ -1010,43 +1051,53 @@ $0789          00       NOP
 $078a          01 02 03 LXI B, #0302
 $078d          04       INR B
 $078e          02       STAX B
-$078f          c3 21 c4 DB 0xc3,0x21,0xc4  ; (was:          c3 21 c4 JMP $c421)
+$078f          c3 21 c4 JMP $c421
 $0792          21 c4 21 LXI H, #21c4
-$0795          c3 21 c4 DB 0xc3,0x21,0xc4  ; (was:          c3 21 c4 JMP $c421)
+$0795          c3 21 c4 JMP $c421
 $0798          21 c4 21 LXI H, #21c4
-$079b          c4 21 30 DB 0xc4,0x21,0x30  ; (was:          c4 21 30 CNZ $3021)
-$079e          13       INX D
-$079f          33       INX SP
-$07a0          13       INX D
-$07a1          36 13    MVI M, #13
-$07a3          39       DAD SP
-$07a4          13       INX D
-$07a5          3c       INR A
-$07a6          13       INX D
-$07a7          3f       CMC
-$07a8          13       INX D
-$07a9          42       MOV B,D
-$07aa          13       INX D
-$07ab          d8       RC
-$07ac          11 dc 11 LXI D, #11dc
-$07af          e0       RPO
-$07b0          11 d4 11 LXI D, #11d4
-$07b3          d0       RNC
-$07b4          11 d0 11 LXI D, #11d0
-$07b7          cc 11 3a DB 0xcc,0x11,0x3a  ; (was:          cc 11 3a CZ $3a11)
-$07ba          c3 21 f6 DB 0xc3,0x21,0xf6  ; (was:          c3 21 f6 JMP $f621)
-$07bd          10       (ARHL)
+$079b          c4       DB #c4
+$079c          21       DB #21
+$079d          30       DB #30
+$079e          13       DB #13
+$079f          33       DB #33
+$07a0          13       DB #13
+$07a1          36       DB #36
+$07a2          13       DB #13
+$07a3          39       DB #39
+$07a4          13       DB #13
+$07a5          3c       DB #3c
+$07a6          13       DB #13
+$07a7          3f       DB #3f
+$07a8          13       DB #13
+$07a9          42       DB #42
+$07aa          13       DB #13
+$07ab          d8       DB #d8
+$07ac          11       DB #11
+$07ad          dc       DB #dc
+$07ae          11       DB #11
+$07af          e0       DB #e0
+$07b0          11       DB #11
+$07b1          d4       DB #d4
+$07b2          11       DB #11
+$07b3          d0       DB #d0
+$07b4          11       DB #11
+$07b5          d0       DB #d0
+$07b6          11       DB #11
+$07b7          cc       DB #cc
+$07b8          11       DB #11
+$07b9          3a c3 21 LDA $21c3
+$07bc          f6 10    ORI #10
 $07be          32 c3 21 STA $21c3
 $07c1          2f       CMA
-$07c2          d3 06    OUT #06
+$07c2          d3 06    OUT COIL_6
 $07c4          3e 09    MVI A, #09
 $07c6          32 a8 21 STA $21a8
-$07c9          21 90 21 LXI H, #2190
+$07c9          21 90 21 LXI H, GAME_STATE
 $07cc          3e 05    MVI A, #05
 $07ce o07ce:   cd e6 03 CALL c03e6
 $07d1 o07d1:   c2 7a 03 JNZ jo037a
 $07d4          21 d1 13 LXI H, #13d1
-$07d7 o07d7:   cd e4 12 CALL c12e4
+$07d7 o07d7:   cd e4 12 CALL cPLAY_SOUND
 $07da          21 91 21 LXI H, #2191
 $07dd          3e 00    MVI A, #00
 $07df o07df:   cd e6 03 CALL c03e6
@@ -1058,7 +1109,7 @@ $07ed          21 c3 21 LXI H, #21c3
 $07f0          3e 04    MVI A, #04
 $07f2 o07f2:   cd e6 03 CALL c03e6
 $07f5 o07f5:   c2 0e 08 JNZ j080e
-$07f8          21 90 21 LXI H, #2190
+$07f8          21 90 21 LXI H, GAME_STATE
 $07fb          3e 02    MVI A, #02
 $07fd o07fd:   cd e6 03 CALL c03e6
 $0800 o0800:   c2 08 06 JNZ jo0608
@@ -1070,7 +1121,7 @@ $080e j080e:   3a c3 21 LDA $21c3 ;o07f5
 $0811          e6 2f    ANI #2f
 $0813          32 c3 21 STA $21c3
 $0816          2f       CMA
-$0817          d3 06    OUT #06
+$0817          d3 06    OUT COIL_6
 $0819          3e 06    MVI A, #06
 $081b          32 a8 21 STA $21a8
 $081e o081e:   c3 08 06 JMP jo0608
@@ -1116,6 +1167,7 @@ $087f o087f:   ca ae 08 JZ j08ae
 $0882 o0882:   cd 8a 08 CALL c088a
 $0885          3e 05    MVI A, #05
 $0887 o0887:   c3 6e 03 JMP j036e
+ 
 $088a c088a:   78       MOV A,B ;o0882,o0937
 $088b          e6 04    ANI #04
 $088d          3a 41 22 LDA $2241
@@ -1132,19 +1184,20 @@ $08a5          32 b0 21 STA $21b0
 $08a8          3e 20    MVI A, #20
 $08aa          32 43 22 STA $2243
 $08ad          c9       RET
+
 $08ae j08ae:   3a c3 21 LDA $21c3 ;o087f
 $08b1          f6 20    ORI #20
 $08b3          32 c3 21 STA $21c3
 $08b6          2f       CMA
-$08b7          d3 06    OUT #06
+$08b7          d3 06    OUT COIL_6
 $08b9          3e 09    MVI A, #09
 $08bb          32 a9 21 STA $21a9
-$08be          21 90 21 LXI H, #2190
+$08be          21 90 21 LXI H, GAME_STATE
 $08c1          3e 05    MVI A, #05
 $08c3 o08c3:   cd e6 03 CALL c03e6
 $08c6 o08c6:   c2 7a 03 JNZ jo037a
 $08c9          21 d1 13 LXI H, #13d1
-$08cc o08cc:   cd e4 12 CALL c12e4
+$08cc o08cc:   cd e4 12 CALL cPLAY_SOUND
 $08cf o08cf:   c3 7a 03 JMP jo037a
 $08d2          3a 43 22 LDA $2243
 $08d5          3d       DCR A
@@ -1164,7 +1217,7 @@ $08f6          21 c3 21 LXI H, #21c3
 $08f9          3e 05    MVI A, #05
 $08fb o08fb:   cd e6 03 CALL c03e6
 $08fe o08fe:   c2 17 09 JNZ j0917
-$0901          21 90 21 LXI H, #2190
+$0901          21 90 21 LXI H, GAME_STATE
 $0904          3e 02    MVI A, #02
 $0906 o0906:   cd e6 03 CALL c03e6
 $0909 o0909:   c2 08 06 JNZ jo0608
@@ -1176,7 +1229,7 @@ $0917 j0917:   3a c3 21 LDA $21c3 ;o08fe
 $091a          e6 1f    ANI #1f
 $091c          32 c3 21 STA $21c3
 $091f          2f       CMA
-$0920          d3 06    OUT #06
+$0920          d3 06    OUT COIL_6
 $0922          3e 06    MVI A, #06
 $0924          32 a9 21 STA $21a9
 $0927 o0927:   c3 08 06 JMP jo0608
@@ -1201,7 +1254,7 @@ $0955          32 bc 23 STA $23bc
 $0958          32 bd 23 STA $23bd
 $095b          21 92 21 LXI H, #2192
 $095e          3e 05    MVI A, #05
-$0960 o0960:   cd ce 03 CALL c03ce
+$0960 o0960:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $0963          3e 02    MVI A, #02
 $0965          32 aa 21 STA $21aa
 $0968 jo0968:  cd 8a 09 CALL c098a ;o0944
@@ -1215,8 +1268,9 @@ $0979          3a 94 21 LDA $2194
 $097c          f6 40    ORI #40
 $097e          32 94 21 STA $2194
 $0981          21 c4 13 LXI H, #13c4
-$0984 o0984:   cd e4 12 CALL c12e4
+$0984 o0984:   cd e4 12 CALL cPLAY_SOUND
 $0987 o0987:   c3 7a 03 JMP jo037a
+ 
 $098a c098a:   3a 7a 23 LDA CREDITS_1 ;jo0968,o0a37
 $098d          fe 99    CPI #99
 $098f          c8       RZ
@@ -1251,7 +1305,7 @@ $09d0          32 9a 23 STA CREDITS_2
 $09d3          32 ba 23 STA CREDITS_3
 $09d6          21 c5 21 LXI H, #21c5
 $09d9          3e 03    MVI A, #03
-$09db o09db:   cd ce 03 CALL c03ce
+$09db o09db:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $09de          3e 09    MVI A, #09
 $09e0          32 ab 21 STA $21ab
 $09e3          3a 40 22 LDA $2240
@@ -1262,6 +1316,7 @@ $09eb o09eb:   cd a8 1f CALL c1fa8
 $09ee          3e 64    MVI A, #64
 $09f0          32 40 22 STA $2240
 $09f3          c9       RET
+
 $09f4          db 04    IN PRICE_89_CAB
 $09f6          e6 10    ANI #10
 $09f8 o09f8:   ca 0d 0a JZ j0a0d
@@ -1332,15 +1387,15 @@ $0a97          32 08 22 STA $2208
 $0a9a          3e 04    MVI A, #04
 $0a9c          32 97 21 STA $2197
 $0a9f o0a9f:   c3 7a 14 JMP jo147a
-$0aa2 j0aa2:   21 90 21 LXI H, #2190 ;o0a8a
+$0aa2 j0aa2:   21 90 21 LXI H, GAME_STATE ;o0a8a
 $0aa5          3e 07    MVI A, #07
-$0aa7 o0aa7:   cd ce 03 CALL c03ce
+$0aa7 o0aa7:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $0aaa          3e 02    MVI A, #02
 $0aac o0aac:   cd e6 03 CALL c03e6
 $0aaf o0aaf:   ca c1 0a JZ jo0ac1
 $0ab2          79       MOV A,C
 $0ab3 o0ab3:   cd 47 0c CALL c0c47
-$0ab6 o0ab6:   cd ce 03 CALL c03ce
+$0ab6 o0ab6:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $0ab9          3e 06    MVI A, #06
 $0abb          32 a6 21 STA $21a6
 $0abe o0abe:   c3 7a 14 JMP jo147a
@@ -1355,7 +1410,7 @@ $0ad4          be       CMP M
 $0ad5          21 92 21 LXI H, #2192
 $0ad8          3e 01    MVI A, #01
 $0ada o0ada:   c2 e3 0a JNZ jo0ae3
-$0add o0add:   cd ce 03 CALL c03ce
+$0add o0add:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $0ae0 o0ae0:   c3 e6 0a JMP j0ae6
 $0ae3 jo0ae3:  cd d9 03 CALL c03d9 ;o0ada
 $0ae6 j0ae6:   79       MOV A,C ;o0ae0
@@ -1370,7 +1425,7 @@ $0af6          3e 01    MVI A, #01
 $0af8 o0af8:   ca 0b 0b JZ j0b0b
 $0afb jo0afb:  cd 92 1d CALL co1d92 ;o0aed
 $0afe          21 66 13 LXI H, #1366
-$0b01 o0b01:   cd e4 12 CALL c12e4
+$0b01 o0b01:   cd e4 12 CALL cPLAY_SOUND
 $0b04          3e c8    MVI A, #c8
 $0b06          32 08 22 STA $2208
 $0b09          3e 5a    MVI A, #5a
@@ -1388,7 +1443,7 @@ $0b1e          66       MOV H,M
 $0b1f          6f       MOV L,A
 $0b20 o0b20:   cd ed 0e CALL c0eed
 $0b23          21 60 13 LXI H, #1360
-$0b26 o0b26:   cd e4 12 CALL c12e4
+$0b26 o0b26:   cd e4 12 CALL cPLAY_SOUND
 $0b29          21 92 21 LXI H, #2192
 $0b2c          3e 01    MVI A, #01
 $0b2e o0b2e:   cd e6 03 CALL c03e6
@@ -1409,7 +1464,7 @@ $0b54 o0b54:   c3 08 06 JMP jo0608
 $0b57          21 f4 11 LXI H, #11f4
 $0b5a o0b5a:   cd ed 0e CALL c0eed
 $0b5d          21 b8 13 LXI H, #13b8
-$0b60 o0b60:   cd e4 12 CALL c12e4
+$0b60 o0b60:   cd e4 12 CALL cPLAY_SOUND
 $0b63          3a 1a 22 LDA $221a
 $0b66          3d       DCR A
 $0b67          32 1a 22 STA $221a
@@ -1424,7 +1479,7 @@ $0b7d          fe 00    CPI #00
 $0b7f o0b7f:   ca 93 0b JZ j0b93
 $0b82          2a 09 22 LHLD $2209
 $0b85          3a 0b 22 LDA $220b
-$0b88 o0b88:   cd ce 03 CALL c03ce
+$0b88 o0b88:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $0b8b          3e 06    MVI A, #06
 $0b8d          32 a6 21 STA $21a6
 $0b90 o0b90:   c3 08 06 JMP jo0608
@@ -1449,7 +1504,7 @@ $0bbb          19       DAD D
 $0bbc          46       MOV B,M
 $0bbd o0bbd:   cd 77 1d CALL co1d77
 $0bc0          21 60 13 LXI H, #1360
-$0bc3 o0bc3:   cd e4 12 CALL c12e4
+$0bc3 o0bc3:   cd e4 12 CALL cPLAY_SOUND
 $0bc6          3e 0f    MVI A, #0f
 $0bc8          32 a5 21 STA $21a5
 $0bcb          3e 64    MVI A, #64
@@ -1457,12 +1512,12 @@ $0bcd          32 08 22 STA $2208
 $0bd0 o0bd0:   c3 08 06 JMP jo0608
 $0bd3 j0bd3:   2a 09 22 LHLD $2209 ;o0bb2
 $0bd6          3a 0b 22 LDA $220b
-$0bd9 o0bd9:   cd ce 03 CALL c03ce
+$0bd9 o0bd9:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $0bdc          3e 06    MVI A, #06
 $0bde          32 a6 21 STA $21a6
 $0be1          3e 1f    MVI A, #1f
 $0be3          32 c7 21 STA $21c7
-$0be6          21 90 21 LXI H, #2190
+$0be6          21 90 21 LXI H, GAME_STATE
 $0be9          3e 03    MVI A, #03
 $0beb o0beb:   cd e6 03 CALL c03e6
 $0bee o0bee:   c2 fe 0b JNZ j0bfe
@@ -1493,15 +1548,16 @@ $0c21 o0c21:   cd e6 03 CALL c03e6
 $0c24 o0c24:   c4 fa 03 CNZ c03fa
 $0c27 o0c27:   c3 08 06 JMP jo0608
 $0c2a jo0c2a:  cd 47 0c CALL c0c47 ;o0acb
-$0c2d o0c2d:   cd ce 03 CALL c03ce
+$0c2d o0c2d:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $0c30          3e 06    MVI A, #06
 $0c32          32 a6 21 STA $21a6
 $0c35 o0c35:   cd 9d 1d CALL co1d9d
 $0c38 o0c38:   c2 7a 14 JNZ jo147a
 $0c3b o0c3b:   cd 77 1d CALL co1d77
 $0c3e          21 63 13 LXI H, #1363
-$0c41 o0c41:   cd e4 12 CALL c12e4
+$0c41 o0c41:   cd e4 12 CALL cPLAY_SOUND
 $0c44 o0c44:   c3 7a 14 JMP jo147a
+ 
 $0c47 c0c47:   16 00    MVI D, #00 ;o0ab3,o0ae7,jo0c2a
 $0c49          5f       MOV E,A
 $0c4a          21 9b 0c LXI H, #0c9b
@@ -1523,13 +1579,14 @@ $0c61          6f       MOV L,A
 $0c62          22 09 22 SHLD $2209
 $0c65          79       MOV A,C
 $0c66          c9       RET
+
 $0c67          3e 00    MVI A, #00
 $0c69          32 c2 21 STA $21c2
 $0c6c          3a c4 21 LDA $21c4
 $0c6f          e6 1f    ANI #1f
 $0c71          32 c4 21 STA $21c4
 $0c74          2f       CMA
-$0c75          d3 07    OUT #07
+$0c75          d3 07    OUT COIL_7
 $0c77          21 c5 21 LXI H, #21c5
 $0c7a          3e 01    MVI A, #01
 $0c7c o0c7c:   cd d9 03 CALL c03d9
@@ -1559,16 +1616,16 @@ $0ca1          05       DCR B
 $0ca2          02       STAX B
 $0ca3          00       NOP
 $0ca4          01 c2 21 LXI B, #21c2
-$0ca7          c4 21 c2 DB 0xc4,0x21,0xc2  ; (was:          c4 21 c2 CNZ $c221)
+$0ca7          c4 21 c2 CNZ $c221
 $0caa          21 c2 21 LXI H, #21c2
-$0cad          c2 21 ec DB 0xc2,0x21,0xec  ; (was:          c2 21 ec JNZ $ec21)
+$0cad          c2 21 ec JNZ $ec21
 $0cb0          11 f0 11 LXI D, #11f0
 $0cb3          f8       RM
 $0cb4          11 fc 11 LXI D, #11fc
 $0cb7 j0cb7:   06 39    MVI B, #39 ;o0a7a
 $0cb9 o0cb9:   cd 9d 1d CALL co1d9d
 $0cbc o0cbc:   ca de 0d JZ j0dde
-$0cbf          21 90 21 LXI H, #2190
+$0cbf          21 90 21 LXI H, GAME_STATE
 $0cc2          3e 02    MVI A, #02
 $0cc4 o0cc4:   cd e6 03 CALL c03e6
 $0cc7 o0cc7:   c2 de 0d JNZ j0dde
@@ -1594,24 +1651,24 @@ $0cf9 j0cf9:   32 0c 22 STA $220c ;o0ce7,o0cf4
 $0cfc          06 31    MVI B, #31
 $0cfe o0cfe:   cd 9d 1d CALL co1d9d
 $0d01 o0d01:   ca 3a 0d JZ j0d3a
-$0d04          21 90 21 LXI H, #2190
+$0d04          21 90 21 LXI H, GAME_STATE
 $0d07          3e 03    MVI A, #03
 $0d09 o0d09:   cd e6 03 CALL c03e6
 $0d0c o0d0c:   c2 3a 0d JNZ j0d3a
-$0d0f o0d0f:   cd ce 03 CALL c03ce
+$0d0f o0d0f:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $0d12          06 31    MVI B, #31
 $0d14 o0d14:   cd 82 1d CALL co1d82
 $0d17          06 09    MVI B, #09
 $0d19 o0d19:   cd 82 1d CALL co1d82
 $0d1c          21 a4 13 LXI H, #13a4
-$0d1f o0d1f:   cd e4 12 CALL c12e4
+$0d1f o0d1f:   cd e4 12 CALL cPLAY_SOUND
 $0d22          06 30    MVI B, #30
 $0d24 o0d24:   cd 77 1d CALL co1d77
 $0d27          21 96 23 LXI H, #2396
 $0d2a          3e 04    MVI A, #04
-$0d2c o0d2c:   cd ce 03 CALL c03ce
+$0d2c o0d2c:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $0d2f          21 b6 23 LXI H, #23b6
-$0d32 o0d32:   cd ce 03 CALL c03ce
+$0d32 o0d32:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $0d35          3e fa    MVI A, #fa
 $0d37 o0d37:   c3 3c 0d JMP j0d3c
 $0d3a j0d3a:   3e 3c    MVI A, #3c ;o0ccf,o0d01,o0d0c
@@ -1631,7 +1688,7 @@ $0d5a          32 97 21 STA $2197
 $0d5d          3a 94 21 LDA $2194
 $0d60          f6 02    ORI #02
 $0d62          32 94 21 STA $2194
-$0d65          21 90 21 LXI H, #2190
+$0d65          21 90 21 LXI H, GAME_STATE
 $0d68          3e 00    MVI A, #00
 $0d6a o0d6a:   cd e6 03 CALL c03e6
 $0d6d o0d6d:   c2 ba 0d JNZ j0dba
@@ -1643,7 +1700,7 @@ $0d7c o0d7c:   cd 6e 02 CALL c026e
 $0d7f          3e 0a    MVI A, #0a
 $0d81          32 a7 21 STA $21a7
 $0d84          21 b5 13 LXI H, #13b5
-$0d87 o0d87:   cd e4 12 CALL c12e4
+$0d87 o0d87:   cd e4 12 CALL cPLAY_SOUND
 $0d8a o0d8a:   c3 08 06 JMP jo0608
 $0d8d j0d8d:   21 e8 11 LXI H, #11e8 ;o0d76
 $0d90 o0d90:   cd ed 0e CALL c0eed
@@ -1659,7 +1716,7 @@ $0da9 o0da9:   cd 00 0f CALL c0f00
 $0dac          3e 3c    MVI A, #3c
 $0dae          32 a7 21 STA $21a7
 $0db1          21 b8 13 LXI H, #13b8
-$0db4 jo0db4:  cd e4 12 CALL c12e4 ;o0ddb
+$0db4 jo0db4:  cd e4 12 CALL cPLAY_SOUND ;o0ddb
 $0db7 o0db7:   c3 08 06 JMP jo0608
 $0dba j0dba:   21 c5 21 LXI H, #21c5 ;o0d6d,o0da3
 $0dbd          7e       MOV A,M
@@ -1678,7 +1735,7 @@ $0dd8          21 b8 13 LXI H, #13b8
 $0ddb o0ddb:   c3 b4 0d JMP jo0db4
 $0dde j0dde:   21 c5 21 LXI H, #21c5 ;o0cbc,o0cc7
 $0de1          3e 01    MVI A, #01
-$0de3 o0de3:   cd ce 03 CALL c03ce
+$0de3 o0de3:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $0de6          3e 06    MVI A, #06
 $0de8          32 a6 21 STA $21a6
 $0deb o0deb:   c3 7a 14 JMP jo147a
@@ -1693,7 +1750,7 @@ $0dff o0dff:   c3 07 0e JMP j0e07
 $0e02          3e 14    MVI A, #14
 $0e04 o0e04:   c3 07 0e JMP j0e07
 $0e07 j0e07:   32 25 22 STA $2225 ;o0df0,o0df5,o0dfa,o0dff,o0e04
-$0e0a          3a 90 21 LDA $2190
+$0e0a          3a 90 21 LDA GAME_STATE
 $0e0d          e6 04    ANI #04
 $0e0f o0e0f:   c2 7a 14 JNZ jo147a
 $0e12          3a af 21 LDA $21af
@@ -1724,18 +1781,19 @@ $0e50 o0e50:   ca 62 0e JZ j0e62
 $0e53          21 e8 11 LXI H, #11e8
 $0e56 o0e56:   cd 6e 02 CALL c026e
 $0e59          21 63 13 LXI H, #1363
-$0e5c o0e5c:   cd e4 12 CALL c12e4
+$0e5c o0e5c:   cd e4 12 CALL cPLAY_SOUND
 $0e5f o0e5f:   c3 72 0e JMP j0e72
 $0e62 j0e62:   21 f4 11 LXI H, #11f4 ;o0e50
 $0e65 o0e65:   cd 6e 02 CALL c026e
 $0e68          eb       XCHG
 $0e69 o0e69:   cd ed 0e CALL c0eed
 $0e6c          21 75 13 LXI H, #1375
-$0e6f o0e6f:   cd e4 12 CALL c12e4
+$0e6f o0e6f:   cd e4 12 CALL cPLAY_SOUND
 $0e72 j0e72:   3a 91 21 LDA $2191 ;o0e33,o0e4a,o0e5f
 $0e75          e6 df    ANI #df
 $0e77          32 91 21 STA $2191
 $0e7a o0e7a:   c3 08 06 JMP jo0608
+ 
 $0e7d c0e7d:   11 f3 21 LXI D, #21f3 ;o0efa,o1004,o1090,o191f
 $0e80          b7       ORA A
 $0e81          f5       PUSH PSW
@@ -1757,6 +1815,7 @@ $0e96          8f       ADC A
 $0e97          13       INX D
 $0e98          12       STAX D
 $0e99          c9       RET
+
 $0e9a j0e9a:   23       INX H ;o0e90
 $0e9b          13       INX D
 $0e9c o0e9c:   c3 82 0e JMP j0e82
@@ -1769,6 +1828,8 @@ $0ea5          88       ADC B
 $0ea6          27       DAA
 $0ea7          12       STAX D
 $0ea8          c9       RET
+
+ 
 $0ea9 c0ea9:   0e 00    MVI C, #00 ;o0f39,o1050,o1089,o10c0,o11b5,o1dc2,o1de8,o1df8,o1e22,o1e32,o1e42,o1e8d,o1e9f,o1eb1,o1ec3,o1ed5,o1ee7,o1ef9,o1f0b,o1f1d,o1f2f
 $0eab          b7       ORA A
 $0eac          11 f3 21 LXI D, #21f3
@@ -1810,9 +1871,12 @@ $0ee5          f1       POP PSW
 $0ee6          d8       RC
 $0ee7          b1       ORA C
 $0ee8          c9       RET
+
 $0ee9 j0ee9:   f1       POP PSW ;o0ee2
 $0eea          e6 00    ANI #00
 $0eec          c9       RET
+
+ 
 $0eed c0eed:   11 f3 21 LXI D, #21f3 ;o0b20,o0b5a,o0d90,o0e69,o15ab,o164b,o195b
 $0ef0          3e 08    MVI A, #08
 $0ef2 o0ef2:   cd 60 0f CALL c0f60
@@ -1820,6 +1884,7 @@ $0ef5          21 5b 23 LXI H, #235b
 $0ef8          3e 08    MVI A, #08
 $0efa o0efa:   cd 7d 0e CALL c0e7d
 $0efd          21 f3 21 LXI H, #21f3
+ 
 $0f00 c0f00:   11 5b 23 LXI D, #235b ;o0da9,o192a,o1aed
 $0f03          3e 08    MVI A, #08
 $0f05 o0f05:   cd 60 0f CALL c0f60
@@ -1827,7 +1892,7 @@ $0f08          21 5b 23 LXI H, #235b
 $0f0b          11 a0 23 LXI D, #23a0
 $0f0e          3e 06    MVI A, #06
 $0f10 o0f10:   cd 7b 0f CALL c0f7b
-$0f13          3a 90 21 LDA $2190
+$0f13          3a 90 21 LDA GAME_STATE
 $0f16          e6 01    ANI #01
 $0f18          c0       RNZ
 $0f19          21 a0 23 LXI H, #23a0
@@ -1837,6 +1902,8 @@ $0f21 o0f21:   cd 60 0f CALL c0f60
 $0f24          06 39    MVI B, #39
 $0f26 o0f26:   cd 77 1d CALL co1d77
 $0f29          c9       RET
+
+ 
 $0f2a c0f2a:   e5       PUSH H ;o0d73,o0d9c,o193e,o1967
 $0f2b          21 5b 23 LXI H, #235b
 $0f2e          11 f3 21 LXI D, #21f3
@@ -1860,6 +1927,8 @@ $0f59          3e 06    MVI A, #06
 $0f5b o0f5b:   cd 60 0f CALL c0f60
 $0f5e          f1       POP PSW
 $0f5f          c9       RET
+
+ 
 $0f60 c0f60:   b7       ORA A ;o016d,o0180,o0313,o031e,o0653,o0cda,o0ef2,o0f05,o0f21,o0f33,o0f45,o0f5b,o0fd2,o100e,o1021,o1048,o1060,o1081,o109a,o10ad,o10b8,o10cf,o10e5,o114e,o1159,o11ad,o1693,o1716,o1721,o18d3,o1914,o1b04,o1b0f,o1bf7,o1c02,o1c71,o1c9e,o1f41,o1f4f,o1f5b,o1f6b,o1f82,o1f99,o1fa3,o1fb1,o1fbb,o1fc4,o1fda
 $0f61 j0f61:   de 02    SBI #02 ;o0f6d
 $0f63 o0f63:   fa 71 0f JM j0f71
@@ -1872,6 +1941,7 @@ $0f6b          78       MOV A,B
 $0f6c          b7       ORA A
 $0f6d o0f6d:   c2 61 0f JNZ j0f61
 $0f70          c9       RET
+
 $0f71 j0f71:   7e       MOV A,M ;o0f63
 $0f72          e6 0f    ANI #0f
 $0f74          47       MOV B,A
@@ -1880,6 +1950,8 @@ $0f76          e6 f0    ANI #f0
 $0f78          b0       ORA B
 $0f79          12       STAX D
 $0f7a          c9       RET
+
+ 
 $0f7b c0f7b:   0f       RRC ;o0f10,o0f50,o1016,o106a,o1073,o10a2,o10da,o1cd0,o1cdb
 $0f7c          f5       PUSH PSW
 $0f7d o0f7d:   d2 83 0f JNC j0f83
@@ -1908,6 +1980,7 @@ $0f9f          7e       MOV A,M
 $0fa0          0d       DCR C
 $0fa1 o0fa1:   f2 9c 0f JP j0f9c
 $0fa4          c9       RET
+
 $0fa5 j0fa5:   1a       LDAX D ;o0f8c
 $0fa6          e6 f0    ANI #f0
 $0fa8          47       MOV B,A
@@ -1923,6 +1996,7 @@ $0fb5          0d       DCR C
 $0fb6          7e       MOV A,M
 $0fb7 o0fb7:   f2 90 0f JP j0f90
 $0fba          c9       RET
+
 $0fbb j0fbb:   79       MOV A,C ;o0f91
 $0fbc          3d       DCR A
 $0fbd o0fbd:   fa c9 0f JM j0fc9
@@ -1933,6 +2007,8 @@ $0fc6 o0fc6:   c3 9c 0f JMP j0f9c
 $0fc9 j0fc9:   3e f0    MVI A, #f0 ;o0fbd
 $0fcb          12       STAX D
 $0fcc          c9       RET
+
+ 
 $0fcd c0fcd:   11 f3 21 LXI D, #21f3 ;o0254,o0d96,o177e,o1789,o1961
 $0fd0          3e 08    MVI A, #08
 $0fd2 o0fd2:   cd 60 0f CALL c0f60
@@ -2012,6 +2088,7 @@ $106e          11 b7 23 LXI D, #23b7
 $1071          3e 06    MVI A, #06
 $1073 o1073:   cd 7b 0f CALL c0f7b
 $1076 o1076:   c3 e8 10 JMP j10e8
+ 
 $1079 c1079:   21 6b 23 LXI H, #236b ;o1054
 $107c          11 f3 21 LXI D, #21f3
 $107f          3e 07    MVI A, #07
@@ -2020,6 +2097,7 @@ $1084          21 63 23 LXI H, #2363
 $1087          3e 07    MVI A, #07
 $1089 o1089:   cd a9 0e CALL c0ea9
 $108c          c9       RET
+
 $108d j108d:   e1       POP H ;o102c
 $108e          3e 08    MVI A, #08
 $1090 o1090:   cd 7d 0e CALL c0e7d
@@ -2068,13 +2146,14 @@ $10f2          3e 04    MVI A, #04
 $10f4 o10f4:   cd e6 03 CALL c03e6
 $10f7 o10f7:   ca fb 10 JZ jo10fb
 $10fa          c9       RET
-$10fb jo10fb:  cd ce 03 CALL c03ce ;o10f7
+
+$10fb jo10fb:  cd ce 03 CALL cSET_ATH_BIT_OF_HL ;o10f7
 $10fe          3e 05    MVI A, #05
 $1100 jo1100:  cd d9 03 CALL c03d9 ;o1135
 $1103          e5       PUSH H
 $1104          c5       PUSH B
 $1105          21 99 13 LXI H, #1399
-$1108 jo1108:  cd e4 12 CALL c12e4 ;o06e0
+$1108 o1108:   cd e4 12 CALL cPLAY_SOUND
 $110b          21 a7 21 LXI H, #21a7
 $110e          7e       MOV A,M
 $110f          b7       ORA A
@@ -2093,7 +2172,8 @@ $1127          3e 05    MVI A, #05
 $1129 o1129:   cd e6 03 CALL c03e6
 $112c o112c:   ca 30 11 JZ jo1130
 $112f          c9       RET
-$1130 jo1130:  cd ce 03 CALL c03ce ;o112c
+
+$1130 jo1130:  cd ce 03 CALL cSET_ATH_BIT_OF_HL ;o112c
 $1133          3e 04    MVI A, #04
 $1135 o1135:   c3 00 11 JMP jo1100
 $1138 j1138:   21 6a 23 LXI H, #236a ;o10e9
@@ -2162,6 +2242,7 @@ $11c4          b0       ORA B
 $11c5          32 8c 23 STA $238c
 $11c8          32 ac 23 STA $23ac
 $11cb          c9       RET
+
 $11cc          00       NOP
 $11cd          00       NOP
 $11ce          00       NOP
@@ -2224,8 +2305,9 @@ $120c          ff       RST 7
 $120d          ff       RST 7
 $120e          ff       RST 7
 $120f          ff       RST 7
+ 
 $1210 c1210:   3e ff    MVI A, #ff ;o12be,o12de
-$1212          d3 09    OUT #09
+$1212          d3 09    OUT TONE_ENABLE_DUR
 $1214          11 2f 13 LXI D, #132f
 $1217          7d       MOV A,L
 $1218          93       SUB E
@@ -2240,11 +2322,11 @@ $1222          9c       SBB H
 $1223          f8       RM
 $1224          7e       MOV A,M
 $1225          2f       CMA
-$1226          d3 0a    OUT #0a
+$1226          d3 0a    OUT TONE_PITCH
 $1228          23       INX H
 $1229          7e       MOV A,M
 $122a          2f       CMA
-$122b          d3 09    OUT #09
+$122b          d3 09    OUT TONE_ENABLE_DUR
 $122d          2f       CMA
 $122e          22 b1 21 SHLD $21b1
 $1231          11 7f 12 LXI D, #127f
@@ -2280,10 +2362,11 @@ $1270 j1270:   13       INX D ;o1240
 $1271 j1271:   13       INX D ;o123b
 $1272 j1272:   1a       LDAX D ;o1236,o1266
 $1273          32 98 21 STA $2198
-$1276          21 90 21 LXI H, #2190
+$1276          21 90 21 LXI H, GAME_STATE
 $1279          3e 05    MVI A, #05
-$127b o127b:   cd ce 03 CALL c03ce
+$127b o127b:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $127e          c9       RET
+
 $127f          0d       DCR C
 $1280          0a       LDAX B
 $1281          0e 0a    MVI C, #0a
@@ -2297,9 +2380,9 @@ $128b          21 3e 05 LXI H, #053e
 $128e o128e:   cd e6 03 CALL c03e6
 $1291 o1291:   c2 a5 12 JNZ jo12a5
 $1294          3e 06    MVI A, #06
-$1296 o1296:   cd ce 03 CALL c03ce
+$1296 o1296:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $1299          3e fe    MVI A, #fe
-$129b          d3 09    OUT #09
+$129b          d3 09    OUT TONE_ENABLE_DUR
 $129d          3e 02    MVI A, #02
 $129f          32 98 21 STA $2198
 $12a2 o12a2:   c3 08 06 JMP jo0608
@@ -2308,7 +2391,7 @@ $12a8          3e 06    MVI A, #06
 $12aa o12aa:   cd e6 03 CALL c03e6
 $12ad o12ad:   c2 d8 12 JNZ jo12d8
 $12b0          3e ff    MVI A, #ff
-$12b2          d3 09    OUT #09
+$12b2          d3 09    OUT TONE_ENABLE_DUR
 $12b4          2a b1 21 LHLD $21b1
 $12b7          23       INX H
 $12b8          7e       MOV A,M
@@ -2320,7 +2403,7 @@ $12c4 j12c4:   3a b3 21 LDA $21b3 ;o12bb
 $12c7          fe 00    CPI #00
 $12c9 o12c9:   c2 db 12 JNZ jo12db
 $12cc          3e ff    MVI A, #ff
-$12ce          d3 09    OUT #09
+$12ce          d3 09    OUT TONE_ENABLE_DUR
 $12d0          3e 0c    MVI A, #0c
 $12d2          32 98 21 STA $2198
 $12d5 o12d5:   c3 08 06 JMP jo0608
@@ -2328,7 +2411,9 @@ $12d8 jo12d8:  cd d9 03 CALL c03d9 ;o12ad
 $12db jo12db:  cd 0f 13 CALL c130f ;o12c9
 $12de o12de:   cd 10 12 CALL c1210
 $12e1 o12e1:   c3 08 06 JMP jo0608
-$12e4 c12e4:   eb       XCHG ;o053b,o0558,o058e,o073e,o07d7,o08cc,o0984,o0b01,o0b26,o0b60,o0bc3,o0c41,o0d1f,o0d87,jo0db4,o0e5c,o0e6f,jo1108,o151e,o1550,o15e1,o1602,o162c,o1651,o1800,o18c7,o1935,o1952,o1a2e,o1adf,o1b6d,o1f71,o1f88
+ 
+$12e4 cPLAY_SOUND:
+               eb       XCHG ;o053b,o0558,o058e,o073e,o07d7,o08cc,o0984,o0b01,o0b26,o0b60,o0bc3,o0c41,o0d1f,o0d87,jo0db4,o0e5c,o0e6f,o1108,o151e,o1550,o15e1,o1602,o162c,o1651,o1800,o18c7,o1935,o1952,o1a2e,o1adf,o1b6d,o1f71,o1f88
 $12e5          2a be 21 LHLD $21be
 $12e8          01 be 21 LXI B, #21be
 $12eb          79       MOV A,C
@@ -2341,14 +2426,16 @@ $12f7          23       INX H
 $12f8          72       MOV M,D
 $12f9          23       INX H
 $12fa          22 be 21 SHLD $21be
-$12fd          21 90 21 LXI H, #2190
+$12fd          21 90 21 LXI H, GAME_STATE
 $1300          3e 05    MVI A, #05
 $1302 o1302:   cd e6 03 CALL c03e6
 $1305          c0       RNZ
-$1306 o1306:   cd ce 03 CALL c03ce
+$1306 o1306:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $1309          3e 01    MVI A, #01
 $130b          32 98 21 STA $2198
 $130e          c9       RET
+
+ 
 $130f c130f:   2a c0 21 LHLD $21c0 ;jo12db
 $1312          01 be 21 LXI B, #21be
 $1315          79       MOV A,C
@@ -2367,165 +2454,187 @@ $1329          95       SUB L
 $132a          32 b3 21 STA $21b3
 $132d          e1       POP H
 $132e          c9       RET
-$132f          ff       RST 7
-$1330          ca 08 ff DB 0xca,0x8,0xff  ; (was:          ca 08 ff JZ $ff08)
-$1333          aa       XRA D
-$1334          08       (DSUB)
-$1335          ff       RST 7
-$1336          87       ADD A
-$1337          08       (DSUB)
-$1338          ff       RST 7
-$1339          65       MOV H,L
-$133a          08       (DSUB)
-$133b          ff       RST 7
-$133c          1c       INR E
-$133d          0c       INR C
-$133e          ff       RST 7
-$133f          1c       INR E
-$1340          0c       INR C
-$1341          ff       RST 7
-$1342          1c       INR E
-$1343          00       NOP
-$1344          ff       RST 7
-$1345          43       MOV B,E
-$1346          08       (DSUB)
-$1347          87       ADD A
-$1348          08       (DSUB)
-$1349          43       MOV B,E
-$134a          08       (DSUB)
-$134b          87       ADD A
-$134c          08       (DSUB)
-$134d          43       MOV B,E
-$134e          08       (DSUB)
-$134f          87       ADD A
-$1350          08       (DSUB)
-$1351          43       MOV B,E
-$1352          08       (DSUB)
-$1353          87       ADD A
-$1354          08       (DSUB)
-$1355          43       MOV B,E
-$1356          08       (DSUB)
-$1357          87       ADD A
-$1358          08       (DSUB)
-$1359          ff       RST 7
-$135a          55       MOV D,L
-$135b          08       (DSUB)
-$135c          ff       RST 7
-$135d          3c       INR A
-$135e          08       (DSUB)
-$135f          ff       RST 7
-$1360          2b       DCX H
-$1361          08       (DSUB)
-$1362          ff       RST 7
-$1363          22 08 ff SHLD $ff08
-$1366          22 28 1e SHLD $1e28
-$1369          0c       INR C
-$136a          ff       RST 7
-$136b          15       DCR D
-$136c          02       STAX B
-$136d          15       DCR D
-$136e          0c       INR C
-$136f          ff       RST 7
-$1370          4c       MOV C,H
-$1371          08       (DSUB)
-$1372          65       MOV H,L
-$1373          0c       INR C
-$1374          ff       RST 7
-$1375          78       MOV A,B
-$1376          28 50    (LDHI) #50
-$1378          28 78    (LDHI) #78
-$137a          28 50    (LDHI) #50
-$137c          28 78    (LDHI) #78
-$137e          28 50    (LDHI) #50
-$1380          28 ff    (LDHI) #ff
-$1382          55       MOV D,L
-$1383          08       (DSUB)
-$1384          65       MOV H,L
-$1385          08       (DSUB)
-$1386          78       MOV A,B
-$1387          08       (DSUB)
-$1388          78       MOV A,B
-$1389          00       NOP
-$138a          55       MOV D,L
-$138b          08       (DSUB)
-$138c          65       MOV H,L
-$138d          08       (DSUB)
-$138e          78       MOV A,B
-$138f          08       (DSUB)
-$1390          78       MOV A,B
-$1391          00       NOP
-$1392          55       MOV D,L
-$1393          08       (DSUB)
-$1394          65       MOV H,L
-$1395          08       (DSUB)
-$1396          78       MOV A,B
-$1397          08       (DSUB)
-$1398          ff       RST 7
-$1399          43       MOV B,E
-$139a          20       RIM
-$139b          43       MOV B,E
-$139c          08       (DSUB)
-$139d          55       MOV D,L
-$139e          08       (DSUB)
-$139f          65       MOV H,L
-$13a0          08       (DSUB)
-$13a1          72       MOV M,D
-$13a2          0c       INR C
-$13a3          ff       RST 7
-$13a4          43       MOV B,E
-$13a5          04       INR B
-$13a6          43       MOV B,E
-$13a7          04       INR B
-$13a8          43       MOV B,E
-$13a9          00       NOP
-$13aa          43       MOV B,E
-$13ab          04       INR B
-$13ac          43       MOV B,E
-$13ad          04       INR B
-$13ae          43       MOV B,E
-$13af          00       NOP
-$13b0          43       MOV B,E
-$13b1          04       INR B
-$13b2          43       MOV B,E
-$13b3          04       INR B
-$13b4          ff       RST 7
-$13b5          c6 08    ADI #08
-$13b7          ff       RST 7
-$13b8          4c       MOV C,H
-$13b9          0c       INR C
-$13ba          ff       RST 7
-$13bb          ca 08 ca DB 0xca,0x8,0xca  ; (was:          ca 08 ca JZ $ca08)
-$13be          08       (DSUB)
-$13bf          ca 08 ca DB 0xca,0x8,0xca  ; (was:          ca 08 ca JZ $ca08)
-$13c2          0c       INR C
-$13c3          ff       RST 7
-$13c4          78       MOV A,B
-$13c5          28 65    (LDHI) #65
-$13c7          04       INR B
-$13c8          ff       RST 7
-$13c9          a0       ANA B
-$13ca          2c       INR L
-$13cb          a0       ANA B
-$13cc          0c       INR C
-$13cd          ff       RST 7
-$13ce          15       DCR D
-$13cf          0c       INR C
-$13d0          ff       RST 7
-$13d1          ca 00 ff DB 0xca,0x0,0xff  ; (was:          ca 00 ff JZ $ff00)
-$13d4          43       MOV B,E
-$13d5          0c       INR C
-$13d6          55       MOV D,L
-$13d7          0c       INR C
-$13d8          65       MOV H,L
-$13d9          0c       INR C
-$13da          72       MOV M,D
-$13db          0c       INR C
-$13dc          ff       RST 7
-$13dd          fe 21    CPI #21
-$13df          91       SUB C
-$13e0          21 3e 03 LXI H, #033e
+
+$132f          ff       DB #ff
+$1330          ca       DB #ca
+$1331          08       DB #08
+$1332          ff       DB #ff
+$1333          aa       DB #aa
+$1334          08       DB #08
+$1335          ff       DB #ff
+$1336          87       DB #87
+$1337          08       DB #08
+$1338          ff       DB #ff
+$1339          65       DB #65
+$133a          08       DB #08
+$133b          ff       DB #ff
+$133c          1c       DB #1c
+$133d          0c       DB #0c
+$133e          ff       DB #ff
+$133f          1c       DB #1c
+$1340          0c       DB #0c
+$1341          ff       DB #ff
+$1342          1c       DB #1c
+$1343          00       DB #00
+$1344          ff       DB #ff
+$1345          43       DB #43
+$1346          08       DB #08
+$1347          87       DB #87
+$1348          08       DB #08
+$1349          43       DB #43
+$134a          08       DB #08
+$134b          87       DB #87
+$134c          08       DB #08
+$134d          43       DB #43
+$134e          08       DB #08
+$134f          87       DB #87
+$1350          08       DB #08
+$1351          43       DB #43
+$1352          08       DB #08
+$1353          87       DB #87
+$1354          08       DB #08
+$1355          43       DB #43
+$1356          08       DB #08
+$1357          87       DB #87
+$1358          08       DB #08
+$1359          ff       DB #ff
+$135a          55       DB #55
+$135b          08       DB #08
+$135c          ff       DB #ff
+$135d          3c       DB #3c
+$135e          08       DB #08
+$135f          ff       DB #ff
+$1360          2b       DB #2b
+$1361          08       DB #08
+$1362          ff       DB #ff
+$1363          22       DB #22
+$1364          08       DB #08
+$1365          ff       DB #ff
+$1366          22       DB #22
+$1367          28       DB #28
+$1368          1e       DB #1e
+$1369          0c       DB #0c
+$136a          ff       DB #ff
+$136b          15       DB #15
+$136c          02       DB #02
+$136d          15       DB #15
+$136e          0c       DB #0c
+$136f          ff       DB #ff
+$1370          4c       DB #4c
+$1371          08       DB #08
+$1372          65       DB #65
+$1373          0c       DB #0c
+$1374          ff       DB #ff
+$1375          78       DB #78
+$1376          28       DB #28
+$1377          50       DB #50
+$1378          28       DB #28
+$1379          78       DB #78
+$137a          28       DB #28
+$137b          50       DB #50
+$137c          28       DB #28
+$137d          78       DB #78
+$137e          28       DB #28
+$137f          50       DB #50
+$1380          28       DB #28
+$1381          ff       DB #ff
+$1382          55       DB #55
+$1383          08       DB #08
+$1384          65       DB #65
+$1385          08       DB #08
+$1386          78       DB #78
+$1387          08       DB #08
+$1388          78       DB #78
+$1389          00       DB #00
+$138a          55       DB #55
+$138b          08       DB #08
+$138c          65       DB #65
+$138d          08       DB #08
+$138e          78       DB #78
+$138f          08       DB #08
+$1390          78       DB #78
+$1391          00       DB #00
+$1392          55       DB #55
+$1393          08       DB #08
+$1394          65       DB #65
+$1395          08       DB #08
+$1396          78       DB #78
+$1397          08       DB #08
+$1398          ff       DB #ff
+$1399          43       DB #43
+$139a          20       DB #20
+$139b          43       DB #43
+$139c          08       DB #08
+$139d          55       DB #55
+$139e          08       DB #08
+$139f          65       DB #65
+$13a0          08       DB #08
+$13a1          72       DB #72
+$13a2          0c       DB #0c
+$13a3          ff       DB #ff
+$13a4          43       DB #43
+$13a5          04       DB #04
+$13a6          43       DB #43
+$13a7          04       DB #04
+$13a8          43       DB #43
+$13a9          00       DB #00
+$13aa          43       DB #43
+$13ab          04       DB #04
+$13ac          43       DB #43
+$13ad          04       DB #04
+$13ae          43       DB #43
+$13af          00       DB #00
+$13b0          43       DB #43
+$13b1          04       DB #04
+$13b2          43       DB #43
+$13b3          04       DB #04
+$13b4          ff       DB #ff
+$13b5          c6       DB #c6
+$13b6          08       DB #08
+$13b7          ff       DB #ff
+$13b8          4c       DB #4c
+$13b9          0c       DB #0c
+$13ba          ff       DB #ff
+$13bb          ca       DB #ca
+$13bc          08       DB #08
+$13bd          ca       DB #ca
+$13be          08       DB #08
+$13bf          ca       DB #ca
+$13c0          08       DB #08
+$13c1          ca       DB #ca
+$13c2          0c       DB #0c
+$13c3          ff       DB #ff
+$13c4          78       DB #78
+$13c5          28       DB #28
+$13c6          65       DB #65
+$13c7          04       DB #04
+$13c8          ff       DB #ff
+$13c9          a0       DB #a0
+$13ca          2c       DB #2c
+$13cb          a0       DB #a0
+$13cc          0c       DB #0c
+$13cd          ff       DB #ff
+$13ce          15       DB #15
+$13cf          0c       DB #0c
+$13d0          ff       DB #ff
+$13d1          ca       DB #ca
+$13d2          00       DB #00
+$13d3          ff       DB #ff
+$13d4          43       DB #43
+$13d5          0c       DB #0c
+$13d6          55       DB #55
+$13d7          0c       DB #0c
+$13d8          65       DB #65
+$13d9          0c       DB #0c
+$13da          72       DB #72
+$13db          0c       DB #0c
+$13dc          ff       DB #ff
+$13dd          fe       DB #fe
+ 
+$13de jc13de:  21 91 21 LXI H, #2191 ;o0110,o1413,o1d70
+$13e1          3e 03    MVI A, #03
 $13e3 o13e3:   cd d9 03 CALL c03d9
-$13e6          d3 0f    OUT #0f
+$13e6          d3 0f    OUT LAMP_F
 $13e8          21 e0 23 LXI H, #23e0
 $13eb          11 3b 23 LXI D, #233b
 $13ee j13ee:   46       MOV B,M ;o140b
@@ -2548,13 +2657,14 @@ $140a          2c       INR L
 $140b o140b:   c2 ee 13 JNZ j13ee
 $140e          3a 91 21 LDA $2191
 $1411          e6 08    ANI #08
-$1413          c2 de 13 DB 0xc2,0xde,0x13  ; (was:          c2 de 13 JNZ $13de)
+$1413 o1413:   c2 de 13 JNZ jc13de
 $1416 o1416:   cd df 02 CALL c02df
 $1419          22 23 22 SHLD $2223
 $141c          c9       RET
+
 $141d          21 91 21 LXI H, #2191
 $1420          3e 06    MVI A, #06
-$1422 o1422:   cd ce 03 CALL c03ce
+$1422 o1422:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $1425          21 e0 23 LXI H, #23e0
 $1428          11 3b 23 LXI D, #233b
 $142b j142b:   1a       LDAX D ;o1432
@@ -2580,7 +2690,7 @@ $1452 o1452:   cd d9 03 CALL c03d9
 $1455          3c       INR A
 $1456 o1456:   cd e6 03 CALL c03e6
 $1459 o1459:   c2 63 14 JNZ jo1463
-$145c o145c:   cd ce 03 CALL c03ce
+$145c o145c:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $145f          e1       POP H
 $1460 o1460:   c3 7d 14 JMP jo147d
 $1463 jo1463:  cd d9 03 CALL c03d9 ;o1459
@@ -2622,11 +2732,11 @@ $1496          e3       XTHL
 $1497          14       INR D
 $1498          d5       PUSH D
 $1499          14       INR D
-$149a          dc 14 6b DB 0xdc,0x14,0x6b  ; (was:          dc 14 6b CC $6b14)
+$149a          dc 14 6b CC $6b14
 $149d          0a       LDAX B
 $149e          92       SUB D
 $149f          15       DCR D
-$14a0          ea 14 f1 DB 0xea,0x14,0xf1  ; (was:          ea 14 f1 JPE $f114)
+$14a0          ea 14 f1 JPE $f114
 $14a3          14       INR D
 $14a4          64       MOV H,H
 $14a5          0a       LDAX B
@@ -2674,9 +2784,9 @@ $14ec          06 21    MVI B, #21
 $14ee o14ee:   c3 f5 14 JMP j14f5
 $14f1          0e 07    MVI C, #07
 $14f3          06 0a    MVI B, #0a
-$14f5 j14f5:   21 90 21 LXI H, #2190 ;o14c4,o14cb,o14d2,o14d9,o14e0,o14e7,o14ee
+$14f5 j14f5:   21 90 21 LXI H, GAME_STATE ;o14c4,o14cb,o14d2,o14d9,o14e0,o14e7,o14ee
 $14f8          3e 07    MVI A, #07
-$14fa o14fa:   cd ce 03 CALL c03ce
+$14fa o14fa:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $14fd          3e 02    MVI A, #02
 $14ff o14ff:   cd e6 03 CALL c03e6
 $1502 o1502:   c2 7a 14 JNZ jo147a
@@ -2689,7 +2799,7 @@ $1512 o1512:   cd 82 1d CALL co1d82
 $1515          21 e4 11 LXI H, #11e4
 $1518 o1518:   cd 6e 02 CALL c026e
 $151b          21 5a 13 LXI H, #135a
-$151e o151e:   cd e4 12 CALL c12e4
+$151e o151e:   cd e4 12 CALL cPLAY_SOUND
 $1521          3a c6 21 LDA $21c6
 $1524          fe 00    CPI #00
 $1526 o1526:   c2 7a 14 JNZ jo147a
@@ -2710,7 +2820,7 @@ $1548          19       DAD D
 $1549          46       MOV B,M
 $154a o154a:   cd 77 1d CALL co1d77
 $154d          21 5a 13 LXI H, #135a
-$1550 o1550:   cd e4 12 CALL c12e4
+$1550 o1550:   cd e4 12 CALL cPLAY_SOUND
 $1553          3e 0a    MVI A, #0a
 $1555          32 a4 21 STA $21a4
 $1558 o1558:   c3 08 06 JMP jo0608
@@ -2736,7 +2846,7 @@ $158a          02       STAX B
 $158b          2a 10 1a LHLD $1a10
 $158e          01 19 21 LXI B, #2119
 $1591          0a       LDAX B
-$1592          21 90 21 LXI H, #2190
+$1592          21 90 21 LXI H, GAME_STATE
 $1595          3e 07    MVI A, #07
 $1597 o1597:   cd e6 03 CALL c03e6
 $159a o159a:   ca 7a 14 JZ jo147a
@@ -2746,7 +2856,7 @@ $15a2 o15a2:   cd e6 03 CALL c03e6
 $15a5 o15a5:   c2 7a 14 JNZ jo147a
 $15a8          21 00 12 LXI H, #1200
 $15ab o15ab:   cd ed 0e CALL c0eed
-$15ae          21 90 21 LXI H, #2190
+$15ae          21 90 21 LXI H, GAME_STATE
 $15b1          3e 04    MVI A, #04
 $15b3 o15b3:   cd e6 03 CALL c03e6
 $15b6 o15b6:   ca e4 15 JZ j15e4
@@ -2754,7 +2864,7 @@ $15b9          21 91 21 LXI H, #2191
 $15bc          3e 01    MVI A, #01
 $15be o15be:   cd e6 03 CALL c03e6
 $15c1 o15c1:   c2 e4 15 JNZ j15e4
-$15c4 o15c4:   cd ce 03 CALL c03ce
+$15c4 o15c4:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $15c7          3a c7 21 LDA $21c7
 $15ca          06 ff    MVI B, #ff
 $15cc j15cc:   04       INR B ;o15ce
@@ -2767,8 +2877,8 @@ $15d6          3e 04    MVI A, #04
 $15d8 j15d8:   32 11 22 STA $2211 ;o15d3
 $15db o15db:   cd fa 03 CALL c03fa
 $15de          21 bb 13 LXI H, #13bb
-$15e1 o15e1:   cd e4 12 CALL c12e4
-$15e4 j15e4:   21 90 21 LXI H, #2190 ;o15b6,o15c1
+$15e1 o15e1:   cd e4 12 CALL cPLAY_SOUND
+$15e4 j15e4:   21 90 21 LXI H, GAME_STATE ;o15b6,o15c1
 $15e7          3e 03    MVI A, #03
 $15e9 o15e9:   cd e6 03 CALL c03e6
 $15ec o15ec:   c2 ff 15 JNZ j15ff
@@ -2779,24 +2889,24 @@ $15f7 o15f7:   cd 82 1d CALL co1d82
 $15fa          06 31    MVI B, #31
 $15fc o15fc:   cd 92 1d CALL co1d92
 $15ff j15ff:   21 70 13 LXI H, #1370 ;o15ec,o15f4
-$1602 o1602:   cd e4 12 CALL c12e4
+$1602 o1602:   cd e4 12 CALL cPLAY_SOUND
 $1605 o1605:   c3 7a 14 JMP jo147a
 $1608          3e ff    MVI A, #ff
 $160a          32 93 21 STA $2193
 $160d          3a 94 21 LDA $2194
 $1610          f6 30    ORI #30
 $1612          32 94 21 STA $2194
-$1615          21 90 21 LXI H, #2190
+$1615          21 90 21 LXI H, GAME_STATE
 $1618          3e 02    MVI A, #02
 $161a o161a:   cd e6 03 CALL c03e6
 $161d o161d:   c2 7a 14 JNZ jo147a
-$1620 o1620:   cd ce 03 CALL c03ce
+$1620 o1620:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $1623          21 e8 11 LXI H, #11e8
 $1626 o1626:   cd 6e 02 CALL c026e
 $1629          21 ce 13 LXI H, #13ce
-$162c o162c:   cd e4 12 CALL c12e4
+$162c o162c:   cd e4 12 CALL cPLAY_SOUND
 $162f o162f:   c3 7a 14 JMP jo147a
-$1632          21 90 21 LXI H, #2190
+$1632          21 90 21 LXI H, GAME_STATE
 $1635          3e 02    MVI A, #02
 $1637 o1637:   cd e6 03 CALL c03e6
 $163a o163a:   c2 7a 14 JNZ jo147a
@@ -2807,7 +2917,7 @@ $1645 o1645:   cd d9 03 CALL c03d9
 $1648          21 e8 11 LXI H, #11e8
 $164b o164b:   cd ed 0e CALL c0eed
 $164e          21 b8 13 LXI H, #13b8
-$1651 o1651:   cd e4 12 CALL c12e4
+$1651 o1651:   cd e4 12 CALL cPLAY_SOUND
 $1654 o1654:   c3 7a 14 JMP jo147a
 $1657          21 92 21 LXI H, #2192
 $165a          3e 00    MVI A, #00
@@ -2844,10 +2954,10 @@ $16a9 o16a9:   ca b1 16 JZ j16b1
 $16ac          3e 01    MVI A, #01
 $16ae o16ae:   c3 cd 16 JMP j16cd
 $16b1 j16b1:   3e 06    MVI A, #06 ;o16a1,o16a9
-$16b3 o16b3:   cd ce 03 CALL c03ce
-$16b6          3a 90 21 LDA $2190
+$16b3 o16b3:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
+$16b6          3a 90 21 LDA GAME_STATE
 $16b9          f6 05    ORI #05
-$16bb          32 90 21 STA $2190
+$16bb          32 90 21 STA GAME_STATE
 $16be          3e ff    MVI A, #ff
 $16c0          32 93 21 STA $2193
 $16c3          3a 94 21 LDA $2194
@@ -2887,7 +2997,7 @@ $1719          21 c9 21 LXI H, #21c9
 $171c          11 ce 21 LXI D, #21ce
 $171f          3e 0a    MVI A, #0a
 $1721 o1721:   cd 60 0f CALL c0f60
-$1724          21 90 21 LXI H, #2190
+$1724          21 90 21 LXI H, GAME_STATE
 $1727          3e 04    MVI A, #04
 $1729 o1729:   cd d9 03 CALL c03d9
 $172c j172c:   3a 7a 23 LDA CREDITS_1 ;o17e4
@@ -2913,7 +3023,7 @@ $175c          3e 02    MVI A, #02
 $175e o175e:   cd e6 03 CALL c03e6
 $1761 o1761:   ca b2 17 JZ jo17b2
 $1764          3e 03    MVI A, #03
-$1766 o1766:   cd ce 03 CALL c03ce
+$1766 o1766:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $1769          3e f0    MVI A, #f0
 $176b          32 90 23 STA $2390
 $176e          32 b0 23 STA $23b0
@@ -2932,7 +3042,7 @@ $178c          f1       POP PSW
 $178d          32 7e 23 STA $237e
 $1790          fb       EI
 $1791 o1791:   c3 d4 17 JMP j17d4
-$1794 jo1794:  cd ce 03 CALL c03ce ;o1759
+$1794 jo1794:  cd ce 03 CALL cSET_ATH_BIT_OF_HL ;o1759
 $1797          3e f0    MVI A, #f0
 $1799          32 8d 23 STA $238d
 $179c          32 ad 23 STA $23ad
@@ -2943,7 +3053,7 @@ $17a7          3e f0    MVI A, #f0
 $17a9          32 97 23 STA $2397
 $17ac          32 b7 23 STA $23b7
 $17af o17af:   c3 d4 17 JMP j17d4
-$17b2 jo17b2:  cd ce 03 CALL c03ce ;o1761
+$17b2 jo17b2:  cd ce 03 CALL cSET_ATH_BIT_OF_HL ;o1761
 $17b5          3e f0    MVI A, #f0
 $17b7          32 83 23 STA $2383
 $17ba          32 a3 23 STA $23a3
@@ -2973,9 +3083,10 @@ $17f5          3a 7e 23 LDA $237e
 $17f8          e6 08    ANI #08
 $17fa o17fa:   ca 51 17 JZ j1751
 $17fd j17fd:   21 5d 13 LXI H, #135d ;o17eb,o17f2
-$1800 o1800:   cd e4 12 CALL c12e4
+$1800 o1800:   cd e4 12 CALL cPLAY_SOUND
 $1803 j1803:   3e 06    MVI A, #06 ;o165f,o166e,o1679,o174e
 $1805 o1805:   c3 6e 03 JMP j036e
+ 
 $1808 jc1808:  21 1a 18 LXI H, #181a ;o0175,o16fb,o1816
 $180b          0e 08    MVI C, #08
 $180d j180d:   7e       MOV A,M ;o1812
@@ -2987,12 +3098,14 @@ $1812 o1812:   c2 0d 18 JNZ j180d
 $1815          05       DCR B
 $1816 o1816:   c2 08 18 JNZ jc1808
 $1819          c9       RET
+
 $181a          ff       RST 7
 $181b          1f       RAR
 $181c          01 04 39 LXI B, #3904
 $181f          2b       DCX H
 $1820          37       STC
 $1821          37       STC
+ 
 $1822 c1822:   21 5b 23 LXI H, #235b ;jo0138,o1696
 $1825          3e 00    MVI A, #00
 $1827          16 1f    MVI D, #1f
@@ -3020,11 +3133,13 @@ $184e          32 ac 23 STA $23ac
 $1851          32 96 23 STA $2396
 $1854          32 b6 23 STA $23b6
 $1857          c9       RET
+
+ 
 $1858 c1858:   3a 7e 23 LDA $237e ;o18ee,o196a
 $185b          e6 02    ANI #02
 $185d          3e 20    MVI A, #20
 $185f          c8       RZ
-$1860          21 90 21 LXI H, #2190
+$1860          21 90 21 LXI H, GAME_STATE
 $1863          3e 03    MVI A, #03
 $1865 o1865:   cd e6 03 CALL c03e6
 $1868          3e 20    MVI A, #20
@@ -3035,6 +3150,7 @@ $1870          3e 20    MVI A, #20
 $1872          c8       RZ
 $1873          3e 80    MVI A, #80
 $1875          c9       RET
+
 $1876          21 92 21 LXI H, #2192
 $1879          3e 04    MVI A, #04
 $187b o187b:   cd e6 03 CALL c03e6
@@ -3059,20 +3175,20 @@ $18a9          32 a9 21 STA $21a9
 $18ac          3a 94 21 LDA $2194
 $18af          f6 30    ORI #30
 $18b1          32 94 21 STA $2194
-$18b4          21 90 21 LXI H, #2190
+$18b4          21 90 21 LXI H, GAME_STATE
 $18b7          3e 02    MVI A, #02
-$18b9 o18b9:   cd ce 03 CALL c03ce
+$18b9 o18b9:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $18bc          21 92 21 LXI H, #2192
 $18bf          3e 04    MVI A, #04
-$18c1 o18c1:   cd ce 03 CALL c03ce
+$18c1 o18c1:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $18c4          21 6b 13 LXI H, #136b
-$18c7 o18c7:   cd e4 12 CALL c12e4
+$18c7 o18c7:   cd e4 12 CALL cPLAY_SOUND
 $18ca o18ca:   cd a3 1b CALL c1ba3
 $18cd          eb       XCHG
 $18ce          21 c6 21 LXI H, #21c6
 $18d1          3e 10    MVI A, #10
 $18d3 o18d3:   cd 60 0f CALL c0f60
-$18d6          21 90 21 LXI H, #2190
+$18d6          21 90 21 LXI H, GAME_STATE
 $18d9          3e 00    MVI A, #00
 $18db o18db:   cd e6 03 CALL c03e6
 $18de o18de:   c2 e9 18 JNZ j18e9
@@ -3114,7 +3230,7 @@ $192a o192a:   cd 00 0f CALL c0f00
 $192d          3e 3c    MVI A, #3c
 $192f          32 ae 21 STA $21ae
 $1932          21 b8 13 LXI H, #13b8
-$1935 o1935:   cd e4 12 CALL c12e4
+$1935 o1935:   cd e4 12 CALL cPLAY_SOUND
 $1938 o1938:   c3 7a 14 JMP jo147a
 $193b          21 e8 11 LXI H, #11e8
 $193e o193e:   cd 2a 0f CALL c0f2a
@@ -3124,7 +3240,7 @@ $1947 o1947:   cd 6e 02 CALL c026e
 $194a          3e 0a    MVI A, #0a
 $194c          32 ae 21 STA $21ae
 $194f          21 b5 13 LXI H, #13b5
-$1952 o1952:   cd e4 12 CALL c12e4
+$1952 o1952:   cd e4 12 CALL cPLAY_SOUND
 $1955 o1955:   c3 08 06 JMP jo0608
 $1958 j1958:   21 e8 11 LXI H, #11e8 ;o1941
 $195b o195b:   cd ed 0e CALL c0eed
@@ -3148,7 +3264,7 @@ $1989          32 94 21 STA $2194
 $198c          21 92 21 LXI H, #2192
 $198f          3e 03    MVI A, #03
 $1991 o1991:   cd d9 03 CALL c03d9
-$1994          21 90 21 LXI H, #2190
+$1994          21 90 21 LXI H, GAME_STATE
 $1997 o1997:   cd e6 03 CALL c03e6
 $199a o199a:   ca b9 19 JZ j19b9
 $199d o199d:   cd d9 03 CALL c03d9
@@ -3197,7 +3313,7 @@ $19fe          f6 c0    ORI #c0
 $1a00          32 92 21 STA $2192
 $1a03          21 b6 23 LXI H, #23b6
 $1a06          3e 06    MVI A, #06
-$1a08 o1a08:   cd ce 03 CALL c03ce
+$1a08 o1a08:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $1a0b          3a ac 23 LDA $23ac
 $1a0e          e6 30    ANI #30
 $1a10 o1a10:   ca 1c 1a JZ j1a1c
@@ -3212,7 +3328,7 @@ $1a23          3a 8c 23 LDA $238c
 $1a26          e6 0f    ANI #0f
 $1a28          32 8c 23 STA $238c
 $1a2b          21 82 13 LXI H, #1382
-$1a2e o1a2e:   cd e4 12 CALL c12e4
+$1a2e o1a2e:   cd e4 12 CALL cPLAY_SOUND
 $1a31          3e 00    MVI A, #00
 $1a33          32 9b 23 STA BALL_IN_PLAY_1
 $1a36          32 bb 23 STA BALL_IN_PLAY_2
@@ -3234,15 +3350,15 @@ $1a5e          32 9b 23 STA BALL_IN_PLAY_1
 $1a61          32 bb 23 STA BALL_IN_PLAY_2
 $1a64          3e 04    MVI A, #04
 $1a66          21 7e 23 LXI H, #237e
-$1a69 jo1a69:  cd ce 03 CALL c03ce ;o19de
+$1a69 jo1a69:  cd ce 03 CALL cSET_ATH_BIT_OF_HL ;o19de
 $1a6c          3a 13 22 LDA BALLS_PER_GAME
 $1a6f          4f       MOV C,A
 $1a70          3a 7b 23 LDA BALL_IN_PLAY_hrm
 $1a73          b9       CMP C
 $1a74 o1a74:   c2 8a 1a JNZ j1a8a
-$1a77          21 90 21 LXI H, #2190
+$1a77          21 90 21 LXI H, GAME_STATE
 $1a7a          3e 04    MVI A, #04
-$1a7c o1a7c:   cd ce 03 CALL c03ce
+$1a7c o1a7c:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $1a7f          06 00    MVI B, #00
 $1a81 o1a81:   cd 9d 1d CALL co1d9d
 $1a84 o1a84:   ca 8a 1a JZ j1a8a
@@ -3252,7 +3368,7 @@ $1a8d          32 be 23 STA $23be
 $1a90          47       MOV B,A
 $1a91          e6 0f    ANI #0f
 $1a93          32 9e 23 STA $239e
-$1a96          21 90 21 LXI H, #2190
+$1a96          21 90 21 LXI H, GAME_STATE
 $1a99          3e 00    MVI A, #00
 $1a9b o1a9b:   cd d9 03 CALL c03d9
 $1a9e          3e 03    MVI A, #03
@@ -3280,7 +3396,7 @@ $1ad5          3d       DCR A
 $1ad6          32 12 22 STA $2212
 $1ad9 o1ad9:   ca ea 1a JZ j1aea
 $1adc          21 a4 13 LXI H, #13a4
-$1adf o1adf:   cd e4 12 CALL c12e4
+$1adf o1adf:   cd e4 12 CALL cPLAY_SOUND
 $1ae2          3e a0    MVI A, #a0
 $1ae4          32 a1 21 STA $21a1
 $1ae7 o1ae7:   c3 08 06 JMP jo0608
@@ -3334,9 +3450,9 @@ $1b5d          06 39    MVI B, #39
 $1b5f o1b5f:   cd 82 1d CALL co1d82
 $1b62          21 92 21 LXI H, #2192
 $1b65          3e 07    MVI A, #07
-$1b67 o1b67:   cd ce 03 CALL c03ce
+$1b67 o1b67:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $1b6a          21 c9 13 LXI H, #13c9
-$1b6d o1b6d:   cd e4 12 CALL c12e4
+$1b6d o1b6d:   cd e4 12 CALL cPLAY_SOUND
 $1b70          3a 14 22 LDA $2214
 $1b73          3d       DCR A
 $1b74          32 14 22 STA $2214
@@ -3358,6 +3474,7 @@ $1b97 o1b97:   cd 9d 1d CALL co1d9d
 $1b9a o1b9a:   c2 a0 1b JNZ jo1ba0
 $1b9d o1b9d:   cd 77 1d CALL co1d77
 $1ba0 jo1ba0:  c3 08 06 JMP jo0608 ;o1b79,o1b7c,o1b92,o1b9a
+ 
 $1ba3 c1ba3:   3a 7e 23 LDA $237e ;o18ca,o1afc
 $1ba6          e6 f0    ANI #f0
 $1ba8          21 eb 21 LXI H, #21eb
@@ -3412,7 +3529,7 @@ $1c19          b7       ORA A
 $1c1a          21 b6 23 LXI H, #23b6
 $1c1d          3e 07    MVI A, #07
 $1c1f o1c1f:   c2 28 1c JNZ jo1c28
-$1c22 o1c22:   cd ce 03 CALL c03ce
+$1c22 o1c22:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $1c25 o1c25:   c3 a2 01 JMP j01a2
 $1c28 jo1c28:  cd d9 03 CALL c03d9 ;o1c1f
 $1c2b o1c2b:   c3 a2 01 JMP j01a2
@@ -3436,7 +3553,7 @@ $1c53 j1c53:   21 92 21 LXI H, #2192 ;o1bc0
 $1c56          3e 00    MVI A, #00
 $1c58 o1c58:   cd e6 03 CALL c03e6
 $1c5b o1c5b:   c2 08 02 JNZ j0208
-$1c5e o1c5e:   cd ce 03 CALL c03ce
+$1c5e o1c5e:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $1c61          3a 41 22 LDA $2241
 $1c64          e6 01    ANI #01
 $1c66 o1c66:   c2 74 1c JNZ j1c74
@@ -3514,20 +3631,20 @@ $1d16          e6 cf    ANI #cf
 $1d18          32 b6 23 STA $23b6
 $1d1b          21 c2 21 LXI H, #21c2
 $1d1e          3e 05    MVI A, #05
-$1d20 o1d20:   cd ce 03 CALL c03ce
+$1d20 o1d20:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $1d23          3a c2 21 LDA $21c2
 $1d26          2f       CMA
-$1d27          d3 05    OUT #05
+$1d27          d3 05    OUT COIL_5
 $1d29          3e 80    MVI A, #80
 $1d2b          32 93 21 STA $2193
 $1d2e          3e 06    MVI A, #06
 $1d30          32 ac 21 STA $21ac
 $1d33          3e 00    MVI A, #00
 $1d35          32 94 21 STA $2194
-$1d38          3a 90 21 LDA $2190
+$1d38          3a 90 21 LDA GAME_STATE
 $1d3b          e6 30    ANI #30
 $1d3d          f6 80    ORI #80
-$1d3f          32 90 21 STA $2190
+$1d3f          32 90 21 STA GAME_STATE
 $1d42          3a 92 21 LDA $2192
 $1d45          e6 67    ANI #67
 $1d47          32 92 21 STA $2192
@@ -3536,7 +3653,7 @@ $1d4d          3e 01    MVI A, #01
 $1d4f o1d4f:   cd d9 03 CALL c03d9
 $1d52          21 94 21 LXI H, #2194
 $1d55          3e 04    MVI A, #04
-$1d57 o1d57:   cd ce 03 CALL c03ce
+$1d57 o1d57:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $1d5a          3e 06    MVI A, #06
 $1d5c          32 a8 21 STA $21a8
 $1d5f          3e 05    MVI A, #05
@@ -3546,14 +3663,17 @@ $1d67          21 c2 21 LXI H, #21c2
 $1d6a          3e 05    MVI A, #05
 $1d6c o1d6c:   cd d9 03 CALL c03d9
 $1d6f          f3       DI
-$1d70          cd de 13 DB 0xcd,0xde,0x13  ; (was:          cd de 13 CALL $13de)
+$1d70 o1d70:   cd de 13 CALL jc13de
 $1d73          fb       EI
 $1d74 o1d74:   c3 08 06 JMP jo0608
+ 
 $1d77 co1d77:  cd a4 1d CALL c1da4 ;o0bbd,o0bfb,o0c13,o0c3b,o0d24,o0f26,o154a,o156d,o1578,o1b14,o1b19,o1b1e,o1b23,o1b28,o1b9d
-$1d7a o1d7a:   cd ce 03 CALL c03ce
+$1d7a o1d7a:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $1d7d          19       DAD D
-$1d7e o1d7e:   cd ce 03 CALL c03ce
+$1d7e o1d7e:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $1d81          c9       RET
+
+ 
 $1d82 co1d82:  cd a4 1d CALL c1da4 ;o0501,o09c5,jo0ac1,o0c19,o0d14,o0d19,o0dc8,o0e4d,o1512,jo1573,o15f7,o1aa5,o1ac4,o1b2d,o1b32,o1b37,o1b3c,o1b5f,o1d08
 $1d85 o1d85:   cd d9 03 CALL c03d9
 $1d88          19       DAD D
@@ -3562,14 +3682,20 @@ $1d8c          f5       PUSH PSW
 $1d8d o1d8d:   cd d9 03 CALL c03d9
 $1d90          f1       POP PSW
 $1d91          c9       RET
+
+ 
 $1d92 co1d92:  cd a4 1d CALL c1da4 ;jo0afb,o15fc,o19a7,o1a87
-$1d95 o1d95:   cd ce 03 CALL c03ce
+$1d95 o1d95:   cd ce 03 CALL cSET_ATH_BIT_OF_HL
 $1d98          19       DAD D
 $1d99 o1d99:   cd d9 03 CALL c03d9
 $1d9c          c9       RET
+
+ 
 $1d9d co1d9d:  cd a4 1d CALL c1da4 ;o0aea,o0bf3,o0c35,o0cb9,o0cdf,o0cec,o0cfe,o0e47,o155d,o1565,o15f1,o18e3,o1a48,o1a81,o1b97
 $1da0 o1da0:   cd e6 03 CALL c03e6
 $1da3          c9       RET
+
+ 
 $1da4 c1da4:   21 c9 21 LXI H, #21c9 ;co1d77,co1d82,co1d92,co1d9d
 $1da7          16 00    MVI D, #00
 $1da9          78       MOV A,B
@@ -3583,6 +3709,8 @@ $1db1          1f       RAR
 $1db2          e6 07    ANI #07
 $1db4          11 05 00 LXI D, #0005
 $1db7          c9       RET
+
+ 
 $1db8 c1db8:   21 63 23 LXI H, #2363 ;o1a43
 $1dbb o1dbb:   cd c8 1f CALL c1fc8
 $1dbe          21 6b 23 LXI H, #236b
@@ -3658,13 +3786,16 @@ $1e5b o1e5b:   cd 6b 1e CALL c1e6b
 $1e5e          e1       POP H
 $1e5f          22 3a 22 SHLD $223a
 $1e62 o1e62:   c3 83 1e JMP j1e83
+ 
 $1e65 c1e65:   2a 3c 22 LHLD $223c ;o1e50
 $1e68          22 3e 22 SHLD $223e
+ 
 $1e6b c1e6b:   2a 3a 22 LHLD $223a ;o1e06,o1e11,o1e5b
 $1e6e          22 3c 22 SHLD $223c
 $1e71          2a 38 22 LHLD $2238
 $1e74          22 3a 22 SHLD $223a
 $1e77          c9       RET
+
 $1e78 j1e78:   e5       PUSH H ;o1e46
 $1e79          2a 3c 22 LHLD $223c
 $1e7c          22 3e 22 SHLD $223e
@@ -3702,6 +3833,7 @@ $1ec3 o1ec3:   cd a9 0e CALL c0ea9
 $1ec6          e1       POP H
 $1ec7 o1ec7:   dc 9e 1f CC c1f9e
 $1eca          c9       RET
+
 $1ecb          21 2c 22 LXI H, #222c
 $1ece o1ece:   cd c8 1f CALL c1fc8
 $1ed1          2a 3a 22 LHLD $223a
@@ -3726,6 +3858,7 @@ $1ef9 o1ef9:   cd a9 0e CALL c0ea9
 $1efc          e1       POP H
 $1efd o1efd:   dc 9e 1f CC c1f9e
 $1f00          c9       RET
+
 $1f01          21 30 22 LXI H, #2230
 $1f04 o1f04:   cd c8 1f CALL c1fc8
 $1f07          2a 3c 22 LHLD $223c
@@ -3742,6 +3875,7 @@ $1f1d o1f1d:   cd a9 0e CALL c0ea9
 $1f20          e1       POP H
 $1f21 o1f21:   dc 9e 1f CC c1f9e
 $1f24          c9       RET
+
 $1f25          21 34 22 LXI H, #2234
 $1f28 o1f28:   cd c8 1f CALL c1fc8
 $1f2b          2a 3e 22 LHLD $223e
@@ -3750,6 +3884,8 @@ $1f2f o1f2f:   cd a9 0e CALL c0ea9
 $1f32          e1       POP H
 $1f33 o1f33:   dc 9e 1f CC c1f9e
 $1f36          c9       RET
+
+ 
 $1f37 c1f37:   f5       PUSH PSW ;o1f62,o1f79,o1f90
 $1f38          21 30 22 LXI H, #2230
 $1f3b          e5       PUSH H
@@ -3773,6 +3909,8 @@ $1f56          21 28 22 LXI H, #2228
 $1f59          3e 07    MVI A, #07
 $1f5b o1f5b:   cd 60 0f CALL c0f60
 $1f5e          c9       RET
+
+ 
 $1f5f c1f5f:   e5       PUSH H ;o1e91
 $1f60          3e 03    MVI A, #03
 $1f62 o1f62:   cd 37 1f CALL c1f37
@@ -3781,9 +3919,11 @@ $1f66          11 28 22 LXI D, #2228
 $1f69          3e 07    MVI A, #07
 $1f6b o1f6b:   cd 60 0f CALL c0f60
 $1f6e          21 d4 13 LXI H, #13d4
-$1f71 o1f71:   cd e4 12 CALL c12e4
+$1f71 o1f71:   cd e4 12 CALL cPLAY_SOUND
 $1f74          3f       CMC
 $1f75          c9       RET
+
+ 
 $1f76 c1f76:   e5       PUSH H ;o1ea3,o1ed9
 $1f77          3e 02    MVI A, #02
 $1f79 o1f79:   cd 37 1f CALL c1f37
@@ -3792,9 +3932,11 @@ $1f7d          11 2c 22 LXI D, #222c
 $1f80          3e 07    MVI A, #07
 $1f82 o1f82:   cd 60 0f CALL c0f60
 $1f85          21 d4 13 LXI H, #13d4
-$1f88 o1f88:   cd e4 12 CALL c12e4
+$1f88 o1f88:   cd e4 12 CALL cPLAY_SOUND
 $1f8b          3f       CMC
 $1f8c          c9       RET
+
+ 
 $1f8d c1f8d:   e5       PUSH H ;o1eb5,o1eeb,o1f0f
 $1f8e          3e 01    MVI A, #01
 $1f90 o1f90:   cd 37 1f CALL c1f37
@@ -3804,11 +3946,15 @@ $1f97          3e 07    MVI A, #07
 $1f99 o1f99:   cd 60 0f CALL c0f60
 $1f9c          3f       CMC
 $1f9d          c9       RET
+
+ 
 $1f9e c1f9e:   11 34 22 LXI D, #2234 ;o1ec7,o1efd,o1f21,o1f33
 $1fa1          3e 07    MVI A, #07
 $1fa3 o1fa3:   cd 60 0f CALL c0f60
 $1fa6          3f       CMC
 $1fa7          c9       RET
+
+ 
 $1fa8 c1fa8:   21 2c 22 LXI H, #222c ;o09eb
 $1fab          e5       PUSH H
 $1fac          11 28 22 LXI D, #2228
@@ -3824,6 +3970,8 @@ $1fbf          21 34 22 LXI H, #2234
 $1fc2          3e 07    MVI A, #07
 $1fc4 o1fc4:   cd 60 0f CALL c0f60
 $1fc7          c9       RET
+
+ 
 $1fc8 c1fc8:   11 f3 21 LXI D, #21f3 ;o1dbb,o1de1,o1df3,o1e1b,o1e2d,o1e3d,o1e86,o1e98,o1eaa,o1ebc,o1ece,o1ee0,o1ef2,o1f04,o1f16,o1f28
 $1fcb          3e 00    MVI A, #00
 $1fcd          06 04    MVI B, #04
@@ -3836,6 +3984,7 @@ $1fd8          3e 07    MVI A, #07
 $1fda o1fda:   cd 60 0f CALL c0f60
 $1fdd          3e 07    MVI A, #07
 $1fdf          c9       RET
+
 $1fe0          00       NOP
 $1fe1          81       ADD C
 $1fe2          23       INX H

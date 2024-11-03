@@ -138,6 +138,7 @@ not_code:
    INLANE_HANDLER_PTR : [$145d, $145e]
    MUSIC : [$12ac, $137c]
    DUNNO : [$0819,$0836]
+   DUNNO_VECTORS : [$072c, $075e]
    COIL_VECTORS_HRM : [$03ab, $03d5]
 
 inPorts:

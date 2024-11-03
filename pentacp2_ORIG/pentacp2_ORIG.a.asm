@@ -54,7 +54,7 @@ LEFT_SLING_TONE EQU 0x12b9
 RIGHT_SLING_TONE EQU 0x12bc
 SILENCE_END_LOOP_MUSIC EQU 0x12bf
 TILT_MUSIC EQU 0x12c2
-BONUS_MUSIC EQU 0x12c2
+BONUS_MUSIC EQU 0x12d7
 START_PLAYER_MUSIC EQU 0x12da
 UNKNOWN_MUSIC EQU 0x12dd
 LOW_MUSIC EQU 0x12e0
@@ -837,7 +837,7 @@ $0538          32 1b 22 STA $221b
 $053b          3e 02    MVI A, #02
 $053d          32 9d 21 STA $219d
 $0540 o0540:   c3 82 03 JMP jo0382
-$0543 jTILT2:  21 c2 12 LXI H, BONUS_MUSIC ;o04ab,o04b3
+$0543 jTILT2:  21 c2 12 LXI H, TILT_MUSIC ;o04ab,o04b3
 $0546 o0546:   cd 61 12 CALL cPLAY_SOUND
 $0549 o0549:   c3 82 03 JMP jo0382
 $054c          3a 1b 22 LDA $221b
@@ -870,7 +870,7 @@ $058e o058e:   c2 a2 05 JNZ j05a2
 $0591 o0591:   cd 4f 04 CALL cTILT_HELPER
 $0594          3e 7d    MVI A, #7d
 $0596          32 a2 21 STA $21a2
-$0599          21 c2 12 LXI H, BONUS_MUSIC
+$0599          21 c2 12 LXI H, TILT_MUSIC
 $059c o059c:   cd 61 12 CALL cPLAY_SOUND
 $059f o059f:   c3 1e 06 JMP joEND_MAIN_LOOP
 $05a2 j05a2:   3a 94 21 LDA STATE_OUTLANE_1 ;o0588,o058e
@@ -2543,7 +2543,7 @@ $12be          ff       DB #ff
 SILENCE_END_LOOP_MUSIC          1c       DB #1c
 $12c0          00       DB #00
 $12c1          ff       DB #ff
-BONUS_MUSIC          43       DB #43
+TILT_MUSIC          43       DB #43
 $12c3          08       DB #08
 $12c4          87       DB #87
 $12c5          08       DB #08
@@ -2564,7 +2564,7 @@ $12d3          08       DB #08
 $12d4          87       DB #87
 $12d5          08       DB #08
 $12d6          ff       DB #ff
-$12d7          55       DB #55
+BONUS_MUSIC          55       DB #55
 $12d8          08       DB #08
 $12d9          ff       DB #ff
 START_PLAYER_MUSIC          3c       DB #3c
@@ -2911,7 +2911,7 @@ $14ae o14ae:   cd e1 03 CALL cCLEAR_ATH_BIT_OF_HL
 $14b1 o14b1:   cd 81 1d CALL co1d81
 $14b4          21 61 11 LXI H, #1161
 $14b7 o14b7:   cd 92 02 CALL cADD_BONUS_HL
-$14ba          21 d7 12 LXI H, #12d7
+$14ba          21 d7 12 LXI H, BONUS_MUSIC
 $14bd o14bd:   cd 61 12 CALL cPLAY_SOUND
 $14c0          3a c6 21 LDA $21c6
 $14c3          fe 00    CPI #00
@@ -2932,7 +2932,7 @@ $14e4          21 2d 15 LXI H, #152d
 $14e7          19       DAD D
 $14e8          46       MOV B,M
 $14e9 o14e9:   cd 76 1d CALL co1d76
-$14ec          21 d7 12 LXI H, #12d7
+$14ec          21 d7 12 LXI H, BONUS_MUSIC
 $14ef o14ef:   cd 61 12 CALL cPLAY_SOUND
 $14f2          3e 0a    MVI A, #0a
 $14f4          32 a4 21 STA $21a4
