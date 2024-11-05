@@ -48,6 +48,7 @@ BALL_IN_PLAY_3 EQU 0x23db
 BALLS_PER_GAME EQU 0x2213
 DIP_SWITCHES EQU 0x2216
 HARD_RESET EQU 0x5d
+CUPS_LEFT EQU 0x21c7
 GAME_STATE EQU 0x2190
 GAME_STATE2 EQU 0x2192
 STACK_SCRATCH EQU 0x2195
@@ -112,15 +113,13 @@ $0014 j0014:   3a 7a 23 LDA CREDITS_1 ;o000d
 $0017          c9       RET
 
  
-$0018 c0018:   21 7d 11 LXI H, #117d ;jo151f
-$001b o001b:   cd 5c 0e CALL cADD_BONUS
-$001e          c9       RET
+$0018 c0018:   3e 3c    MVI A, #3c ;jo0aac
+$001a          32 a5 21 STA $21a5
+ 
+$001d c001d:   21 7d 11 LXI H, #117d ;jo151f
+$0020 o0020:   cd 5c 0e CALL cADD_BONUS
+$0023          c9       RET
 
-$001f          76       HLT
-$0020          76       HLT
-$0021          76       HLT
-$0022          76       HLT
-$0023          76       HLT
 $0024 o0024:   c3 69 00 JMP j0069
 $0027          76       HLT
 $0028          76       HLT
@@ -1401,7 +1400,7 @@ $09d4          32 a6 21 STA $21a6
 $09d7 o09d7:   c3 19 14 JMP jo1419
 $09da jo09da:  cd 81 1d CALL co1d81 ;o09c8
 $09dd          79       MOV A,C
-$09de          21 c7 21 LXI H, #21c7
+$09de          21 c7 21 LXI H, CUPS_LEFT
 $09e1 o09e1:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
 $09e4 o09e4:   ca 52 0b JZ jo0b52
 $09e7 o09e7:   cd e1 03 CALL cCLEAR_ATH_BIT_OF_HL
@@ -1474,17 +1473,19 @@ $0a88          32 9c 21 STA $219c
 $0a8b          3e fa    MVI A, #fa
 $0a8d          32 08 22 STA $2208
 $0a90 o0a90:   c3 1e 06 JMP joEND_MAIN_LOOP
-$0a93 j0a93:   3a c7 21 LDA $21c7 ;o0a4a,o0a58,o0a83
+$0a93 j0a93:   3a c7 21 LDA CUPS_LEFT ;o0a4a,o0a58,o0a83
 $0a96          fe 00    CPI #00
-$0a98 o0a98:   ca ac 0a JZ j0aac
+$0a98 o0a98:   ca ac 0a JZ jo0aac
 $0a9b          2a 09 22 LHLD $2209
 $0a9e          3a 0b 22 LDA $220b
 $0aa1 o0aa1:   cd d6 03 CALL cSET_ATH_BIT_OF_HL
 $0aa4          3e 06    MVI A, #06
 $0aa6          32 a6 21 STA $21a6
 $0aa9 o0aa9:   c3 1e 06 JMP joEND_MAIN_LOOP
-$0aac j0aac:   3e 3c    MVI A, #3c ;o0a98
-$0aae          32 a5 21 STA $21a5
+; all cups complete
+$0aac jo0aac:  cd 18 00 CALL c0018 ;o0a98
+$0aaf          00       NOP
+$0ab0          00       NOP
 $0ab1          3e 64    MVI A, #64
 $0ab3          32 08 22 STA $2208
 $0ab6          3e 00    MVI A, #00
@@ -1516,7 +1517,7 @@ $0af2 o0af2:   cd d6 03 CALL cSET_ATH_BIT_OF_HL
 $0af5          3e 06    MVI A, #06
 $0af7          32 a6 21 STA $21a6
 $0afa          3e 1f    MVI A, #1f
-$0afc          32 c7 21 STA $21c7
+$0afc          32 c7 21 STA CUPS_LEFT
 $0aff          3a 46 22 LDA $2246
 $0b02          87       ADD A
 $0b03          87       ADD A
@@ -1934,7 +1935,7 @@ $0e5b          c9       RET
 
  
 $0e5c cADD_BONUS:
-               11 f3 21 LXI D, SPREAD_1 ;o001b,o0a39,o0a73,o0cfc,o0dd8,o154f,o15ef,o18ed
+               11 f3 21 LXI D, SPREAD_1 ;o0020,o0a39,o0a73,o0cfc,o0dd8,o154f,o15ef,o18ed
 $0e5f          3e 08    MVI A, #08
 $0e61 o0e61:   cd cf 0e CALL cCOPY_FROM_HL_TO_DE
 $0e64          21 5b 23 LXI H, #235b
@@ -2957,7 +2958,7 @@ $1514 o1514:   c3 1f 15 JMP jo151f
 $1517 jo1517:  cd 81 1d CALL co1d81 ;o1504
 $151a          06 38    MVI B, #38
 $151c o151c:   cd 76 1d CALL co1d76
-$151f jo151f:  cd 18 00 CALL c0018 ;o150c,o1514
+$151f jo151f:  cd 1d 00 CALL c001d ;o150c,o1514
 ; reset rollovers
 $1522          3e ff    MVI A, #ff
 $1524          32 c6 21 STA ROLLOVERS
@@ -2988,7 +2989,7 @@ $1560          3e 01    MVI A, #01
 $1562 o1562:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
 $1565 o1565:   c2 88 15 JNZ j1588
 $1568 o1568:   cd d6 03 CALL cSET_ATH_BIT_OF_HL
-$156b          3a c7 21 LDA $21c7
+$156b          3a c7 21 LDA CUPS_LEFT
 $156e          06 ff    MVI B, #ff
 $1570 j1570:   04       INR B ;o1572
 $1571          1f       RAR

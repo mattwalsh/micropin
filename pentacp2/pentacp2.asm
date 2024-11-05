@@ -48,6 +48,7 @@ BALL_IN_PLAY_3 EQU 0x23db
 BALLS_PER_GAME EQU 0x2213
 DIP_SWITCHES EQU 0x2216
 HARD_RESET EQU 0x5d
+CUPS_LEFT EQU 0x21c7
 GAME_STATE EQU 0x2190
 GAME_STATE2 EQU 0x2192
 STACK_SCRATCH EQU 0x2195
@@ -110,15 +111,12 @@ o000d:  JNZ j0014
 j0014:  LDA CREDITS_1 ;o000d
         RET
 
-c0018:  LXI H, #117d ;jo151f
-o001b:  CALL cADD_BONUS
+c0018:  MVI A, #3c ;jo0aac
+        STA $21a5
+c001d:  LXI H, #117d ;jo151f
+o0020:  CALL cADD_BONUS
         RET
 
-        HLT
-        HLT
-        HLT
-        HLT
-        HLT
 o0024:  JMP j0069
         HLT
         HLT
@@ -1383,7 +1381,7 @@ o09cf:  CALL cSET_ATH_BIT_OF_HL
 o09d7:  JMP jo1419
 jo09da: CALL co1d81 ;o09c8
         MOV A,C
-        LXI H, #21c7
+        LXI H, CUPS_LEFT
 o09e1:  CALL cCHECK_ATH_BIT_OF_HL
 o09e4:  JZ jo0b52
 o09e7:  CALL cCLEAR_ATH_BIT_OF_HL
@@ -1456,17 +1454,19 @@ o0a83:  JZ j0a93
         MVI A, #fa
         STA $2208
 o0a90:  JMP joEND_MAIN_LOOP
-j0a93:  LDA $21c7 ;o0a4a,o0a58,o0a83
+j0a93:  LDA CUPS_LEFT ;o0a4a,o0a58,o0a83
         CPI #00
-o0a98:  JZ j0aac
+o0a98:  JZ jo0aac
         LHLD $2209
         LDA $220b
 o0aa1:  CALL cSET_ATH_BIT_OF_HL
         MVI A, #06
         STA $21a6
 o0aa9:  JMP joEND_MAIN_LOOP
-j0aac:  MVI A, #3c ;o0a98
-        STA $21a5
+; all cups complete
+jo0aac: CALL c0018 ;o0a98
+        NOP
+        NOP
         MVI A, #64
         STA $2208
         MVI A, #00
@@ -1498,7 +1498,7 @@ o0af2:  CALL cSET_ATH_BIT_OF_HL
         MVI A, #06
         STA $21a6
         MVI A, #1f
-        STA $21c7
+        STA CUPS_LEFT
         LDA $2246
         ADD A
         ADD A
@@ -1912,7 +1912,7 @@ j0e58:  POP PSW ;o0e51
         RET
 
 cADD_BONUS:
-              LXI D, SPREAD_1 ;o001b,o0a39,o0a73,o0cfc,o0dd8,o154f,o15ef,o18ed
+              LXI D, SPREAD_1 ;o0020,o0a39,o0a73,o0cfc,o0dd8,o154f,o15ef,o18ed
         MVI A, #08
 o0e61:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, #235b
@@ -2925,7 +2925,7 @@ o1514:  JMP jo151f
 jo1517: CALL co1d81 ;o1504
         MVI B, #38
 o151c:  CALL co1d76
-jo151f: CALL c0018 ;o150c,o1514
+jo151f: CALL c001d ;o150c,o1514
 ; reset rollovers
         MVI A, #ff
         STA ROLLOVERS
@@ -2956,7 +2956,7 @@ o155a:  JZ j1588
 o1562:  CALL cCHECK_ATH_BIT_OF_HL
 o1565:  JNZ j1588
 o1568:  CALL cSET_ATH_BIT_OF_HL
-        LDA $21c7
+        LDA CUPS_LEFT
         MVI B, #ff
 j1570:  INR B ;o1572
         RAR

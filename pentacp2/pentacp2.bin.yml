@@ -67,6 +67,8 @@ addresses:
    DIP_SWITCHES: $2216
    HARD_RESET : $005D
 
+   CUPS_LEFT : $21c7
+
    #  bit 2 - has outlane triggered?
    GAME_STATE : $2190
 
@@ -191,6 +193,7 @@ notes:
   $07bc : "computed sound?"
   $0837 : "left flipper"
   $0891 : "right flipper"
+  $0aac : "all cups complete"
   $1149 : "scores"
   $1181 : "default high score"
   $1351 : "godfather"
