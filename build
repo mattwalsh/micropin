@@ -50,15 +50,24 @@ if [ $retval -ne 0 ]; then
    exit 1
 fi
 
-split -b 2048 "${src_filename}.bin" ${src_filename}
+FILESIZE=$(wc -c < "${src_filename}.bin")
+
+if [ $FILESIZE != 8192 ]; then
+   echo "BUILD FAILED!  Size is ${FILESIZE}"
+   exit 1
+fi
+
+split -b 2048 "${src_filename}.bin" outfile
+
 rm ${src_filename}.bin
-mv ${src_filename}aa ${SRC_ROM_PREFIX}_1.bin
-mv ${src_filename}ab ${SRC_ROM_PREFIX}_2.bin
-mv ${src_filename}ac ${SRC_ROM_PREFIX}_3.bin
-mv ${src_filename}ad ${SRC_ROM_PREFIX}_4.bin
+mv outfileaa ${SRC_ROM_PREFIX}_1.bin
+mv outfileab ${SRC_ROM_PREFIX}_2.bin
+mv outfileac ${SRC_ROM_PREFIX}_3.bin
+mv outfilead ${SRC_ROM_PREFIX}_4.bin
 
 echo "deploying to ${dst_filename} in rom folder ${ROM_FOLDER}"
 cp ${SRC_ROM_PREFIX}_1.bin ${ROM_FOLDER}/${DST_ROM_PREFIX}_1.bin
 cp ${SRC_ROM_PREFIX}_2.bin ${ROM_FOLDER}/${DST_ROM_PREFIX}_2.bin
 cp ${SRC_ROM_PREFIX}_3.bin ${ROM_FOLDER}/${DST_ROM_PREFIX}_3.bin
 cp ${SRC_ROM_PREFIX}_4.bin ${ROM_FOLDER}/${DST_ROM_PREFIX}_4.bin
+exit 0
