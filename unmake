@@ -29,6 +29,7 @@ echo ${ONE_FILE}
 cat ${ROM_PREFIX}_1.bin ${ROM_PREFIX}_2.bin ${ROM_PREFIX}_3.bin ${ROM_PREFIX}_4.bin > ${ONE_FILE}
 
 python3 ${DISASM_DIR}/matdasm.py -i $ONE_FILE > ${filename}.asm
+python3 ${DISASM_DIR}/matdasm.py --raw -i $ONE_FILE > ${filename}.raw.asm
 python3 ${DISASM_DIR}/matdasm.py -w -a -i $ONE_FILE > ${filename}.a.asm
 
 rm ${ONE_FILE}
