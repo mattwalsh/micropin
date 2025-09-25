@@ -1,0 +1,65 @@
+● Based on my analysis, here are the three computed jump patterns I found:
+
+  1. Switch Handler Jump Table (line 548)
+
+  ; Setup code around lines 540-548
+  XCHG                    ; DE = switch number (from E register)
+  DAD H                   ; HL = DE * 2 (for 16-bit addresses)
+  LXI D, #03b6           ; Base address of jump table
+  DAD D                   ; HL = 0x03B6 + (switch_num * 2)
+  MOV A,M                 ; Load low byte of target address
+  INX H
+  MOV H,M                 ; Load high byte of target address
+  MOV L,A                 ; HL = target address
+  PCHL                    ; Jump to target
+
+  2. Timer/Event Handler Jump Table (line 910)
+
+  ; Setup code around lines 898-910
+  SUB C                   ; Calculate index
+  ADD A                   ; A = index * 2
+  LXI D, #0000
+  MOV E,A                 ; DE = index * 2
+  LXI H, #072c           ; Base address of jump table
+  DAD D                   ; HL = 0x072C + (index * 2)
+  MOV A,M                 ; Load low byte
+  INX H
+  MOV H,M                 ; Load high byte
+  MOV L,A                 ; HL = target address
+  PCHL                    ; Jump to target
+
+  3. Ball Position Handler Jump Table (line 2786)
+
+  ; Setup code around lines 2775-2786
+  MOV A,L                 ; A = ball position - 0xE0
+  SUI #e0
+  MOV L,A                 ; L = adjusted position
+  MVI H, #00             ; HL = adjusted position
+  DAD H                   ; HL = position * 2
+  LXI D, #141f           ; Base address of jump table
+  DAD D                   ; HL = 0x141F + (position * 2)
+  MOV A,M                 ; Load low byte
+  INX H
+  MOV H,M                 ; Load high byte
+  MOV L,A                 ; HL = target address
+  PCHL                    ; Jump to target
+
+  Proposed Relocatable Solution:
+
+  To make this relocatable, you'd want to define symbolic constants:
+
+  ; Jump table base addresses
+  SWITCH_JUMP_TABLE    EQU BASE + 0x03B6
+  TIMER_JUMP_TABLE     EQU BASE + 0x072C
+  BALL_POS_JUMP_TABLE  EQU BASE + 0x141F
+
+  ; And then replace the hardcoded values:
+  ; Instead of: LXI D, #03b6
+  ; Use:        LXI D, SWITCH_JUMP_TABLE
+
+  ; Instead of: LXI H, #072c
+  ; Use:        LXI H, TIMER_JUMP_TABLE
+
+  ; Instead of: LXI D, #141f
+  ; Use:        LXI D, BALL_POS_JUMP_TABLE
+
