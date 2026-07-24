@@ -1,0 +1,4 @@
+#!/bin/zsh
+cd ~/.pinmame/nvram
+rm pentacp2.nv
+cp ok_pentacp2.nv pentacp2.nv

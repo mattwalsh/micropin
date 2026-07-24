@@ -1,0 +1,212 @@
+addresses:
+   NEXT_TONE : $21b1
+   HIGH_SCORE_START : $222D         
+   HIGH_SCORE_DISP   : $2323
+   HIGH_SCORE_DISP2   : $2330
+   HIGH_SCORE_NOW  : $2393
+   HIGH_SCORE_DISP3 : $23B3
+   HIGH_SCORE_DISP4 : $23D3
+   PRICE_1   : $237F         
+   PRICE_2   : $239F 
+   PRICE_3   : $23BF 
+   PRICE_4   : $23DF 
+   CREDITS_1 : $237A
+   ROLLOVERS : $21C6
+
+# 52 54 56 58 5A 5c 5e 1360 1362 
+
+#1450, 1825, 1175, 2025
+
+   PL13_SCORE_1 : $2367
+   PL13_SCORE_2 : $236F
+   PL24_SCORE_1 : $2373
+   # ??PL24_SCORE_2 : $2373
+
+   SPREAD_1 : $21f3
+   # set to ff when outlane triggered
+   STATE_OUTLANE_1 : $2193
+
+   # gets OR'd by $30 when outlane triggered 
+   STATE_OUTLANE_1 : $2194 
+
+   SPREAD_2 : $2377
+   SPREAD_3 : $23b7
+   SPREAD_4 : $2397
+   FREE_BALL : $2389
+
+   CREDIT_1 : $239A
+   CREDIT_2 : $23BA
+   PL1_SCORE_1 : $2363
+   PL1_SCORE_2 : $2386
+   PL1_SCORE_DISPLAY : $23A6
+   PL1_SCORE_DISPLAY2 : $2386
+   PL1_SCORE_hrm: $2377           
+
+   PL2_SCORE_1 : $236b
+   PL2_SCORE_2 : $238D
+   PL2_SCORE_3 : $23AD
+   PL2_SCORE_H : $2360           
+
+   PL3_SCORE_1 : $235f
+   PL3_SCORE_2 : $23fe
+   PL1_AND_3   : $2389
+   PL3_SCORE_DISPLAY_2 : $2383
+
+   PL4_SCORE_1 : $236f
+   PL4_SCORE_2 : $2390
+   PL4_SCORE_3 : $23B0
+
+   CREDITS_2 : $239A 
+   CREDITS_3 : $23BA 
+   CREDITS_4 : $23DA 
+   BALL_IN_PLAY_hrm : $237B
+   BALL_IN_PLAY_1 : $239B
+   BALL_IN_PLAY_2 : $23BB
+   BALL_IN_PLAY_3 : $23DB
+   BALLS_PER_GAME : $2213
+   DIP_SWITCHES: $2216
+   HARD_RESET : $005D
+
+   CUPS_LEFT : $21c7
+
+   #  bit 2 - has outlane triggered?
+   GAME_STATE : $2190
+
+   # F0 = game over, B0 = game on, D0 bootup.  
+   # bit 7 must be set for rollovers
+   GAME_STATE2 : $2192 
+   STACK_SCRATCH : $2195
+
+   LEFT_SLING_TONE : $12b9
+   RIGHT_SLING_TONE : $12bc
+
+   SILENCE_END_LOOP_MUSIC : $12bf
+   TILT_MUSIC : $12c2
+   BONUS_MUSIC : $12d7
+   START_PLAYER_MUSIC : $12da
+   UNKNOWN_MUSIC : $12dd
+   LOW_MUSIC : $12e0 
+   OOPS_MUSIC : $12e3 
+   OOPS2_MUSIC : $12e8 
+   LIL_VICTORY_MUSIC : $12ed 
+   LIT_STANDUP_MUSIC : $12f2
+   GAME_OVER_MUSIC : $12ff
+   SPREAD_TAKEOVER_MUSIC : $1316
+   MORSE_CODE_MUSIC : $1321
+   BUMPER_25_MUSIC_2 : $12ad
+   BUMPER_25_MUSIC : $1332
+   SPREAD_HRM_MUSIC : $1335
+   LONGER_BUMPER_25_MUSIC: $1338
+   CREDIT_MUSIC : $1341
+   NEXT_PLAYER_MUSIC : $1346
+   OUTLANE_MUSIC : $134b
+   SILENCE_MUSIC : $134e
+   POPCORN_MUSIC : $136a
+
+   HIGH_SCORE_MUSIC : $1351
+
+labels:
+   ADD_BONUS_HL : $0292
+   2_LSHIFT_A : $03f9
+   COPY_FROM_HL_TO_DE : $0ecf # A is # bytes, D is dest, H is souce
+   PLAY_SOUND : $1261
+   DECREASE_CREDIT : $16d0
+   SWITCH_HANDLER : $0386
+   END_MAIN_LOOP : $061e
+   SAVE_BDPSW : $0624
+   RESTORE_BDPSW : $0630
+   CREDIT_HANDLER : $06B4
+   LAMP_COPY : $0657
+   CHECK_ATH_BIT_OF_HL: $03ee
+   CLEAR_ATH_BIT_OF_HL: $03e1
+   SET_ATH_BIT_OF_HL: $03d6
+   WRITE_TO_RAM : $0eea
+   TILT_HANDLER : $047b
+   TILT_HELPER : $044f
+   TILT2 : $0543
+   TONE_PLAY : $118d
+   ADD_BONUS : $0e5c
+   ADD_PTS : $0f3c
+
+not_code:
+   COIN : [$03ca , $03cb] 
+   PRE_TILT_HRM : [$440, $044e]
+   SCORES1: [$1149 , $1164] 
+   OUTLANE_SCORE : [$1165, $1166]
+   SCORES2: [$1167 , $118c] 
+   HRM  : [$1a56,  $1a61]
+   HRM2  : [$17a0, $17a7]
+   TILT  : [$0742, $0743]
+   TILT_HANDLER_PTR1 : [$03cc, $03cd]
+   TILT_HANDLER_PTR2 : [$03d4, $03d5]
+   OUTANE_HANDLER_PTR : [$145b, $145c]
+   INLANE_HANDLER_PTR : [$145d, $145e]
+   MUSIC : [$12ac, $137c]
+   DUNNO : [$0819,$0836]
+   DUNNO_VECTORS : [$072c, $075e]
+   COIL_VECTORS_HRM : [$03ab, $03d5]
+
+inPorts:
+   MYSTERY_PORT_1 : $01
+   PRICE_CENTS_07_PORT : $02
+   PRICE_TENS_07_PORT : $03
+   PRICE_89_CAB : $04
+# bit 10 -> credit button?
+# bit 80 -> for the 80/90a
+# bit 20 -> flipper switch?
+# bits 0F -> when game started? 
+   DIP_SWITCH_PORT : $05
+
+outPorts:
+   LAMP_0 : $00
+   LAMP_1 : $01
+   LAMP_2 : $02
+   LAMP_3 : $03
+   LAMP_4 : $04
+   COIL_5 : $05
+   COIL_6 : $06
+   COIL_7 : $07
+   COIL_8 : $08
+   TONE_ENABLE_DUR : $09
+   TONE_PITCH : $0A
+   LAMP_D : $0D
+   LAMP_E : $0E
+   LAMP_F : $0F
+   
+
+notes:
+  $002f:  "TRAP"
+  $003C:  "RST7.5"
+  $0034:  "RST6.5"
+  $002C:  "RST5.5"
+  $005D : "hard reset routine"
+  $01D6 : "read in the ones place"
+  $020e : "load dip switches, set # balls per game"
+  $01EA : "read in the dimes place"
+  $0382 : "vector to 0630 stack restore"
+  $0440 : "unreachable or data or computed call?"
+  $0584 : "tilt handler 2"
+  $05d9 : "when no switches activated?"
+  $0624 : "push A, SP, B, D, H"
+  $0630 : "restore A, SP, B, D, H"
+  $06a4 : "check credit button"
+  $07bc : "computed sound?"
+  $0837 : "left flipper"
+  $0891 : "right flipper"
+  $0aac : "all cups complete"
+  $1149 : "scores"
+  $1181 : "default high score"
+  $1351 : "godfather"
+  $136a : "popcorn"
+  $1536 : "10,000 / EB lane"
+  $15ac : "outlane handler"
+  $15b9 : "don't let outlane scrore > 1x"
+  $15d6 : "inlane routine"
+  $1609 : "check if credits"
+  $1c39 : "seems pointless"
+  $03ce : "left flipper vector"
+  $1522 : "reset rollovers"
+
+ # 12ac - 137e maybe sound data?
+ # 1e82 seems like it - it hits either way
+# 12ad maybe music or $134e
