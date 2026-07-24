@@ -2341,8 +2341,8 @@ j1138:  MOV A,M ;o109e,o10da
         DB #01
         DB #00
 ; default high score
-        DB #85
-        DB #80
+        DB #79
+        DB #19
         DB #00
         DB #00
         DB #f0
