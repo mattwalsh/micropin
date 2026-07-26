@@ -1,19 +1,20 @@
 addresses:
-   PRICE_1   : $237F         
-   PRICE_2   : $239F 
-   PRICE_3   : $23BF 
-   PRICE_4   : $23DF 
-   CREDITS_1 : $237A           
-   CREDITS_2 : $239A 
-   CREDITS_3 : $23BA 
-   CREDITS_4 : $23DA 
+   PRICE_1   : $237F
+   PRICE_2   : $239F
+   PRICE_3   : $23BF
+   PRICE_4   : $23DF
+   CREDITS_1 : $237A
+   CREDITS_2 : $239A
+   CREDITS_3 : $23BA
+   CREDITS_4 : $23DA
    BALL_IN_PLAY_hrm : $237B
    BALL_IN_PLAY_1 : $239B
    BALL_IN_PLAY_2 : $23BB
    BALL_IN_PLAY_3 : $23DB
+   SWITCH_START: $23E0
    BALLS_PER_GAME : $2213
    DIP_SWITCHES: $2216
-  
+
     #  bit 2 - has outlane triggered?
    GAME_STATE : $2190
 

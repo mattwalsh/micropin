@@ -2410,16 +2410,18 @@ j11ef:  LDAX D ;o11b3,o11e3
 o11f8:  CALL cSET_ATH_BIT_OF_HL
         RET
 
-        DCR C
-        LDAX B
-        MVI C, #0a
-        (RLDE)
-        RIM
-        LDAX B
-        DCR B
-        STAX B
-        STA $9021
-        LXI H, #053e
+        DB #0d
+        DB #0a
+        DB #0e
+        DB #0a
+        DB #18
+        DB #20
+        DB #0a
+        DB #05
+        DB #02
+        DB #32
+        LXI H, GAME_STATE
+        MVI A, #05
 o120b:  CALL cCHECK_ATH_BIT_OF_HL
 o120e:  JNZ jo1222
         MVI A, #06

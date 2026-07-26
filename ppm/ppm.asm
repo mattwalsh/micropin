@@ -103,19 +103,19 @@ LAMP_F EQU 0xf
 o0000:  JMP j0040
 o0003:  CALL jcCREDIT_HANDLER
 o0006:  JMP jo0382
-c0009:  MVI A, #01 ; free play: refresh one credit before every start check
+c0009:  MVI A, #01 ;o1606
         STA CREDITS_1
         RET
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
 
+        NOP
+        NOP
+        NOP
+        NOP
+        NOP
+        NOP
+        NOP
+        NOP
+        NOP
 c0018:  MVI A, #3c ;jo0aac
         STA $21a5
 c001d:  LXI H, #117d ;jo151f
@@ -2415,16 +2415,18 @@ j11ef:  LDAX D ;o11b3,o11e3
 o11f8:  CALL cSET_ATH_BIT_OF_HL
         RET
 
-        DCR C
-        LDAX B
-        MVI C, #0a
-        (RLDE)
-        RIM
-        LDAX B
-        DCR B
-        STAX B
-        STA $9021
-        LXI H, #053e
+        DB #0d
+        DB #0a
+        DB #0e
+        DB #0a
+        DB #18
+        DB #20
+        DB #0a
+        DB #05
+        DB #02
+        DB #32
+        LXI H, GAME_STATE
+        MVI A, #05
 o120b:  CALL cCHECK_ATH_BIT_OF_HL
 o120e:  JNZ jo1222
         MVI A, #06
@@ -2667,30 +2669,30 @@ j129a:  MOV E,M ;o1294
         DB #00
         DB #ff
 ; godfather
-        DB #66
+        DB #87
         DB #0c
-        DB #86
-        DB #0c
-        DB #a0
-        DB #0c
-        DB #98
-        DB #0c
-        DB #86
-        DB #0c
-        DB #a0
-        DB #0c
-        DB #86
-        DB #0c
-        DB #98
-        DB #0c
-        DB #86
-        DB #0c
-        DB #6c
+        DB #87
         DB #0c
         DB #78
         DB #0c
-        DB #66
-        DB #0f
+        DB #87
+        DB #0c
+        DB #00
+        DB #00
+        DB #65
+        DB #0c
+        DB #00
+        DB #00
+        DB #65
+        DB #0c
+        DB #87
+        DB #0c
+        DB #bf
+        DB #0c
+        DB #aa
+        DB #0c
+        DB #87
+        DB #0c
         DB #ff
 ; popcorn
         DB #f1
