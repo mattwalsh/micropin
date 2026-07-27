@@ -2586,29 +2586,31 @@ j129a:  MOV E,M ;o1294
         DB #50
         DB #28
         DB #ff
-        DB #55
+; game over music
+        DB #98
         DB #08
-        DB #65
+        DB #ca
         DB #08
-        DB #78
-        DB #08
-        DB #78
         DB #00
-        DB #55
-        DB #08
-        DB #65
-        DB #08
-        DB #78
-        DB #08
-        DB #78
         DB #00
-        DB #55
+        DB #ca
+        DB #08
+        DB #98
+        DB #08
+        DB #00
+        DB #00
+        DB #98
+        DB #08
+        DB #7f
+        DB #08
+        DB #00
+        DB #00
+        DB #7f
         DB #08
         DB #65
-        DB #08
-        DB #78
         DB #08
         DB #ff
+; spread takeover music
         DB #43
         DB #20
         DB #43
@@ -2620,6 +2622,7 @@ j129a:  MOV E,M ;o1294
         DB #72
         DB #0c
         DB #ff
+; morse code music
         DB #43
         DB #04
         DB #43
@@ -2637,12 +2640,15 @@ j129a:  MOV E,M ;o1294
         DB #43
         DB #04
         DB #ff
+; bumper 25 music
         DB #c6
         DB #08
         DB #ff
+; spread music
         DB #4c
         DB #0c
         DB #ff
+; longer bumper 25 music
         DB #ca
         DB #08
         DB #ca
@@ -2652,23 +2658,27 @@ j129a:  MOV E,M ;o1294
         DB #ca
         DB #0c
         DB #ff
+; credit music
         DB #78
         DB #28
         DB #65
         DB #04
         DB #ff
+; next player music
         DB #a0
         DB #2c
         DB #a0
         DB #0c
         DB #ff
+; outlane music
         DB #15
         DB #0c
         DB #ff
+; silence music
         DB #ca
         DB #00
         DB #ff
-; godfather
+; funkytown
         DB #87
         DB #0c
         DB #87

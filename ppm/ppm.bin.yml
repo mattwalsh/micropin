@@ -207,6 +207,16 @@ notes:
   $1c39 : "seems pointless"
   $03ce : "left flipper vector"
   $1522 : "reset rollovers"
+  $12ff : "game over music"
+  $1316 : "spread takeover music"
+  $1321 : "morse code music"
+  $1332 : "bumper 25 music"
+  $1335 : "spread music"
+  $1338 : "longer bumper 25 music"
+  $1341 : "credit music"
+  $1346 : "next player music"
+  $134b : "outlane music"
+  $134e : "silence music"
 
  # 12ac - 137e maybe sound data?
  # 1e82 seems like it - it hits either way
