@@ -6,7 +6,7 @@ MAME_ROM_DIR="/Users/msw/.pinmame/roms/"
 if [ -z "${1}" ]; then
    echo "Usage: give a filename"
    exit
-fi   
+fi
 
 src_filename=$(basename -- "$1")
 #extension="${src_filename##*.}"
@@ -14,20 +14,20 @@ src_filename="${src_filename%.*}"
 
 if [ ! -d "${src_filename}" ]; then
    echo "no such game / directory ${src_filename}"
-fi   
+fi
 
 if [ -z "${2}" ]; then
    dst_filename=${src_filename}
 else
    dst_filename=$(basename -- "$2")
    dst_filename="${dst_filename%.*}"
-fi   
+fi
 
 ROM_FOLDER=${MAME_ROM_DIR}/${dst_filename}
 
 if [ ! -d ${ROM_FOLDER} ]; then
    echo "no such ROM directory ${ROM_FOLDER}"
-fi   
+fi
 
 cd ${dst_filename}
 DST_ROM_PREFIX=$(cat rom_prefix)
@@ -58,6 +58,8 @@ if [ $FILESIZE != 8192 ]; then
 fi
 
 split -b 2048 "${src_filename}.bin" outfile
+
+echo "writing to $SRC_ROM_PREFIX"
 
 rm ${src_filename}.bin
 mv outfileaa ${SRC_ROM_PREFIX}_1.bin

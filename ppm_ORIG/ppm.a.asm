@@ -101,25 +101,39 @@ LAMP_D EQU 0xd
 LAMP_E EQU 0xe
 LAMP_F EQU 0xf
 $0000 o0000:   c3 40 00 JMP j0040
-$0003 o0003:   cd b4 06 CALL jcCREDIT_HANDLER
-$0006 o0006:   c3 82 03 JMP jo0382
- 
-$0009 c0009:   3a 7f 23 LDA PRICE_1 ;o1606
-$000c          b7       ORA A
-$000d o000d:   c2 14 00 JNZ j0014
-$0010          3c       INR A
-$0011          32 7a 23 STA CREDITS_1
-$0014 j0014:   3a 7a 23 LDA CREDITS_1 ;o000d
-$0017          c9       RET
-
- 
-$0018 c0018:   3e 3c    MVI A, #3c ;jo0aac
-$001a          32 a5 21 STA $21a5
- 
-$001d c001d:   21 7d 11 LXI H, #117d ;jo151f
-$0020 o0020:   cd 5c 0e CALL cADD_BONUS
-$0023          c9       RET
-
+$0003          76       HLT
+$0004          76       HLT
+$0005          76       HLT
+$0006          76       HLT
+$0007          76       HLT
+$0008          76       HLT
+$0009          76       HLT
+$000a          76       HLT
+$000b          76       HLT
+$000c          76       HLT
+$000d          76       HLT
+$000e          76       HLT
+$000f          76       HLT
+$0010          76       HLT
+$0011          76       HLT
+$0012          76       HLT
+$0013          76       HLT
+$0014          76       HLT
+$0015          76       HLT
+$0016          76       HLT
+$0017          76       HLT
+$0018          76       HLT
+$0019          76       HLT
+$001a          76       HLT
+$001b          76       HLT
+$001c          76       HLT
+$001d          76       HLT
+$001e          76       HLT
+$001f          76       HLT
+$0020          76       HLT
+$0021          76       HLT
+$0022          76       HLT
+$0023          76       HLT
 $0024 o0024:   c3 69 00 JMP j0069
 $0027          76       HLT
 $0028          76       HLT
@@ -557,7 +571,7 @@ $0379 o0379:   c3 7f 03 JMP jo037f
 $037c          21 93 21 LXI H, #2193
 $037f jo037f:  cd e1 03 CALL cCLEAR_ATH_BIT_OF_HL ;o0379
 ; vector to 0630 stack restore
-$0382 jo0382:  cd 30 06 CALL cRESTORE_BDPSW ;o0006,o0341,o0357,o038f,o03a5,o0486,o0540,o0549,o078c,o07cb,o084f,o0865,o086d,o0921,o092a
+$0382 jo0382:  cd 30 06 CALL cRESTORE_BDPSW ;o0341,o0357,o038f,o03a5,o0486,o0540,o0549,o078c,o07cb,o084f,o0865,o086d,o0921,o092a
 $0385          c9       RET
 
 $0386 joSWITCH_HANDLER:
@@ -609,8 +623,8 @@ $03c6          d9       DB #d9
 $03c7          05       DB #05
 $03c8          bc       DB #bc
 $03c9          13       DB #13
-$03ca          03       DB #03
-$03cb          00       DB #00
+$03ca          82       DB #82
+$03cb          03       DB #03
 $03cc          7b       DB #7b
 $03cd          04       DB #04
 ; left flipper vector
@@ -856,7 +870,7 @@ $0581 o0581:   c3 1e 06 JMP joEND_MAIN_LOOP
 ; tilt handler 2
 $0584          db 04    IN PRICE_89_CAB
 $0586          e6 80    ANI #80
-$0588 o0588:   c3 a2 05 JMP j05a2
+$0588 o0588:   ca a2 05 JZ j05a2
 $058b o058b:   cd 6a 04 CALL c046a
 $058e o058e:   c2 a2 05 JNZ j05a2
 $0591 o0591:   cd 4f 04 CALL cTILT_HELPER
@@ -1001,15 +1015,14 @@ $06a2          d3 04    OUT LAMP_4
 ; check credit button
 $06a4 j06a4:   db 04    IN PRICE_89_CAB ;o0678
 $06a6          e6 10    ANI #10
-$06a8 o06a8:   c2 b4 06 JNZ jcCREDIT_HANDLER
+$06a8 o06a8:   c2 b4 06 JNZ jCREDIT_HANDLER
 $06ab          3a 92 21 LDA GAME_STATE2
 $06ae          f6 20    ORI #20
 $06b0          32 92 21 STA GAME_STATE2
 $06b3          c9       RET
 
- 
-$06b4 jcCREDIT_HANDLER:
-               21 92 21 LXI H, GAME_STATE2 ;o0003,o06a8
+$06b4 jCREDIT_HANDLER:
+               21 92 21 LXI H, GAME_STATE2 ;o06a8
 $06b7          3e 05    MVI A, #05
 $06b9 o06b9:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
 $06bc          c8       RZ
@@ -1475,7 +1488,7 @@ $0a8d          32 08 22 STA $2208
 $0a90 o0a90:   c3 1e 06 JMP joEND_MAIN_LOOP
 $0a93 j0a93:   3a c7 21 LDA CUPS_LEFT ;o0a4a,o0a58,o0a83
 $0a96          fe 00    CPI #00
-$0a98 o0a98:   ca ac 0a JZ jo0aac
+$0a98 o0a98:   ca ac 0a JZ j0aac
 $0a9b          2a 09 22 LHLD $2209
 $0a9e          3a 0b 22 LDA $220b
 $0aa1 o0aa1:   cd d6 03 CALL cSET_ATH_BIT_OF_HL
@@ -1483,9 +1496,8 @@ $0aa4          3e 06    MVI A, #06
 $0aa6          32 a6 21 STA $21a6
 $0aa9 o0aa9:   c3 1e 06 JMP joEND_MAIN_LOOP
 ; all cups complete
-$0aac jo0aac:  cd 18 00 CALL c0018 ;o0a98
-$0aaf          00       NOP
-$0ab0          00       NOP
+$0aac j0aac:   3e 3c    MVI A, #3c ;o0a98
+$0aae          32 a5 21 STA $21a5
 $0ab1          3e 64    MVI A, #64
 $0ab3          32 08 22 STA $2208
 $0ab6          3e 00    MVI A, #00
@@ -1935,7 +1947,7 @@ $0e5b          c9       RET
 
  
 $0e5c cADD_BONUS:
-               11 f3 21 LXI D, SPREAD_1 ;o0020,o0a39,o0a73,o0cfc,o0dd8,o154f,o15ef,o18ed
+               11 f3 21 LXI D, SPREAD_1 ;o0a39,o0a73,o0cfc,o0dd8,o154f,o15ef,o18ed
 $0e5f          3e 08    MVI A, #08
 $0e61 o0e61:   cd cf 0e CALL cCOPY_FROM_HL_TO_DE
 $0e64          21 5b 23 LXI H, #235b
@@ -2365,9 +2377,9 @@ $117e          00       DB #00
 $117f          01       DB #01
 $1180          00       DB #00
 ; default high score
-$1181          85       DB #85
-$1182          80       DB #80
-$1183          00       DB #00
+$1181          00       DB #00
+$1182          50       DB #50
+$1183          02       DB #02
 $1184          00       DB #00
 $1185          f0       DB #f0
 $1186          ff       DB #ff
@@ -2440,18 +2452,16 @@ $11f6          3e 05    MVI A, #05
 $11f8 o11f8:   cd d6 03 CALL cSET_ATH_BIT_OF_HL
 $11fb          c9       RET
 
-$11fc          0d       DB #0d
-$11fd          0a       DB #0a
-$11fe          0e       DB #0e
-$11ff          0a       DB #0a
-$1200          18       DB #18
-$1201          20       DB #20
-$1202          0a       DB #0a
-$1203          05       DB #05
-$1204          02       DB #02
-$1205          32       DB #32
-$1206          21 90 21 LXI H, GAME_STATE
-$1209          3e 05    MVI A, #05
+$11fc          0d       DCR C
+$11fd          0a       LDAX B
+$11fe          0e 0a    MVI C, #0a
+$1200          18       (RLDE)
+$1201          20       RIM
+$1202          0a       LDAX B
+$1203          05       DCR B
+$1204          02       STAX B
+$1205          32 21 90 STA $9021
+$1208          21 3e 05 LXI H, #053e
 $120b o120b:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
 $120e o120e:   c2 22 12 JNZ jo1222
 $1211          3e 06    MVI A, #06
@@ -2543,11 +2553,11 @@ $12b5          ff       DB #ff
 $12b6          65       DB #65
 $12b7          08       DB #08
 $12b8          ff       DB #ff
-LEFT_SLING_TONE          33       DB #33
-$12ba          08       DB #08
+LEFT_SLING_TONE          1c       DB #1c
+$12ba          0c       DB #0c
 $12bb          ff       DB #ff
-RIGHT_SLING_TONE          3c       DB #3c
-$12bd          08       DB #08
+RIGHT_SLING_TONE          1c       DB #1c
+$12bd          0c       DB #0c
 $12be          ff       DB #ff
 SILENCE_END_LOOP_MUSIC          1c       DB #1c
 $12c0          00       DB #00
@@ -2595,9 +2605,9 @@ $12e9          02       DB #02
 $12ea          15       DB #15
 $12eb          0c       DB #0c
 $12ec          ff       DB #ff
-LIL_VICTORY_MUSIC          33       DB #33
+LIL_VICTORY_MUSIC          4c       DB #4c
 $12ee          08       DB #08
-$12ef          43       DB #43
+$12ef          65       DB #65
 $12f0          0c       DB #0c
 $12f1          ff       DB #ff
 LIT_STANDUP_MUSIC          78       DB #78
@@ -2696,49 +2706,49 @@ SILENCE_MUSIC          ca       DB #ca
 $134f          00       DB #00
 $1350          ff       DB #ff
 ; godfather
-HIGH_SCORE_MUSIC          66       DB #66
+HIGH_SCORE_MUSIC          65       DB #65
 $1352          0c       DB #0c
-$1353          86       DB #86
+$1353          87       DB #87
 $1354          0c       DB #0c
-$1355          a0       DB #a0
+$1355          aa       DB #aa
 $1356          0c       DB #0c
-$1357          98       DB #98
+$1357          ca       DB #ca
 $1358          0c       DB #0c
-$1359          86       DB #86
-$135a          0c       DB #0c
-$135b          a0       DB #a0
-$135c          0c       DB #0c
-$135d          86       DB #86
-$135e          0c       DB #0c
-$135f          98       DB #98
-$1360          0c       DB #0c
-$1361          86       DB #86
-$1362          0c       DB #0c
-$1363          6c       DB #6c
+$1359          ca       DB #ca
+$135a          00       DB #00
+$135b          ca       DB #ca
+$135c          08       DB #08
+$135d          ca       DB #ca
+$135e          08       DB #08
+$135f          ca       DB #ca
+$1360          08       DB #08
+$1361          aa       DB #aa
+$1362          00       DB #00
+$1363          aa       DB #aa
 $1364          0c       DB #0c
-$1365          78       DB #78
-$1366          0c       DB #0c
-$1367          66       DB #66
-$1368          0f       DB #0f
-$1369          ff       DB #ff
+$1365          aa       DB #aa
+$1366          00       DB #00
+$1367          aa       DB #aa
+$1368          08       DB #08
+$1369          aa       DB #aa
 ; popcorn
-POPCORN_MUSIC          f1       DB #f1
-$136b          04       DB #04
-$136c          d6       DB #d6
-$136d          04       DB #04
-$136e          f1       DB #f1
-$136f          04       DB #04
-$1370          b4       DB #b4
-$1371          04       DB #04
-$1372          8f       DB #8f
-$1373          04       DB #04
-$1374          b4       DB #b4
-$1375          04       DB #04
-$1376          78       DB #78
-$1377          04       DB #04
-$1378          ff       DB #ff
-$1379          ff       DB #ff
-$137a          ff       DB #ff
+POPCORN_MUSIC          08       DB #08
+$136b          aa       DB #aa
+$136c          08       DB #08
+$136d          87       DB #87
+$136e          00       DB #00
+$136f          87       DB #87
+$1370          0c       DB #0c
+$1371          aa       DB #aa
+$1372          0c       DB #0c
+$1373          87       DB #87
+$1374          0c       DB #0c
+$1375          65       DB #65
+$1376          0c       DB #0c
+$1377          65       DB #65
+$1378          20       DB #20
+$1379          65       DB #65
+$137a          20       DB #20
 $137b          ff       DB #ff
 $137c          fe       DB #fe
  
@@ -2953,16 +2963,16 @@ $1501 o1501:   cd 9c 1d CALL co1d9c
 $1504 o1504:   c2 17 15 JNZ jo1517
 $1507          06 38    MVI B, #38
 $1509 o1509:   cd 9c 1d CALL co1d9c
-$150c o150c:   c2 1f 15 JNZ jo151f
+$150c o150c:   c2 22 15 JNZ j1522
 $150f          06 11    MVI B, #11
 $1511 o1511:   cd 76 1d CALL co1d76
-$1514 o1514:   c3 1f 15 JMP jo151f
+$1514 o1514:   c3 22 15 JMP j1522
 $1517 jo1517:  cd 81 1d CALL co1d81 ;o1504
 $151a          06 38    MVI B, #38
 $151c o151c:   cd 76 1d CALL co1d76
-$151f jo151f:  cd 1d 00 CALL c001d ;o150c,o1514
+$151f o151f:   c3 22 15 JMP j1522
 ; reset rollovers
-$1522          3e ff    MVI A, #ff
+$1522 j1522:   3e ff    MVI A, #ff ;o150c,o1514,o151f
 $1524          32 c6 21 STA ROLLOVERS
 $1527          97       SUB A
 $1528          32 05 22 STA $2205
@@ -3052,7 +3062,7 @@ $15fb          21 92 21 LXI H, GAME_STATE2
 $15fe          3e 00    MVI A, #00
 $1600 o1600:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
 $1603 o1603:   c2 89 17 JNZ j1789
-$1606 o1606:   cd 09 00 CALL c0009
+$1606          3a 7a 23 LDA CREDITS_1
 ; check if credits
 $1609          b7       ORA A
 $160a o160a:   c2 20 16 JNZ j1620
@@ -3200,7 +3210,7 @@ $1779          3a 9e 23 LDA $239e
 $177c          b0       ORA B
 $177d          32 9e 23 STA $239e
 $1780 o1780:   c3 d0 16 JMP jDECREASE_CREDIT
-$1783 j1783:   21 6a 13 LXI H, POPCORN_MUSIC ;o16ea
+$1783 j1783:   21 da 12 LXI H, START_PLAYER_MUSIC ;o16ea
 $1786 o1786:   cd 61 12 CALL cPLAY_SOUND
 $1789 j1789:   3e 06    MVI A, #06 ;o1603,o1612,o161d,o16f2
 $178b o178b:   c3 76 03 JMP j0376
