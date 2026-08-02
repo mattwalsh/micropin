@@ -11,6 +11,8 @@ PRICE_3 EQU 0x23bf
 PRICE_4 EQU 0x23df
 CREDITS_1 EQU 0x237a
 ROLLOVERS EQU 0x21c6
+LAMPS_PAGE_1 EQU 0x2380
+LAMPS_PAGE_2 EQU 0x23a0
 PL13_SCORE_1 EQU 0x2367
 PL13_SCORE_2 EQU 0x236f
 PL24_SCORE_1 EQU 0x2373
@@ -747,7 +749,7 @@ o0486:  JNZ jo0382
         ORI #10
         STA $23b6
         MVI A, #ff
-        STA $2380
+        STA LAMPS_PAGE_1
         STA $2381
         STA $2382
         LDA $233f
@@ -868,8 +870,8 @@ o05b5:  JZ joEND_MAIN_LOOP
         ANI #ef
         STA $23b6
         MVI A, #f0
-        STA $23a0
-        STA $2380
+        STA LAMPS_PAGE_2
+        STA LAMPS_PAGE_1
         MVI A, #ff
         STA $23a1
         STA $2381
@@ -895,7 +897,7 @@ j05f6:  ANI #3f ;o05f1
         STA $2198
         LDA $2247
         ANI #40
-o0600:  CZ c0636
+o0600:  CZ cFLASH_ROUTINE
         MVI A, #00
         DI
 o0606:  JMP j0376
@@ -936,7 +938,8 @@ cRESTORE_BDPSW:
         XTHL
         RET
 
-c0636:  LXI H, #21f8 ;o0600
+cFLASH_ROUTINE:
+              LXI H, #21f8 ;o0600
         DCR M
 o063a:  JNZ j0647
         MVI M, #14
@@ -945,11 +948,11 @@ o063a:  JNZ j0647
         STA $2247
 j0647:  LDA $2247 ;o063a
         ANI #80
-o064c:  JZ j067b
-        LXI H, #23a0
+o064c:  JZ jLAMP_PAGE_2_COPY
+        LXI H, LAMPS_PAGE_2
         LXI D, #23c0
         MVI A, #40
-oLAMP_COPY:
+oLAMP_PAGE_1_COPY:
               CALL cCOPY_FROM_HL_TO_DE
         LDA $21c9
         CMA
@@ -967,7 +970,8 @@ oLAMP_COPY:
         CMA
         OUT LAMP_4
 o0678:  JMP j06a4
-j067b:  LXI H, #2380 ;o064c
+jLAMP_PAGE_2_COPY:
+              LXI H, LAMPS_PAGE_1 ;o064c
         LXI D, #23c0
         MVI A, #40
 o0683:  CALL cCOPY_FROM_HL_TO_DE
@@ -1928,14 +1932,14 @@ c0e6f:  LXI D, #235b ;o0d18,o18bc,o1af2
         MVI A, #08
 o0e74:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, #235b
-        LXI D, #23a0
+        LXI D, LAMPS_PAGE_2
         MVI A, #06
 o0e7f:  CALL cWRITE_TO_RAM
         LDA GAME_STATE
         ANI #01
         RNZ
-        LXI H, #23a0
-        LXI D, #2380
+        LXI H, LAMPS_PAGE_2
+        LXI D, LAMPS_PAGE_1
         MVI A, #06
 o0e90:  CALL cCOPY_FROM_HL_TO_DE
         MVI B, #39
@@ -1956,18 +1960,18 @@ o0ea8:  CALL c0e18
         MVI A, #08
 o0eb4:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, #235b
-        LXI D, #2380
+        LXI D, LAMPS_PAGE_1
         MVI A, #06
 o0ebf:  CALL cWRITE_TO_RAM
-        LXI H, #2380
-        LXI D, #23a0
+        LXI H, LAMPS_PAGE_1
+        LXI D, LAMPS_PAGE_2
         MVI A, #06
 o0eca:  CALL cCOPY_FROM_HL_TO_DE
         POP PSW
         RET
 
 cCOPY_FROM_HL_TO_DE:
-              ORA A ;o00c8,o00d3,o019d,o01b0,oLAMP_COPY,o0683,o0c02,o0e61,o0e74,o0e90,o0ea2,o0eb4,o0eca,o0f41,o0f7d,o0f91,o0fa2,o0fc3,o0fdb,o0ffc,o1015,o1022,o1039,o104f,o1062,o10cb,o10d6,o112a,o1637,o16ba,o16c5,o1865,o18a6,o1a84,o1b09,o1b14,o1bf6,o1c01,o1c2b,o1c89,o1ca6,o1f40,o1f4e,o1f5a,o1f6a,o1f8a,o1f9b,o1fa5,o1fb3,o1fbd,o1fc7,o1fd0,o1fe6
+              ORA A ;o00c8,o00d3,o019d,o01b0,oLAMP_PAGE_1_COPY,o0683,o0c02,o0e61,o0e74,o0e90,o0ea2,o0eb4,o0eca,o0f41,o0f7d,o0f91,o0fa2,o0fc3,o0fdb,o0ffc,o1015,o1022,o1039,o104f,o1062,o10cb,o10d6,o112a,o1637,o16ba,o16c5,o1865,o18a6,o1a84,o1b09,o1b14,o1bf6,o1c01,o1c2b,o1c89,o1ca6,o1f40,o1f4e,o1f5a,o1f6a,o1f8a,o1f9b,o1fa5,o1fb3,o1fbd,o1fc7,o1fd0,o1fe6
 j0ed0:  SBI #02 ;o0edc
 o0ed2:  JM j0ee0
         MOV B,A
@@ -3087,8 +3091,8 @@ j1671:  STA BALL_IN_PLAY_hrm ;o1652
         MVI A, #f0
         STA PL1_SCORE_DISPLAY2
         STA PL1_SCORE_DISPLAY
-        STA $2380
-        STA $23a0
+        STA LAMPS_PAGE_1
+        STA LAMPS_PAGE_2
         MVI A, #00
         STA $2214
         LXI D, #21d3
@@ -3214,14 +3218,14 @@ j17af:  MOV M,A ;o17b2
         DCR D
 o17b2:  JNZ j17af
         STA $2246
-        LXI H, #2380
+        LXI H, LAMPS_PAGE_1
         MVI A, #ff
         MVI D, #1a
 j17bf:  MOV M,A ;o17c2
         INX H
         DCR D
 o17c2:  JNZ j17bf
-        LXI H, #23a0
+        LXI H, LAMPS_PAGE_2
         MVI A, #ff
         MVI D, #1a
 j17cc:  MOV M,A ;o17cf
@@ -3680,11 +3684,11 @@ o1be4:  JZ j1c04
         STA GAME_STATE2
         EI
         LXI H, #224b
-        LXI D, #2380
+        LXI D, LAMPS_PAGE_1
         MVI A, #34
 o1bf6:  CALL cCOPY_FROM_HL_TO_DE
         LXI H, #226b
-        LXI D, #23a0
+        LXI D, LAMPS_PAGE_2
         MVI A, #34
 o1c01:  CALL cCOPY_FROM_HL_TO_DE
 j1c04:  LDA $2215 ;o1be4
@@ -3736,7 +3740,7 @@ j1c73:  LXI H, GAME_STATE2 ;o1bc2
 o1c78:  CALL cCHECK_ATH_BIT_OF_HL
 o1c7b:  JNZ j022c
 o1c7e:  CALL cSET_ATH_BIT_OF_HL
-        LXI H, #2380
+        LXI H, LAMPS_PAGE_1
         LXI D, #224b
         MVI A, #80
 o1c89:  CALL cCOPY_FROM_HL_TO_DE
