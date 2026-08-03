@@ -151,9 +151,10 @@ not_code:
    INLANE_HANDLER_PTR : [$145d, $145e]
    MUSIC : [$12ac, $137c]
    DUNNO : [$0819,$0836]
-   DUNNO_VECTORS : [$072c, $075e]
+   DUNNO_VECTORS : [$072c, $075F]
    COIL_VECTORS_HRM : [$03b6, $03d5]
    TONE_STOCATTO_TABLE: [$11fc, $1205 ]
+   MYSTERY_PORT_1_VECTORS : [$03b6, $03c5]
 
 inPorts:
    SWITCH_PORT: $00
@@ -233,6 +234,8 @@ notes:
   $1346 : "next player music"
   $134b : "outlane music"
   $134e : "silence music"
+  $03c2 : "port 1 bit 6 vector -> $0784"
+  $0784 : "port 1 bit 6 handler: set $2191 bit 5"
 
  # 12ac - 137e maybe sound data?
  # 1e82 seems like it - it hits either way
