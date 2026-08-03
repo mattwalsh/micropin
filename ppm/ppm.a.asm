@@ -267,21 +267,22 @@ $013d          d3 08    OUT COIL_8
 $013f          f3       DI
 $0140 o0140:   cd 7d 13 CALL jc137d
 $0143 j0143:   db 04    IN PRICE_89_CAB ;o00f8,o0300
-$0145          e6 20    ANI #20
-$0147 o0147:   c2 68 01 JNZ jo0168
-$014a          3a 92 21 LDA GAME_STATE2
-$014d          e6 df    ANI #df
-$014f          32 92 21 STA GAME_STATE2
-$0152          db 03    IN PRICE_TENS_07_PORT
-$0154          fe fe    CPI #fe
-$0156 o0156:   c2 bf 01 JNZ j01bf
-$0159          db 02    IN PRICE_CENTS_07_PORT
-$015b          fe fb    CPI #fb
-$015d o015d:   ca 9e 02 JZ j029e
-$0160          fe f7    CPI #f7
-$0162 o0162:   ca c8 02 JZ j02c8
+$0145          47       MOV B,A
+$0146          e6 20    ANI #20
+$0148 o0148:   c2 68 01 JNZ jo0168
+$014b          3a 92 21 LDA GAME_STATE2
+$014e          e6 df    ANI #df
+$0150          32 92 21 STA GAME_STATE2
+$0153          78       MOV A,B
+$0154          e6 10    ANI #10
+$0156 o0156:   c2 9e 02 JNZ jTEST_ROUTINE_1
+$0159          78       MOV A,B
+$015a          e6 40    ANI #40
+$015c o015c:   c2 c8 02 JNZ jTEST_ROUTINE_2
+$015f          21 ff 12 LXI H, GAME_OVER_MUSIC
+$0162 o0162:   cd 61 12 CALL cPLAY_SOUND
 $0165 o0165:   c3 bf 01 JMP j01bf
-$0168 jo0168:  cd a8 17 CALL c17a8 ;o0147,o02c5
+$0168 jo0168:  cd a8 17 CALL c17a8 ;o0148,o02c5
 $016b          3e d0    MVI A, #d0
 $016d          32 92 21 STA GAME_STATE2
 $0170          3e 00    MVI A, #00
@@ -315,7 +316,7 @@ $01b9 j01b9:   77       MOV M,A ;o01bc
 $01ba          23       INX H
 $01bb          05       DCR B
 $01bc o01bc:   c2 b9 01 JNZ j01b9
-$01bf j01bf:   f3       DI ;o0156,o0165,o02a4
+$01bf j01bf:   f3       DI ;o0165,o02a4
 $01c0          3e 30    MVI A, #30
 $01c2          32 94 21 STA STATE_OUTLANE_1
 $01c5          3a 92 21 LDA GAME_STATE2
@@ -442,7 +443,8 @@ $0299          23       INX H
 $029a          22 f9 21 SHLD $21f9
 $029d          c9       RET
 
-$029e j029e:   3a 91 21 LDA $2191 ;o015d
+$029e jTEST_ROUTINE_1:
+               3a 91 21 LDA $2191 ;o0156
 $02a1          47       MOV B,A
 $02a2          e6 01    ANI #01
 $02a4 o02a4:   c2 bf 01 JNZ j01bf
@@ -460,7 +462,8 @@ $02bd          3e 00    MVI A, #00
 $02bf          32 20 22 STA $2220
 $02c2          32 21 22 STA $2221
 $02c5 o02c5:   c3 68 01 JMP jo0168
-$02c8 j02c8:   f3       DI ;o0162
+$02c8 jTEST_ROUTINE_2:
+               f3       DI ;o015c
 $02c9          21 c0 23 LXI H, #23c0
 $02cc          06 0c    MVI B, #0c
 $02ce j02ce:   36 88    MVI M, #88 ;o02d2
@@ -2497,7 +2500,7 @@ $125b o125b:   cd 8d 11 CALL cTONE_PLAY
 $125e o125e:   c3 1e 06 JMP joEND_MAIN_LOOP
  
 $1261 cPLAY_SOUND:
-               eb       XCHG ;o0546,o0563,o059c,o06fd,o07bc,o0855,o0927,o0a1a,o0a3f,o0a79,o0adc,o0b69,o0c39,o0cf3,jo0d23,o0dcb,o0dde,o1085,o14bd,o14ef,o1585,o15a6,o15d0,o15f5,o1786,o1859,o18c7,o18e4,o1a27,o1ae4,o1b72,o1f70
+               eb       XCHG ;o0162,o0546,o0563,o059c,o06fd,o07bc,o0855,o0927,o0a1a,o0a3f,o0a79,o0adc,o0b69,o0c39,o0cf3,jo0d23,o0dcb,o0dde,o1085,o14bd,o14ef,o1585,o15a6,o15d0,o15f5,o1786,o1859,o18c7,o18e4,o1a27,o1ae4,o1b72,o1f70
 $1262          2a be 21 LHLD $21be
 $1265          01 be 21 LXI B, #21be
 $1268          79       MOV A,C

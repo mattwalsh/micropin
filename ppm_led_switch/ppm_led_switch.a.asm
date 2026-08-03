@@ -17,7 +17,8 @@ PL13_SCORE_1 EQU 0x2367
 PL13_SCORE_2 EQU 0x236f
 PL24_SCORE_1 EQU 0x2373
 SPREAD_1 EQU 0x21f3
-STATE_OUTLANE_1 EQU 0x2194
+STATE_OUTLANE_1 EQU 0x2193
+SWITCH_LATCHED EQU 0x2194
 SPREAD_2 EQU 0x2377
 SPREAD_3 EQU 0x23b7
 SPREAD_4 EQU 0x2397
@@ -81,6 +82,7 @@ POPCORN_MUSIC EQU 0x136a
 HIGH_SCORE_MUSIC EQU 0x1351
 
 ; INPUT PORTS
+SWITCH_PORT EQU 0x0
 MYSTERY_PORT_1 EQU 0x1
 PRICE_CENTS_07_PORT EQU 0x2
 PRICE_TENS_07_PORT EQU 0x3
@@ -191,9 +193,9 @@ $0089          d3 09    OUT TONE_ENABLE_DUR
 $008b          3e 02    MVI A, #02
 $008d          32 98 21 STA $2198
 $0090          3e ff    MVI A, #ff
-$0092          32 93 21 STA $2193
+$0092          32 93 21 STA STATE_OUTLANE_1
 $0095          3e fc    MVI A, #fc
-$0097          32 94 21 STA STATE_OUTLANE_1
+$0097          32 94 21 STA SWITCH_LATCHED
 $009a          21 fb 21 LXI H, #21fb
 $009d          22 f9 21 SHLD $21f9
 $00a0          21 b4 21 LXI H, #21b4
@@ -270,23 +272,17 @@ $0143 j0143:   db 04    IN PRICE_89_CAB ;o00f8,o0300
 $0145          47       MOV B,A
 $0146          e6 20    ANI #20
 $0148 o0148:   c2 68 01 JNZ jo0168
-$014b          47       MOV B,A
-$014c          e6 df    ANI #df
-$014e          32 92 21 STA GAME_STATE2
-$0151          47       MOV B,A
-$0152          e6 40    ANI #40
-$0154 o0154:   c2 9e 02 JNZ jTEST_ROUTINE_1
-$0157          47       MOV B,A
-$0158          e6 10    ANI #10
-$015a o015a:   c2 c8 02 JNZ jTEST_ROUTINE_2
-$015d          00       NOP
-$015e          00       NOP
-$015f          00       NOP
-$0160          00       NOP
-$0161          00       NOP
-$0162          00       NOP
-$0163          00       NOP
-$0164          00       NOP
+$014b          3a 92 21 LDA GAME_STATE2
+$014e          e6 df    ANI #df
+$0150          32 92 21 STA GAME_STATE2
+$0153          78       MOV A,B
+$0154          e6 10    ANI #10
+$0156 o0156:   c2 9e 02 JNZ jTEST_ROUTINE_1
+$0159          78       MOV A,B
+$015a          e6 40    ANI #40
+$015c o015c:   c2 c8 02 JNZ jTEST_ROUTINE_2
+$015f          21 ff 12 LXI H, GAME_OVER_MUSIC
+$0162 o0162:   cd 61 12 CALL cPLAY_SOUND
 $0165 o0165:   c3 bf 01 JMP j01bf
 $0168 jo0168:  cd a8 17 CALL c17a8 ;o0148,o02c5
 $016b          3e d0    MVI A, #d0
@@ -324,7 +320,7 @@ $01bb          05       DCR B
 $01bc o01bc:   c2 b9 01 JNZ j01b9
 $01bf j01bf:   f3       DI ;o0165,o02a4
 $01c0          3e 30    MVI A, #30
-$01c2          32 94 21 STA STATE_OUTLANE_1
+$01c2          32 94 21 STA SWITCH_LATCHED
 $01c5          3a 92 21 LDA GAME_STATE2
 $01c8          e6 80    ANI #80
 $01ca o01ca:   c2 d2 01 JNZ j01d2
@@ -450,7 +446,7 @@ $029a          22 f9 21 SHLD $21f9
 $029d          c9       RET
 
 $029e jTEST_ROUTINE_1:
-               3a 91 21 LDA $2191 ;o0154
+               3a 91 21 LDA $2191 ;o0156
 $02a1          47       MOV B,A
 $02a2          e6 01    ANI #01
 $02a4 o02a4:   c2 bf 01 JNZ j01bf
@@ -459,7 +455,7 @@ $02a8          f6 01    ORI #01
 $02aa          32 91 21 STA $2191
 $02ad          f3       DI
 $02ae          3e 30    MVI A, #30
-$02b0          32 94 21 STA STATE_OUTLANE_1
+$02b0          32 94 21 STA SWITCH_LATCHED
 $02b3          3e 7d    MVI A, #7d
 $02b5          32 9f 21 STA $219f
 $02b8          3e 3c    MVI A, #3c
@@ -469,7 +465,7 @@ $02bf          32 20 22 STA $2220
 $02c2          32 21 22 STA $2221
 $02c5 o02c5:   c3 68 01 JMP jo0168
 $02c8 jTEST_ROUTINE_2:
-               f3       DI ;o015a
+               f3       DI ;o015c
 $02c9          21 c0 23 LXI H, #23c0
 $02cc          06 0c    MVI B, #0c
 $02ce j02ce:   36 88    MVI M, #88 ;o02d2
@@ -550,7 +546,7 @@ $034c j034c:   7b       MOV A,E ;o0345
 $034d          2f       CMA
 $034e          d3 0e    OUT LAMP_E
 $0350          2f       CMA
-$0351          21 93 21 LXI H, #2193
+$0351          21 93 21 LXI H, STATE_OUTLANE_1
 $0354 o0354:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
 $0357 o0357:   c2 82 03 JNZ jo0382
 $035a o035a:   cd 24 06 CALL cSAVE_BDPSW
@@ -568,9 +564,9 @@ $0372          23       INX H
 $0373          66       MOV H,M
 $0374          6f       MOV L,A
 $0375          e9       PCHL
-$0376 j0376:   21 94 21 LXI H, STATE_OUTLANE_1 ;o0606,o13e7,o178b
+$0376 j0376:   21 94 21 LXI H, SWITCH_LATCHED ;o0606,o13e7,o178b
 $0379 o0379:   c3 7f 03 JMP jo037f
-$037c          21 93 21 LXI H, #2193
+$037c          21 93 21 LXI H, STATE_OUTLANE_1
 $037f jo037f:  cd e1 03 CALL cCLEAR_ATH_BIT_OF_HL ;o0379
 ; vector to 0630 stack restore
 $0382 jo0382:  cd 30 06 CALL cRESTORE_BDPSW ;o0006,o0341,o0357,o038f,o03a5,o0486,o0540,o0549,o078c,o07cb,o084f,o0865,o086d,o0921,o092a
@@ -579,7 +575,7 @@ $0385          c9       RET
 $0386 joSWITCH_HANDLER:
                cd 24 06 CALL cSAVE_BDPSW ;o0034
 $0389          11 00 00 LXI D, #0000
-$038c          db 00    IN #00
+$038c          db 00    IN SWITCH_PORT
 $038e j038e:   b7       ORA A ;o0397
 $038f o038f:   ca 82 03 JZ jo0382
 $0392          1f       RAR
@@ -590,21 +586,19 @@ $039a j039a:   7b       MOV A,E ;o0393
 $039b          2f       CMA
 $039c          d3 0d    OUT LAMP_D
 $039e          2f       CMA
-$039f          21 94 21 LXI H, STATE_OUTLANE_1
+$039f          21 94 21 LXI H, SWITCH_LATCHED
 $03a2 o03a2:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
 $03a5 o03a5:   c2 82 03 JNZ jo0382
 $03a8 o03a8:   cd d6 03 CALL cSET_ATH_BIT_OF_HL
-$03ab          eb       DB #eb
-$03ac          29       DB #29
-$03ad          11       DB #11
-$03ae          c6       DB #c6
-$03af          03       DB #03
-$03b0          19       DB #19
-$03b1          7e       DB #7e
-$03b2          23       DB #23
-$03b3          66       DB #66
-$03b4          6f       DB #6f
-$03b5          e9       DB #e9
+$03ab          eb       XCHG
+$03ac          29       DAD H
+$03ad          11 c6 03 LXI D, #03c6
+$03b0          19       DAD D
+$03b1          7e       MOV A,M
+$03b2          23       INX H
+$03b3          66       MOV H,M
+$03b4          6f       MOV L,A
+$03b5          e9       PCHL
 $03b6          60       DB #60
 $03b7          07       DB #07
 $03b8          66       DB #66
@@ -621,21 +615,28 @@ $03c2          84       DB #84
 $03c3          07       DB #07
 $03c4          82       DB #82
 $03c5          03       DB #03
+; switch 0 vector -> $05d9
 $03c6          d9       DB #d9
 $03c7          05       DB #05
+; switch 1 vector -> $13bc
 $03c8          bc       DB #bc
 $03c9          13       DB #13
+; switch 2 vector -> $0003
 $03ca          03       DB #03
 $03cb          00       DB #00
+; switch 3 tilt vector -> $047b
 $03cc          7b       DB #7b
 $03cd          04       DB #04
-; left flipper vector
+; switch 4 left flipper vector -> $0837
 $03ce          37       DB #37
 $03cf          08       DB #08
+; switch 5 vector -> $0909
 $03d0          09       DB #09
 $03d1          09       DB #09
+; switch 6 vector -> $15fb
 $03d2          fb       DB #fb
 $03d3          15       DB #15
+; switch 7 tilt vector -> $047b
 $03d4          7b       DB #7b
 $03d5          04       DB #04
  
@@ -741,10 +742,10 @@ $0454          32 90 21 STA GAME_STATE
 $0457          3e 00    MVI A, #00
 $0459          32 0c 22 STA $220c
 $045c          3e ff    MVI A, #ff
-$045e          32 93 21 STA $2193
-$0461          3a 94 21 LDA STATE_OUTLANE_1
+$045e          32 93 21 STA STATE_OUTLANE_1
+$0461          3a 94 21 LDA SWITCH_LATCHED
 $0464          f6 30    ORI #30
-$0466          32 94 21 STA STATE_OUTLANE_1
+$0466          32 94 21 STA SWITCH_LATCHED
 $0469          c9       RET
 
  
@@ -784,9 +785,9 @@ $04ab o04ab:   fa 43 05 JM jTILT2
 $04ae          3a 92 21 LDA GAME_STATE2
 $04b1          e6 40    ANI #40
 $04b3 o04b3:   c2 43 05 JNZ jTILT2
-$04b6          3a 94 21 LDA STATE_OUTLANE_1
+$04b6          3a 94 21 LDA SWITCH_LATCHED
 $04b9          f6 fc    ORI #fc
-$04bb          32 94 21 STA STATE_OUTLANE_1
+$04bb          32 94 21 STA SWITCH_LATCHED
 $04be          3a 47 22 LDA $2247
 $04c1          f6 40    ORI #40
 $04c3          32 47 22 STA $2247
@@ -865,9 +866,9 @@ $056e          32 47 22 STA $2247
 $0571          3e 01    MVI A, #01
 $0573          32 a0 21 STA $21a0
 $0576          32 1c 22 STA $221c
-$0579          3a 94 21 LDA STATE_OUTLANE_1
+$0579          3a 94 21 LDA SWITCH_LATCHED
 $057c          e6 33    ANI #33
-$057e          32 94 21 STA STATE_OUTLANE_1
+$057e          32 94 21 STA SWITCH_LATCHED
 $0581 o0581:   c3 1e 06 JMP joEND_MAIN_LOOP
 ; tilt handler 2
 $0584          db 04    IN PRICE_89_CAB
@@ -881,9 +882,9 @@ $0596          32 a2 21 STA $21a2
 $0599          21 c2 12 LXI H, TILT_MUSIC
 $059c o059c:   cd 61 12 CALL cPLAY_SOUND
 $059f o059f:   c3 1e 06 JMP joEND_MAIN_LOOP
-$05a2 j05a2:   3a 94 21 LDA STATE_OUTLANE_1 ;o0588,o058e
+$05a2 j05a2:   3a 94 21 LDA SWITCH_LATCHED ;o0588,o058e
 $05a5          e6 77    ANI #77
-$05a7          32 94 21 STA STATE_OUTLANE_1
+$05a7          32 94 21 STA SWITCH_LATCHED
 $05aa o05aa:   c3 1e 06 JMP joEND_MAIN_LOOP
 $05ad          21 92 21 LXI H, GAME_STATE2
 $05b0          3e 07    MVI A, #07
@@ -1073,9 +1074,9 @@ $0716 o0716:   cd e1 03 CALL cCLEAR_ATH_BIT_OF_HL
 $0719          3e 09    MVI A, #09
 $071b          32 ab 21 STA $21ab
 $071e o071e:   c3 1e 06 JMP joEND_MAIN_LOOP
-$0721 j0721:   3a 94 21 LDA STATE_OUTLANE_1 ;o0713
+$0721 j0721:   3a 94 21 LDA SWITCH_LATCHED ;o0713
 $0724          e6 bb    ANI #bb
-$0726          32 94 21 STA STATE_OUTLANE_1
+$0726          32 94 21 STA SWITCH_LATCHED
 $0729 o0729:   c3 1e 06 JMP joEND_MAIN_LOOP
 $072c          aa       DB #aa
 $072d          0b       DB #0b
@@ -1206,7 +1207,7 @@ $07f6          3e 02    MVI A, #02
 $07f8 o07f8:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
 $07fb o07fb:   c2 1e 06 JNZ joEND_MAIN_LOOP
 $07fe          3e 80    MVI A, #80
-$0800          32 93 21 STA $2193
+$0800          32 93 21 STA STATE_OUTLANE_1
 $0803 o0803:   c3 1e 06 JMP joEND_MAIN_LOOP
 $0806          03       INX B
 $0807          00       NOP
@@ -1279,7 +1280,7 @@ $087e          3e 02    MVI A, #02
 $0880 o0880:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
 $0883 o0883:   c2 1e 06 JNZ joEND_MAIN_LOOP
 $0886          3e 04    MVI A, #04
-$0888          21 94 21 LXI H, STATE_OUTLANE_1
+$0888          21 94 21 LXI H, SWITCH_LATCHED
 $088b o088b:   cd e1 03 CALL cCLEAR_ATH_BIT_OF_HL
 $088e o088e:   c3 1e 06 JMP joEND_MAIN_LOOP
 ; right flipper
@@ -1354,7 +1355,7 @@ $0938          21 90 21 LXI H, GAME_STATE
 $093b          3e 02    MVI A, #02
 $093d o093d:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
 $0940 o0940:   c2 1e 06 JNZ joEND_MAIN_LOOP
-$0943          21 94 21 LXI H, STATE_OUTLANE_1
+$0943          21 94 21 LXI H, SWITCH_LATCHED
 $0946          3e 05    MVI A, #05
 $0948 o0948:   cd e1 03 CALL cCLEAR_ATH_BIT_OF_HL
 $094b o094b:   c3 1e 06 JMP joEND_MAIN_LOOP
@@ -1753,15 +1754,15 @@ $0cb1          47       MOV B,A
 $0cb2          3a ee 23 LDA $23ee
 $0cb5          90       SUB B
 $0cb6 o0cb6:   fa c4 0c JM j0cc4
-$0cb9          3a 94 21 LDA STATE_OUTLANE_1
+$0cb9          3a 94 21 LDA SWITCH_LATCHED
 $0cbc          e6 fd    ANI #fd
-$0cbe          32 94 21 STA STATE_OUTLANE_1
+$0cbe          32 94 21 STA SWITCH_LATCHED
 $0cc1 o0cc1:   c3 1e 06 JMP joEND_MAIN_LOOP
 $0cc4 j0cc4:   3e 00    MVI A, #00 ;o0cb6
 $0cc6          32 97 21 STA $2197
-$0cc9          3a 94 21 LDA STATE_OUTLANE_1
+$0cc9          3a 94 21 LDA SWITCH_LATCHED
 $0ccc          f6 02    ORI #02
-$0cce          32 94 21 STA STATE_OUTLANE_1
+$0cce          32 94 21 STA SWITCH_LATCHED
 $0cd1          21 90 21 LXI H, GAME_STATE
 $0cd4          3e 00    MVI A, #00
 $0cd6 o0cd6:   cd ee 03 CALL cCHECK_ATH_BIT_OF_HL
@@ -1801,9 +1802,9 @@ $0d30          3e 09    MVI A, #09
 $0d32          32 a6 21 STA $21a6
 $0d35          06 39    MVI B, #39
 $0d37 o0d37:   cd 81 1d CALL co1d81
-$0d3a          3a 94 21 LDA STATE_OUTLANE_1
+$0d3a          3a 94 21 LDA SWITCH_LATCHED
 $0d3d          e6 fd    ANI #fd
-$0d3f          32 94 21 STA STATE_OUTLANE_1
+$0d3f          32 94 21 STA SWITCH_LATCHED
 $0d42          3e 00    MVI A, #00
 $0d44          32 0c 22 STA $220c
 $0d47          21 35 13 LXI H, SPREAD_HRM_MUSIC
@@ -1835,7 +1836,7 @@ $0d88          3a 91 21 LDA $2191
 $0d8b          e6 df    ANI #df
 $0d8d          32 91 21 STA $2191
 $0d90          3e 80    MVI A, #80
-$0d92          32 93 21 STA $2193
+$0d92          32 93 21 STA STATE_OUTLANE_1
 $0d95 j0d95:   3e 03    MVI A, #03 ;o0d85
 $0d97          32 af 21 STA $21af
 $0d9a o0d9a:   c3 19 14 JMP jo1419
@@ -2506,7 +2507,7 @@ $125b o125b:   cd 8d 11 CALL cTONE_PLAY
 $125e o125e:   c3 1e 06 JMP joEND_MAIN_LOOP
  
 $1261 cPLAY_SOUND:
-               eb       XCHG ;o0546,o0563,o059c,o06fd,o07bc,o0855,o0927,o0a1a,o0a3f,o0a79,o0adc,o0b69,o0c39,o0cf3,jo0d23,o0dcb,o0dde,o1085,o14bd,o14ef,o1585,o15a6,o15d0,o15f5,o1786,o1859,o18c7,o18e4,o1a27,o1ae4,o1b72,o1f70
+               eb       XCHG ;o0162,o0546,o0563,o059c,o06fd,o07bc,o0855,o0927,o0a1a,o0a3f,o0a79,o0adc,o0b69,o0c39,o0cf3,jo0d23,o0dcb,o0dde,o1085,o14bd,o14ef,o1585,o15a6,o15d0,o15f5,o1786,o1859,o18c7,o18e4,o1a27,o1ae4,o1b72,o1f70
 $1262          2a be 21 LHLD $21be
 $1265          01 be 21 LXI B, #21be
 $1268          79       MOV A,C
@@ -3047,10 +3048,10 @@ $15a6 o15a6:   cd 61 12 CALL cPLAY_SOUND
 $15a9 o15a9:   c3 19 14 JMP jo1419
 ; outlane handler
 $15ac          3e ff    MVI A, #ff
-$15ae          32 93 21 STA $2193
-$15b1          3a 94 21 LDA STATE_OUTLANE_1
+$15ae          32 93 21 STA STATE_OUTLANE_1
+$15b1          3a 94 21 LDA SWITCH_LATCHED
 $15b4          f6 30    ORI #30
-$15b6          32 94 21 STA STATE_OUTLANE_1
+$15b6          32 94 21 STA SWITCH_LATCHED
 ; don't let outlane scrore > 1x
 $15b9          21 90 21 LXI H, GAME_STATE
 $15bc          3e 02    MVI A, #02
@@ -3117,10 +3118,10 @@ $165a          3a 90 21 LDA GAME_STATE
 $165d          f6 05    ORI #05
 $165f          32 90 21 STA GAME_STATE
 $1662          3e ff    MVI A, #ff
-$1664          32 93 21 STA $2193
-$1667          3a 94 21 LDA STATE_OUTLANE_1
+$1664          32 93 21 STA STATE_OUTLANE_1
+$1667          3a 94 21 LDA SWITCH_LATCHED
 $166a          f6 30    ORI #30
-$166c          32 94 21 STA STATE_OUTLANE_1
+$166c          32 94 21 STA SWITCH_LATCHED
 $166f          3e 00    MVI A, #00
 $1671 j1671:   32 7b 23 STA BALL_IN_PLAY_hrm ;o1652
 $1674          32 9b 23 STA BALL_IN_PLAY_1
@@ -3318,15 +3319,15 @@ $1823 j1823:   3e 32    MVI A, #32 ;o1819
 $1825          32 08 22 STA $2208
 $1828 o1828:   c3 19 14 JMP jo1419
 $182b j182b:   3e ff    MVI A, #ff ;o181d
-$182d          32 93 21 STA $2193
+$182d          32 93 21 STA STATE_OUTLANE_1
 $1830          3e 00    MVI A, #00
 $1832          32 0c 22 STA $220c
 $1835          32 c3 21 STA $21c3
 $1838          32 a8 21 STA $21a8
 $183b          32 a9 21 STA $21a9
-$183e          3a 94 21 LDA STATE_OUTLANE_1
+$183e          3a 94 21 LDA SWITCH_LATCHED
 $1841          f6 30    ORI #30
-$1843          32 94 21 STA STATE_OUTLANE_1
+$1843          32 94 21 STA SWITCH_LATCHED
 $1846          21 90 21 LXI H, GAME_STATE
 $1849          3e 02    MVI A, #02
 $184b o184b:   cd d6 03 CALL cSET_ATH_BIT_OF_HL
@@ -3412,7 +3413,7 @@ $1911 o1911:   c3 1e 06 JMP joEND_MAIN_LOOP
 $1914 j1914:   3e 01    MVI A, #01 ;o1909
 $1916          32 12 22 STA $2212
 $1919          3e 32    MVI A, #32
-$191b          32 94 21 STA STATE_OUTLANE_1
+$191b          32 94 21 STA SWITCH_LATCHED
 $191e          21 92 21 LXI H, GAME_STATE2
 $1921          3e 03    MVI A, #03
 $1923 o1923:   cd e1 03 CALL cCLEAR_ATH_BIT_OF_HL
@@ -3716,12 +3717,12 @@ $1bc6          3a 53 23 LDA $2353
 $1bc9          47       MOV B,A
 $1bca          3a f8 23 LDA $23f8
 $1bcd          90       SUB B
-$1bce          3a 94 21 LDA STATE_OUTLANE_1
+$1bce          3a 94 21 LDA SWITCH_LATCHED
 $1bd1 o1bd1:   fa d9 1b JM j1bd9
 $1bd4          e6 fd    ANI #fd
 $1bd6 o1bd6:   c3 db 1b JMP j1bdb
 $1bd9 j1bd9:   f6 02    ORI #02 ;o1bd1
-$1bdb j1bdb:   32 94 21 STA STATE_OUTLANE_1 ;o1bd6
+$1bdb j1bdb:   32 94 21 STA SWITCH_LATCHED ;o1bd6
 $1bde          3a 92 21 LDA GAME_STATE2
 $1be1          47       MOV B,A
 $1be2          e6 01    ANI #01
@@ -3855,11 +3856,11 @@ $1d22          3a c2 21 LDA $21c2
 $1d25          2f       CMA
 $1d26          d3 05    OUT COIL_5
 $1d28          3e 80    MVI A, #80
-$1d2a          32 93 21 STA $2193
+$1d2a          32 93 21 STA STATE_OUTLANE_1
 $1d2d          3e 06    MVI A, #06
 $1d2f          32 ac 21 STA $21ac
 $1d32          3e 00    MVI A, #00
-$1d34          32 94 21 STA STATE_OUTLANE_1
+$1d34          32 94 21 STA SWITCH_LATCHED
 $1d37          3a 90 21 LDA GAME_STATE
 $1d3a          e6 38    ANI #38
 $1d3c          f6 80    ORI #80
@@ -3870,7 +3871,7 @@ $1d46          32 92 21 STA GAME_STATE2
 $1d49          21 91 21 LXI H, #2191
 $1d4c          3e 01    MVI A, #01
 $1d4e o1d4e:   cd e1 03 CALL cCLEAR_ATH_BIT_OF_HL
-$1d51          21 94 21 LXI H, STATE_OUTLANE_1
+$1d51          21 94 21 LXI H, SWITCH_LATCHED
 $1d54          3e 04    MVI A, #04
 $1d56 o1d56:   cd d6 03 CALL cSET_ATH_BIT_OF_HL
 $1d59          3e 06    MVI A, #06

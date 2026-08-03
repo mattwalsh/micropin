@@ -49,6 +49,7 @@ BALL_IN_PLAY_2 EQU 0x23bb
 BALL_IN_PLAY_3 EQU 0x23db
 BALLS_PER_GAME EQU 0x2213
 DIP_SWITCHES EQU 0x2216
+HARD_RESET EQU 0x5d
 CUPS_LEFT EQU 0x21c7
 GAME_STATE EQU 0x2190
 GAME_STATE2 EQU 0x2192
@@ -271,14 +272,14 @@ o0148:  JNZ jo0168
         STA GAME_STATE2
         MOV A,B
         ANI #10
-o0154:  JNZ jTEST_ROUTINE_1
+o0156:  JNZ jTEST_ROUTINE_1
         MOV A,B
         ANI #40
-o015a:  JNZ jTEST_ROUTINE_2
+o015c:  JNZ jTEST_ROUTINE_2
         LXI H, GAME_OVER_MUSIC
-        CALL cPLAY_SOUND
+o0162:  CALL cPLAY_SOUND
 o0165:  JMP j01bf
-jo0168: CALL c17a8
+jo0168: CALL c17a8 ;o0148,o02c5
         MVI A, #d0
         STA GAME_STATE2
         MVI A, #00
@@ -312,7 +313,7 @@ j01b9:  MOV M,A ;o01bc
         INX H
         DCR B
 o01bc:  JNZ j01b9
-j01bf:  DI
+j01bf:  DI ;o0165,o02a4
         MVI A, #30
         STA STATE_OUTLANE_1
         LDA GAME_STATE2
@@ -439,7 +440,7 @@ cADD_BONUS_HL:
         RET
 
 jTEST_ROUTINE_1:
-              LDA $2191 ;o0154
+              LDA $2191 ;o0156
         MOV B,A
         ANI #01
 o02a4:  JNZ j01bf
@@ -458,7 +459,7 @@ o02a4:  JNZ j01bf
         STA $2221
 o02c5:  JMP jo0168
 jTEST_ROUTINE_2:
-              DI ;o015a
+              DI ;o015c
         LXI H, #23c0
         MVI B, #0c
 j02ce:  MVI M, #88 ;o02d2
@@ -2468,7 +2469,7 @@ jo1258: CALL c128c ;o1246
 o125b:  CALL cTONE_PLAY
 o125e:  JMP joEND_MAIN_LOOP
 cPLAY_SOUND:
-              XCHG ;o0546,o0563,o059c,o06fd,o07bc,o0855,o0927,o0a1a,o0a3f,o0a79,o0adc,o0b69,o0c39,o0cf3,jo0d23,o0dcb,o0dde,o1085,o14bd,o14ef,o1585,o15a6,o15d0,o15f5,o1786,o1859,o18c7,o18e4,o1a27,o1ae4,o1b72,o1f70
+              XCHG ;o0162,o0546,o0563,o059c,o06fd,o07bc,o0855,o0927,o0a1a,o0a3f,o0a79,o0adc,o0b69,o0c39,o0cf3,jo0d23,o0dcb,o0dde,o1085,o14bd,o14ef,o1585,o15a6,o15d0,o15f5,o1786,o1859,o18c7,o18e4,o1a27,o1ae4,o1b72,o1f70
         LHLD $21be
         LXI B, #21be
         MOV A,C

@@ -1,8 +1,46 @@
+NEXT_TONE EQU 0x21b1
+HIGH_SCORE_START EQU 0x222d
+HIGH_SCORE_DISP EQU 0x2323
+HIGH_SCORE_DISP2 EQU 0x2330
+HIGH_SCORE_NOW EQU 0x2393
+HIGH_SCORE_DISP3 EQU 0x23b3
+HIGH_SCORE_DISP4 EQU 0x23d3
 PRICE_1 EQU 0x237f
 PRICE_2 EQU 0x239f
 PRICE_3 EQU 0x23bf
 PRICE_4 EQU 0x23df
 CREDITS_1 EQU 0x237a
+ROLLOVERS EQU 0x21c6
+LAMPS_PAGE_1 EQU 0x2380
+LAMPS_PAGE_2 EQU 0x23a0
+PL13_SCORE_1 EQU 0x2367
+PL13_SCORE_2 EQU 0x236f
+PL24_SCORE_1 EQU 0x2373
+SPREAD_1 EQU 0x21f3
+STATE_OUTLANE_1 EQU 0x2193
+SWITCH_LATCHED EQU 0x2194
+SPREAD_2 EQU 0x2377
+SPREAD_3 EQU 0x23b7
+SPREAD_4 EQU 0x2397
+FREE_BALL EQU 0x2389
+CREDIT_1 EQU 0x239a
+CREDIT_2 EQU 0x23ba
+PL1_SCORE_1 EQU 0x2363
+PL1_SCORE_2 EQU 0x2386
+PL1_SCORE_DISPLAY EQU 0x23a6
+PL1_SCORE_DISPLAY2 EQU 0x2386
+PL1_SCORE_hrm EQU 0x2377
+PL2_SCORE_1 EQU 0x236b
+PL2_SCORE_2 EQU 0x238d
+PL2_SCORE_3 EQU 0x23ad
+PL2_SCORE_H EQU 0x2360
+PL3_SCORE_1 EQU 0x235f
+PL3_SCORE_2 EQU 0x23fe
+PL1_AND_3 EQU 0x2389
+PL3_SCORE_DISPLAY_2 EQU 0x2383
+PL4_SCORE_1 EQU 0x236f
+PL4_SCORE_2 EQU 0x2390
+PL4_SCORE_3 EQU 0x23b0
 CREDITS_2 EQU 0x239a
 CREDITS_3 EQU 0x23ba
 CREDITS_4 EQU 0x23da
@@ -12,13 +50,60 @@ BALL_IN_PLAY_2 EQU 0x23bb
 BALL_IN_PLAY_3 EQU 0x23db
 BALLS_PER_GAME EQU 0x2213
 DIP_SWITCHES EQU 0x2216
+HARD_RESET EQU 0x5d
+CUPS_LEFT EQU 0x21c7
+GAME_STATE EQU 0x2190
+GAME_STATE2 EQU 0x2192
+STACK_SCRATCH EQU 0x2195
+LEFT_SLING_TONE EQU 0x12b9
+RIGHT_SLING_TONE EQU 0x12bc
+SILENCE_END_LOOP_MUSIC EQU 0x12bf
+TILT_MUSIC EQU 0x12c2
+BONUS_MUSIC EQU 0x12d7
+START_PLAYER_MUSIC EQU 0x12da
+UNKNOWN_MUSIC EQU 0x12dd
+LOW_MUSIC EQU 0x12e0
+OOPS_MUSIC EQU 0x12e3
+OOPS2_MUSIC EQU 0x12e8
+LIL_VICTORY_MUSIC EQU 0x12ed
+LIT_STANDUP_MUSIC EQU 0x12f2
+GAME_OVER_MUSIC EQU 0x12ff
+SPREAD_TAKEOVER_MUSIC EQU 0x1316
+MORSE_CODE_MUSIC EQU 0x1321
+BUMPER_25_MUSIC_2 EQU 0x12ad
+BUMPER_25_MUSIC EQU 0x1332
+SPREAD_HRM_MUSIC EQU 0x1335
+LONGER_BUMPER_25_MUSIC EQU 0x1338
+CREDIT_MUSIC EQU 0x1341
+NEXT_PLAYER_MUSIC EQU 0x1346
+OUTLANE_MUSIC EQU 0x134b
+SILENCE_MUSIC EQU 0x134e
+POPCORN_MUSIC EQU 0x136a
+HIGH_SCORE_MUSIC EQU 0x1351
 
 ; INPUT PORTS
+SWITCH_PORT EQU 0x0
 MYSTERY_PORT_1 EQU 0x1
 PRICE_CENTS_07_PORT EQU 0x2
 PRICE_TENS_07_PORT EQU 0x3
 PRICE_89_CAB EQU 0x4
 DIP_SWITCH_PORT EQU 0x5
+
+; OUTPUT PORTS
+LAMP_0 EQU 0x0
+LAMP_1 EQU 0x1
+LAMP_2 EQU 0x2
+LAMP_3 EQU 0x3
+LAMP_4 EQU 0x4
+COIL_5 EQU 0x5
+COIL_6 EQU 0x6
+COIL_7 EQU 0x7
+COIL_8 EQU 0x8
+TONE_ENABLE_DUR EQU 0x9
+TONE_PITCH EQU 0xa
+LAMP_D EQU 0xd
+LAMP_E EQU 0xe
+LAMP_F EQU 0xf
 $0000 o0000:   c3 40 00 JMP j0040
 $0003          76       HLT
 $0004          76       HLT
@@ -59,12 +144,15 @@ $0028          76       HLT
 $0029          76       HLT
 $002a          76       HLT
 $002b          46       MOV B,M
+; RST5.5
 $002c o002c:   c3 24 03 JMP jo0324
+; TRAP
 $002f          76       HLT
 $0030          76       HLT
 $0031          76       HLT
 $0032          76       HLT
 $0033          00       NOP
+; RST6.5
 $0034 o0034:   c3 7e 03 JMP jo037e
 $0037          76       HLT
 $0038          76       HLT
@@ -77,7 +165,7 @@ $0042          32 df 23 STA PRICE_4
 $0045          16 05    MVI D, #05
 $0047 j0047:   21 10 27 LXI H, #2710 ;o0053
 $004a j004a:   2b       DCX H ;o004f
-$004b          d3 0f    OUT #0f
+$004b          d3 0f    OUT LAMP_F
 $004d          7c       MOV A,H
 $004e          b7       ORA A
 $004f o004f:   c2 4a 00 JNZ j004a
@@ -86,7 +174,8 @@ $0053 o0053:   c2 47 00 JNZ j0047
 $0056          db 04    IN PRICE_89_CAB
 $0058          e6 20    ANI #20
 $005a o005a:   ca 6e 00 JZ j006e
-$005d          21 00 20 LXI H, #2000
+; hard reset routine
+HARD_RESET          21 00 20 LXI H, #2000
 $0060 j0060:   97       SUB A ;o0066
 $0061          77       MOV M,A
 $0062          23       INX H
@@ -95,10 +184,10 @@ $0065          bc       CMP H
 $0066 o0066:   c2 60 00 JNZ j0060
 $0069          3e 64    MVI A, #64
 $006b          32 40 22 STA $2240
-$006e j006e:   31 90 21 LXI SP, #2190 ;o0024,o005a
+$006e j006e:   31 90 21 LXI SP, GAME_STATE ;o0024,o005a
 $0071          3e 07    MVI A, #07
-$0073 j0073:   d3 0e    OUT #0e ;o0078
-$0075          d3 0d    OUT #0d
+$0073 j0073:   d3 0e    OUT LAMP_E ;o0078
+$0075          d3 0d    OUT LAMP_D
 $0077          3d       DCR A
 $0078 o0078:   f2 73 00 JP j0073
 $007b          21 97 21 LXI H, #2197
@@ -111,13 +200,13 @@ $0084 o0084:   c2 80 00 JNZ j0080
 $0087          3e 05    MVI A, #05
 $0089          32 a3 21 STA $21a3
 $008c          3e fe    MVI A, #fe
-$008e          d3 09    OUT #09
+$008e          d3 09    OUT TONE_ENABLE_DUR
 $0090          3e 02    MVI A, #02
 $0092          32 98 21 STA $2198
 $0095          3e ff    MVI A, #ff
-$0097          32 93 21 STA $2193
+$0097          32 93 21 STA STATE_OUTLANE_1
 $009a          3e fc    MVI A, #fc
-$009c          32 94 21 STA $2194
+$009c          32 94 21 STA SWITCH_LATCHED
 $009f          21 fb 21 LXI H, #21fb
 $00a2          22 f9 21 SHLD $21f9
 $00a5          21 b4 21 LXI H, #21b4
@@ -125,9 +214,9 @@ $00a8          22 be 21 SHLD $21be
 $00ab          22 c0 21 SHLD $21c0
 $00ae          3e 0f    MVI A, #0f
 $00b0          32 f8 21 STA $21f8
-$00b3          3a 90 21 LDA $2190
+$00b3          3a 90 21 LDA GAME_STATE
 $00b6          f6 05    ORI #05
-$00b8          32 90 21 STA $2190
+$00b8          32 90 21 STA GAME_STATE
 $00bb          3e 0c    MVI A, #0c
 $00bd          30       SIM
 $00be          db 04    IN PRICE_89_CAB
@@ -138,7 +227,7 @@ $00c8 o00c8:   ca 13 01 JZ j0113
 $00cb j00cb:   3e 07    MVI A, #07 ;o0321
 $00cd          32 c2 21 STA $21c2
 $00d0          2f       CMA
-$00d1          d3 05    OUT #05
+$00d1          d3 05    OUT COIL_5
 $00d3          3e 06    MVI A, #06
 $00d5          32 a6 21 STA $21a6
 $00d8 j00d8:   fb       EI ;o00dd
@@ -148,15 +237,15 @@ $00dd o00dd:   c2 d8 00 JNZ j00d8
 $00e0          3e 28    MVI A, #28
 $00e2          32 c2 21 STA $21c2
 $00e5          2f       CMA
-$00e6          d3 05    OUT #05
+$00e6          d3 05    OUT COIL_5
 $00e8          3e 20    MVI A, #20
 $00ea          32 c4 21 STA $21c4
 $00ed          2f       CMA
-$00ee          d3 07    OUT #07
+$00ee          d3 07    OUT COIL_7
 $00f0          3e 02    MVI A, #02
 $00f2          32 c5 21 STA $21c5
 $00f5          2f       CMA
-$00f6          d3 08    OUT #08
+$00f6          d3 08    OUT COIL_8
 $00f8          3e 06    MVI A, #06
 $00fa          32 a6 21 STA $21a6
 $00fd j00fd:   fb       EI ;o0102
@@ -164,18 +253,18 @@ $00fe          3a a6 21 LDA $21a6
 $0101          b7       ORA A
 $0102 o0102:   c2 fd 00 JNZ j00fd
 $0105          3e ff    MVI A, #ff
-$0107          d3 05    OUT #05
-$0109          d3 06    OUT #06
-$010b          d3 07    OUT #07
-$010d          d3 08    OUT #08
+$0107          d3 05    OUT COIL_5
+$0109          d3 06    OUT COIL_6
+$010b          d3 07    OUT COIL_7
+$010d          d3 08    OUT COIL_8
 $010f          f3       DI
 $0110          cd de 13 CALL $13de
 $0113 j0113:   db 04    IN PRICE_89_CAB ;o00c8,o02dc
 $0115          e6 20    ANI #20
 $0117 o0117:   c2 38 01 JNZ jo0138
-$011a          3a 92 21 LDA $2192
+$011a          3a 92 21 LDA GAME_STATE2
 $011d          e6 df    ANI #df
-$011f          32 92 21 STA $2192
+$011f          32 92 21 STA GAME_STATE2
 $0122          db 03    IN PRICE_TENS_07_PORT
 $0124          fe fe    CPI #fe
 $0126 o0126:   c2 8f 01 JNZ j018f
@@ -187,7 +276,7 @@ $0132 o0132:   ca a4 02 JZ j02a4
 $0135 o0135:   c3 8f 01 JMP j018f
 $0138 jo0138:  cd 22 18 CALL c1822 ;o0117,o02a1
 $013b          3e d0    MVI A, #d0
-$013d          32 92 21 STA $2192
+$013d          32 92 21 STA GAME_STATE2
 $0140          3e 00    MVI A, #00
 $0142          32 7e 23 STA $237e
 $0145          32 9e 23 STA $239e
@@ -206,7 +295,7 @@ $0168          11 20 23 LXI D, #2320
 $016b          3e 2e    MVI A, #2e
 $016d o016d:   cd 60 0f CALL c0f60
 $0170          06 01    MVI B, #01
-$0172          11 c6 21 LXI D, #21c6
+$0172          11 c6 21 LXI D, ROLLOVERS
 $0175 o0175:   cd 08 18 CALL jc1808
 $0178          21 c9 21 LXI H, #21c9
 $017b          11 ce 21 LXI D, #21ce
@@ -221,12 +310,12 @@ $018b          05       DCR B
 $018c o018c:   c2 89 01 JNZ j0189
 $018f j018f:   f3       DI ;o0126,o0135,o0280
 $0190          3e 30    MVI A, #30
-$0192          32 94 21 STA $2194
-$0195          3a 92 21 LDA $2192
+$0192          32 94 21 STA SWITCH_LATCHED
+$0195          3a 92 21 LDA GAME_STATE2
 $0198          e6 80    ANI #80
 $019a o019a:   c2 a2 01 JNZ j01a2
 $019d          3e 00    MVI A, #00
-$019f          32 92 21 STA $2192
+$019f          32 92 21 STA GAME_STATE2
 $01a2 j01a2:   db 02    IN PRICE_CENTS_07_PORT ;o019a,o1c25,o1c2b,o1c34,o1c50
 $01a4          0e 00    MVI C, #00
 $01a6          06 08    MVI B, #08
@@ -269,6 +358,7 @@ $01e0          32 7f 23 STA PRICE_1
 $01e3          32 9f 23 STA PRICE_2
 $01e6          32 bf 23 STA PRICE_3
 $01e9          fb       EI
+; read in the dimes place
 $01ea          db 05    IN DIP_SWITCH_PORT
 $01ec          21 16 22 LXI H, DIP_SWITCHES
 $01ef          77       MOV M,A
@@ -283,26 +373,27 @@ $0200 o0200:   c2 04 02 JNZ j0204
 $0203          04       INR B
 $0204 j0204:   78       MOV A,B ;o01f7,o0200
 $0205          32 13 22 STA BALLS_PER_GAME
-$0208 j0208:   d3 0f    OUT #0f ;o026b,o1c5b,o1cb8,o1ce9,o1cf7,o1d64
+$0208 j0208:   d3 0f    OUT LAMP_F ;o026b,o1c5b,o1cb8,o1ce9,o1cf7,o1d64
 $020a          fb       EI
 $020b          00       NOP
 $020c          fb       EI
 $020d j020d:   00       NOP ;o14ac
+; load dip switches, set # balls per game
 $020e          fb       EI
 $020f          00       NOP
 $0210          f3       DI
 $0211          3a c2 21 LDA $21c2
 $0214          2f       CMA
-$0215          d3 05    OUT #05
+$0215          d3 05    OUT COIL_5
 $0217          3a c3 21 LDA $21c3
 $021a          2f       CMA
-$021b          d3 06    OUT #06
+$021b          d3 06    OUT COIL_6
 $021d          3a c4 21 LDA $21c4
 $0220          2f       CMA
-$0221          d3 07    OUT #07
+$0221          d3 07    OUT COIL_7
 $0223          3a c5 21 LDA $21c5
 $0226          2f       CMA
-$0227          d3 08    OUT #08
+$0227          d3 08    OUT COIL_8
 $0229          fb       EI
 $022a          00       NOP
 $022b          fb       EI
@@ -329,7 +420,7 @@ $0252          6e       MOV L,M
 $0253          67       MOV H,A
 $0254 o0254:   cd cd 0f CALL c0fcd
 $0257 j0257:   fb       EI ;o0238,o0249
-$0258          21 92 21 LXI H, #2192
+$0258          21 92 21 LXI H, GAME_STATE2
 $025b          3e 07    MVI A, #07
 $025d o025d:   cd e6 03 CALL c03e6
 $0260 o0260:   c2 b4 1b JNZ j1bb4
@@ -338,7 +429,7 @@ $0266          e6 7f    ANI #7f
 $0268          32 b6 23 STA $23b6
 $026b o026b:   c3 08 02 JMP j0208
  
-$026e c026e:   eb       XCHG ;o074a,o0d7c,o0e56,o0e65,o1518,o1626,o1947
+$026e c026e:   eb       XCHG ;o0d7c,o0e56,o0e65,o1518,o1626,o1947
 $026f          2a f9 21 LHLD $21f9
 $0272          73       MOV M,E
 $0273          23       INX H
@@ -356,7 +447,7 @@ $0284          f6 01    ORI #01
 $0286          32 91 21 STA $2191
 $0289          f3       DI
 $028a          3e 30    MVI A, #30
-$028c          32 94 21 STA $2194
+$028c          32 94 21 STA SWITCH_LATCHED
 $028f          3e 7d    MVI A, #7d
 $0291          32 9f 21 STA $219f
 $0294          3e 3c    MVI A, #3c
@@ -390,12 +481,12 @@ $02c9          36 ff    MVI M, #ff
 $02cb          23       INX H
 $02cc          36 88    MVI M, #88
 $02ce          3e 00    MVI A, #00
-$02d0          d3 00    OUT #00
-$02d2          d3 01    OUT #01
-$02d4          d3 02    OUT #02
-$02d6          d3 03    OUT #03
-$02d8          d3 04    OUT #04
-$02da          d3 0f    OUT #0f
+$02d0          d3 00    OUT LAMP_0
+$02d2          d3 01    OUT LAMP_1
+$02d4          d3 02    OUT LAMP_2
+$02d6          d3 03    OUT LAMP_3
+$02d8          d3 04    OUT LAMP_4
+$02da          d3 0f    OUT LAMP_F
 $02dc o02dc:   c3 13 01 JMP j0113
  
 $02df c02df:   11 3b 23 LXI D, #233b ;co02f3,o1416
@@ -439,9 +530,9 @@ $031c          3e 08    MVI A, #08
 $031e o031e:   cd 60 0f CALL c0f60
 $0321 o0321:   c3 cb 00 JMP j00cb
 $0324 jo0324:  cd 0e 06 CALL c060e ;o002c
-$0327          3a 90 21 LDA $2190
+$0327          3a 90 21 LDA GAME_STATE
 $032a          f6 80    ORI #80
-$032c          32 90 21 STA $2190
+$032c          32 90 21 STA GAME_STATE
 $032f          97       SUB A
 $0330          32 0c 22 STA $220c
 $0333          db 01    IN MYSTERY_PORT_1
@@ -454,9 +545,9 @@ $0340          1c       INR E
 $0341 o0341:   c3 38 03 JMP j0338
 $0344 j0344:   7b       MOV A,E ;o033d
 $0345          2f       CMA
-$0346          d3 0e    OUT #0e
+$0346          d3 0e    OUT LAMP_E
 $0348          2f       CMA
-$0349          21 93 21 LXI H, #2193
+$0349          21 93 21 LXI H, STATE_OUTLANE_1
 $034c o034c:   cd e6 03 CALL c03e6
 $034f o034f:   c2 7a 03 JNZ jo037a
 $0352 o0352:   cd 0e 06 CALL c060e
@@ -474,28 +565,28 @@ $036a          23       INX H
 $036b          66       MOV H,M
 $036c          6f       MOV L,A
 $036d          e9       PCHL
-$036e j036e:   21 94 21 LXI H, #2194 ;o05f0,o0887,o093c,o1448,o1805
+$036e j036e:   21 94 21 LXI H, SWITCH_LATCHED ;o05f0,o0887,o093c,o1448,o1805
 $0371 o0371:   c3 77 03 JMP jo0377
-$0374          21 93 21 LXI H, #2193
+$0374          21 93 21 LXI H, STATE_OUTLANE_1
 $0377 jo0377:  cd d9 03 CALL c03d9 ;o0371
-$037a jo037a:  cd 1a 06 CALL c061a ;o0339,o034f,o0387,o039d,o047e,o0535,o053e,o070e,o074d,o07d1,o07e2,o07ea,o08c6,o08cf,o0987
+$037a jo037a:  cd 1a 06 CALL c061a ;o0339,o034f,o0387,o039d,o047e,o0535,o053e,o070e,o07d1,o07e2,o07ea,o08c6,o08cf,o0987
 $037d          c9       RET
 
 $037e jo037e:  cd 0e 06 CALL c060e ;o0034
 $0381          11 00 00 LXI D, #0000
-$0384          db 00    IN #00
-; switch handler routine
-$0386 j0386:   b7       ORA A ;o038f
+$0384          db 00    IN SWITCH_PORT
+$0386 jSWITCH_HANDLER:
+               b7       ORA A ;o038f
 $0387 o0387:   ca 7a 03 JZ jo037a
 $038a          1f       RAR
 $038b o038b:   da 92 03 JC j0392
 $038e          1c       INR E
-$038f o038f:   c3 86 03 JMP j0386
+$038f o038f:   c3 86 03 JMP jSWITCH_HANDLER
 $0392 j0392:   7b       MOV A,E ;o038b
 $0393          2f       CMA
-$0394          d3 0d    OUT #0d
+$0394          d3 0d    OUT LAMP_D
 $0396          2f       CMA
-$0397          21 94 21 LXI H, #2194
+$0397          21 94 21 LXI H, SWITCH_LATCHED
 $039a o039a:   cd e6 03 CALL c03e6
 $039d o039d:   c2 7a 03 JNZ jo037a
 $03a0 o03a0:   cd ce 03 CALL c03ce
@@ -505,41 +596,55 @@ $03a5          11 be 03 LXI D, #03be
 $03a8          19       DAD D
 $03a9          7e       MOV A,M
 $03aa          23       INX H
-$03ab          66       MOV H,M
-$03ac          6f       MOV L,A
-$03ad          e9       PCHL
-$03ae          e2 06 e8 JPO $e806
-$03b1          06 ee    MVI B, #ee
-$03b3          06 f4    MVI B, #f4
-$03b5          06 fa    MVI B, #fa
-$03b7          06 00    MVI B, #00
-$03b9          07       RLC
-$03ba          06 07    MVI B, #07
-$03bc          7a       MOV A,D
-$03bd          03       INX B
-$03be          cb       (RSTV)
-$03bf          05       DCR B
-$03c0          1d       DCR E
-$03c1          14       INR D
-$03c2          2a 09 73 LHLD $7309
-$03c5          04       INR B
-$03c6          b9       CMP C
-$03c7          07       RLC
-$03c8          77       MOV M,A
-$03c9          08       (DSUB)
-$03ca          57       MOV D,A
-$03cb          16 73    MVI D, #73
-$03cd          04       INR B
+$03ab          66       DB #66
+$03ac          6f       DB #6f
+$03ad          e9       DB #e9
+$03ae          e2       DB #e2
+$03af          06       DB #06
+$03b0          e8       DB #e8
+$03b1          06       DB #06
+$03b2          ee       DB #ee
+$03b3          06       DB #06
+$03b4          f4       DB #f4
+$03b5          06       DB #06
+$03b6          fa       DB #fa
+$03b7          06       DB #06
+$03b8          00       DB #00
+$03b9          07       DB #07
+$03ba          06       DB #06
+$03bb          07       DB #07
+$03bc          7a       DB #7a
+$03bd          03       DB #03
+$03be          cb       DB #cb
+$03bf          05       DB #05
+$03c0          1d       DB #1d
+$03c1          14       DB #14
+$03c2          2a       DB #2a
+$03c3          09       DB #09
+$03c4          73       DB #73
+$03c5          04       DB #04
+$03c6          b9       DB #b9
+$03c7          07       DB #07
+$03c8          77       DB #77
+$03c9          08       DB #08
+$03ca          57       DB #57
+$03cb          16       DB #16
+$03cc          73       DB #73
+$03cd          04       DB #04
+; left flipper vector
  
-$03ce c03ce:   c5       PUSH B ;o0360,o03a0,o0408,o048b,o0523,o0632,o0721,o0960,o09db,o0aa7,o0ab6,o0add,o0b88,o0bd9,o0c2d,o0d0f,o0d2c,o0d32,o0de3,jo10fb,jo1130,o127b,o1296,o1306,o1422,o145c,o14fa,o15c4,o1620,o16b3,o1766,jo1794,jo17b2,o18b9,o18c1,o1a08,jo1a69,o1a7c,o1b67,o1c22,o1c5e,o1d20,o1d57,o1d7a,o1d7e,o1d95
-$03cf          47       MOV B,A
-$03d0 o03d0:   cd f1 03 CALL c03f1
-$03d3          4e       MOV C,M
-$03d4          b1       ORA C
-$03d5          77       MOV M,A
-$03d6 o03d6:   c3 ee 03 JMP j03ee
+$03ce c03ce:   c5       DB #c5 ;o0360,o03a0,o0408,o048b,o0523,o0632,o0721,o0960,o09db,o0aa7,o0ab6,o0add,o0b88,o0bd9,o0c2d,o0d0f,o0d2c,o0d32,o0de3,jo10fb,jo1130,o127b,o1296,o1422,o14fa,o15c4,o1620,o16b3,o1766,jo1794,jo17b2,o18b9,o18c1,o1a08,jo1a69,o1a7c,o1b67,o1c22,o1c5e,o1d20,o1d57,o1d7a,o1d7e,o1d95
+$03cf          47       DB #47
+$03d0          cd       DB #cd
+$03d1          f1       DB #f1
+$03d2          03       DB #03
+$03d3          4e       DB #4e
+$03d4          b1       DB #b1
+$03d5          77       DB #77
+$03d6 oSET_ATH_BIT_OF_HL:
+               c3 ee 03 JMP jCHECK_ATH_BIT_OF_HL
  
-$03d9 c03d9:   c5       PUSH B ;jo0377,o041b,o05af,jo0638,o0808,o0911,o09b4,o09ba,o09c0,o0a07,o0a25,o0ace,jo0ae3,o0b34,o0b42,o0c7c,o0c8c,jo1100,o113d,o1142,jo12a5,jo12d8,o13e3,o1442,o1452,jo1463,o150f,o159d,o1645,o1703,o170b,o1729,o1991,o199d,o19af,jo19d3,o1a9b,o1aa0,o1aad,jo1c28,o1c4a,o1d4f,o1d6c,o1d85,o1d8d,o1d99
+$03d9 c03d9:   c5       PUSH B ;jo0377,o041b,o05af,jo0638,o0808,o0911,o09b4,o09ba,o09c0,o0a07,o0a25,o0ace,jo0ae3,o0b34,o0b42,o0c7c,o0c8c,jo1100,o113d,o1142,jo12a5,o13e3,o1442,o1452,jo1463,o150f,o159d,o1645,o1703,o170b,o1729,o1991,o199d,o19af,jo19d3,o1a9b,o1aa0,o1aad,jo1c28,o1c4a,o1d4f,o1d6c,o1d85,o1d8d,o1d99
 $03da          47       MOV B,A
 $03db o03db:   cd f1 03 CALL c03f1
 $03de          2f       CMA
@@ -547,20 +652,21 @@ $03df          4f       MOV C,A
 $03e0          7e       MOV A,M
 $03e1          a1       ANA C
 $03e2          77       MOV M,A
-$03e3 o03e3:   c3 ee 03 JMP j03ee
+$03e3 o03e3:   c3 ee 03 JMP jCHECK_ATH_BIT_OF_HL
  
-$03e6 c03e6:   c5       PUSH B ;o01f4,o01fd,o025d,o034c,o039a,o0401,o05a4,o062c,o0645,o0660,o077a,o07ce,o07df,o07f2,o07fd,o08c3,o08fb,o0906,o0a1f,o0aac,o0ac8,o0af2,o0b2e,o0b3c,o0beb,o0c21,o0cc4,o0d09,o0d6a,o0fda,o0fe1,o0fe8,o1029,o10f4,o1129,o128e,o12aa,o1302,o143a,o1456,o14ff,o1509,o1597,o15a2,o15b3,o15be,o15e9,o161a,o1637,o163f,o165c,o169e,o16a6,o1756,o175e,o1865,o187b,o18db,o1997,jo19c7,o19da,o19f3,o1c58,o1cf1,o1d89,o1da0
+$03e6 c03e6:   c5       PUSH B ;o01f4,o01fd,o025d,o034c,o039a,o0401,o05a4,o062c,o0645,o0660,o077a,o07ce,o07df,o07f2,o07fd,o08c3,o08fb,o0906,o0a1f,o0aac,o0ac8,o0af2,o0b2e,o0b3c,o0beb,o0c21,o0cc4,o0d09,o0d6a,o0fda,o0fe1,o0fe8,o1029,o10f4,o1129,o128e,o12aa,o143a,o1456,o14ff,o1509,o1597,o15a2,o15b3,o15be,o15e9,o161a,o1637,o163f,o165c,o169e,o16a6,o1756,o175e,o1865,o187b,o18db,o1997,jo19c7,o19da,o19f3,o1c58,o1cf1,o1d89,o1da0
 $03e7          47       MOV B,A
 $03e8 o03e8:   cd f1 03 CALL c03f1
 $03eb          4f       MOV C,A
 $03ec          7e       MOV A,M
 $03ed          a1       ANA C
-$03ee j03ee:   78       MOV A,B ;o03d6,o03e3
+$03ee jCHECK_ATH_BIT_OF_HL:
+               78       MOV A,B ;oSET_ATH_BIT_OF_HL,o03e3
 $03ef          c1       POP B
 $03f0          c9       RET
 
  
-$03f1 c03f1:   4f       MOV C,A ;o03d0,o03db,o03e8
+$03f1 c03f1:   4f       MOV C,A ;o03db,o03e8
 $03f2          3e 01    MVI A, #01
 $03f4 j03f4:   0d       DCR C ;o03f7
 $03f5          f8       RM
@@ -609,22 +715,34 @@ $0438          04       INR B
 $0439          00       NOP
 $043a          01 02 05 LXI B, #0502
 $043d          cd 21 cc CALL $cc21
-$0440          21 cc 21 LXI H, #21cc
-$0443          cc 21 ca CZ $ca21
-$0446          21 3a 90 LXI H, #903a
-$0449          21 f6 05 LXI H, #05f6
-$044c          32 90 21 STA $2190
+; unreachable or data or computed call?
+$0440          21       DB #21
+$0441          cc       DB #cc
+$0442          21       DB #21
+$0443          cc       DB #cc
+$0444          21       DB #21
+$0445          ca       DB #ca
+$0446          21       DB #21
+ 
+$0447 c0447:   3a       DB #3a ;o0473,o0583
+$0448          90       DB #90
+$0449          21       DB #21
+$044a          f6       DB #f6
+$044b          05       DB #05
+$044c          32       DB #32
+$044d          90       DB #90
+$044e          21       DB #21
 $044f          3e 00    MVI A, #00
 $0451          32 0c 22 STA $220c
 $0454          3e ff    MVI A, #ff
-$0456          32 93 21 STA $2193
-$0459          3a 94 21 LDA $2194
+$0456          32 93 21 STA STATE_OUTLANE_1
+$0459          3a 94 21 LDA SWITCH_LATCHED
 $045c          f6 30    ORI #30
-$045e          32 94 21 STA $2194
+$045e          32 94 21 STA SWITCH_LATCHED
 $0461          c9       RET
 
  
-$0462 c0462:   3a 92 21 LDA $2192 ;o047b,o057d
+$0462 c0462:   3a 92 21 LDA GAME_STATE2 ;oTILT_HANDLER,o057d
 $0465          e6 40    ANI #40
 $0467          c8       RZ
 $0468          3a 7a 23 LDA CREDITS_1
@@ -636,10 +754,11 @@ $0470          c9       RET
 $0471 j0471:   3d       DCR A ;o046c
 $0472          c9       RET
 
-$0473          cd 47 04 CALL $0447
+$0473 o0473:   cd 47 04 CALL c0447
 $0476          3e 7d    MVI A, #7d
 $0478          32 a2 21 STA $21a2
-$047b o047b:   cd 62 04 CALL c0462
+$047b oTILT_HANDLER:
+               cd 62 04 CALL c0462
 $047e o047e:   c2 7a 03 JNZ jo037a
 $0481          3e fa    MVI A, #fa
 $0483          32 9e 21 STA $219e
@@ -647,7 +766,7 @@ $0486          21 b6 23 LXI H, #23b6
 $0489          3e 05    MVI A, #05
 $048b o048b:   cd ce 03 CALL c03ce
 $048e          3e ff    MVI A, #ff
-$0490          32 80 23 STA $2380
+$0490          32 80 23 STA LAMPS_PAGE_1
 $0493          32 81 23 STA $2381
 $0496          32 82 23 STA $2382
 $0499          3a 3f 23 LDA $233f
@@ -656,12 +775,12 @@ $049e          47       MOV B,A
 $049f          3a e4 23 LDA $23e4
 $04a2          90       SUB B
 $04a3 o04a3:   fa 38 05 JM j0538
-$04a6          3a 92 21 LDA $2192
+$04a6          3a 92 21 LDA GAME_STATE2
 $04a9          e6 40    ANI #40
 $04ab o04ab:   c2 38 05 JNZ j0538
-$04ae          3a 94 21 LDA $2194
+$04ae          3a 94 21 LDA SWITCH_LATCHED
 $04b1          f6 fc    ORI #fc
-$04b3          32 94 21 STA $2194
+$04b3          32 94 21 STA SWITCH_LATCHED
 $04b6          3e 00    MVI A, #00
 $04b8          32 a3 21 STA $21a3
 $04bb          3e ff    MVI A, #ff
@@ -671,23 +790,23 @@ $04c2 j04c2:   77       MOV M,A ;o04c5
 $04c3          23       INX H
 $04c4          05       DCR B
 $04c5 o04c5:   c2 c2 04 JNZ j04c2
-$04c8          d3 00    OUT #00
-$04ca          d3 01    OUT #01
-$04cc          d3 02    OUT #02
-$04ce          d3 03    OUT #03
-$04d0          d3 04    OUT #04
-$04d2          d3 05    OUT #05
-$04d4          d3 06    OUT #06
-$04d6          d3 07    OUT #07
-$04d8          d3 08    OUT #08
+$04c8          d3 00    OUT LAMP_0
+$04ca          d3 01    OUT LAMP_1
+$04cc          d3 02    OUT LAMP_2
+$04ce          d3 03    OUT LAMP_3
+$04d0          d3 04    OUT LAMP_4
+$04d2          d3 05    OUT COIL_5
+$04d4          d3 06    OUT COIL_6
+$04d6          d3 07    OUT COIL_7
+$04d8          d3 08    OUT COIL_8
 $04da          3e 00    MVI A, #00
 $04dc          3e 0f    MVI A, #0f
 $04de          32 cc 23 STA $23cc
 $04e1          32 d6 23 STA $23d6
 $04e4          32 de 23 STA $23de
-$04e7          3a 90 21 LDA $2190
+$04e7          3a 90 21 LDA GAME_STATE
 $04ea          e6 f7    ANI #f7
-$04ec          32 90 21 STA $2190
+$04ec          32 90 21 STA GAME_STATE
 $04ef          3a 96 23 LDA $2396
 $04f2          e6 ef    ANI #ef
 $04f4          32 96 23 STA $2396
@@ -697,7 +816,7 @@ $04fc          32 b6 23 STA $23b6
 $04ff          06 30    MVI B, #30
 $0501 o0501:   cd 82 1d CALL co1d82
 $0504          3e d0    MVI A, #d0
-$0506          32 92 21 STA $2192
+$0506          32 92 21 STA GAME_STATE2
 $0509          3a 13 22 LDA BALLS_PER_GAME
 $050c          32 7b 23 STA BALL_IN_PLAY_hrm
 $050f          21 7e 23 LXI H, #237e
@@ -738,26 +857,26 @@ $0560          32 a3 21 STA $21a3
 $0563          3e 01    MVI A, #01
 $0565          32 a0 21 STA $21a0
 $0568          32 1c 22 STA $221c
-$056b          3a 94 21 LDA $2194
+$056b          3a 94 21 LDA SWITCH_LATCHED
 $056e          e6 33    ANI #33
-$0570          32 94 21 STA $2194
+$0570          32 94 21 STA SWITCH_LATCHED
 $0573 o0573:   c3 08 06 JMP jo0608
 $0576          db 04    IN PRICE_89_CAB
 $0578          e6 80    ANI #80
 $057a o057a:   ca 94 05 JZ j0594
 $057d o057d:   cd 62 04 CALL c0462
 $0580 o0580:   c2 94 05 JNZ j0594
-$0583          cd 47 04 CALL $0447
+$0583 o0583:   cd 47 04 CALL c0447
 $0586          3e 7d    MVI A, #7d
 $0588          32 a2 21 STA $21a2
 $058b          21 45 13 LXI H, #1345
 $058e o058e:   cd e4 12 CALL c12e4
 $0591 o0591:   c3 08 06 JMP jo0608
-$0594 j0594:   3a 94 21 LDA $2194 ;o057a,o0580
+$0594 j0594:   3a 94 21 LDA SWITCH_LATCHED ;o057a,o0580
 $0597          e6 77    ANI #77
-$0599          32 94 21 STA $2194
+$0599          32 94 21 STA SWITCH_LATCHED
 $059c o059c:   c3 08 06 JMP jo0608
-$059f          21 92 21 LXI H, #2192
+$059f          21 92 21 LXI H, GAME_STATE2
 $05a2          3e 07    MVI A, #07
 $05a4 o05a4:   cd e6 03 CALL c03e6
 $05a7 o05a7:   ca 08 06 JZ jo0608
@@ -765,8 +884,8 @@ $05aa          21 b6 23 LXI H, #23b6
 $05ad          3e 05    MVI A, #05
 $05af o05af:   cd d9 03 CALL c03d9
 $05b2          3e f0    MVI A, #f0
-$05b4          32 a0 23 STA $23a0
-$05b7          32 80 23 STA $2380
+$05b4          32 a0 23 STA LAMPS_PAGE_2
+$05b7          32 80 23 STA LAMPS_PAGE_1
 $05ba          3e ff    MVI A, #ff
 $05bc          32 a1 23 STA $23a1
 $05bf          32 81 23 STA $2381
@@ -806,16 +925,16 @@ $0604          23       INX H
 $0605          66       MOV H,M
 $0606          6f       MOV L,A
 $0607          e9       PCHL
-$0608 jo0608:  cd 1a 06 CALL c061a ;o055b,o0573,o0591,o059c,o05a7,o05c8,o0684,o06a5,o076a,o0772,o077d,o0785,o0800,o080b,o081e,o084f,o085f,o0874,o08e8,o08f3,o0909,o0914,o0927,o0a0a,o0a17,o0a2d,o0a3a,o0a45,o0b54,o0b77,o0b90,o0ba2,o0bd0,o0c27,o0c7f,o0c8f,o0d55,o0d8a,o0db7,o0e7a,o12a2,o12c1,o12d5,o12e1,o1558,o1587,o1955,o197f,o1a4b,o1a58,o1ab5,o1ac7,o1acf,o1ae7,jo1ba0,o1d74
+$0608 jo0608:  cd 1a 06 CALL c061a ;o055b,o0573,o0591,o059c,o05a7,o05c8,o0684,o06a5,o076a,o0772,o077d,o0785,o0800,o080b,o084f,o085f,o0874,o08e8,o08f3,o0909,o0914,o0927,o0a0a,o0a17,o0a2d,o0a3a,o0a45,o0b54,o0b77,o0b90,o0ba2,o0bd0,o0c27,o0c7f,o0c8f,o0d55,o0d8a,o0db7,o0e7a,o12a2,o1558,o1587,o1955,o197f,o1a4b,o1ab5,o1ac7,o1acf,o1ae7,jo1ba0,o1d74
 $060b o060b:   c3 da 05 JMP j05da
  
-$060e c060e:   22 95 21 SHLD $2195 ;jo0324,o0352,jo037e,o05f4,o1467
+$060e c060e:   22 95 21 SHLD STACK_SCRATCH ;jo0324,o0352,jo037e,o05f4,o1467
 $0611          e3       XTHL
 $0612          c5       PUSH B
 $0613          d5       PUSH D
 $0614          f5       PUSH PSW
 $0615          e5       PUSH H
-$0616          2a 95 21 LHLD $2195
+$0616          2a 95 21 LHLD STACK_SCRATCH
 $0619          c9       RET
 
  
@@ -829,7 +948,8 @@ $061f          c9       RET
 $0620          21 f8 21 LXI H, #21f8
 $0623          35       DCR M
 ; push A, SP, B, D, H
-$0624 o0624:   c2 40 06 JNZ j0640
+$0624 oSAVE_BDPSW:
+               c2 40 06 JNZ j0640
 $0627          21 91 21 LXI H, #2191
 $062a          3e 04    MVI A, #04
 $062c o062c:   cd e6 03 CALL c03e6
@@ -839,11 +959,11 @@ $0635 o0635:   c3 3b 06 JMP j063b
 $0638 jo0638:  cd d9 03 CALL c03d9 ;o062f
 $063b j063b:   3e 04    MVI A, #04 ;o0635
 $063d          32 f8 21 STA $21f8
-$0640 j0640:   21 91 21 LXI H, #2191 ;o0624
+$0640 j0640:   21 91 21 LXI H, #2191 ;oSAVE_BDPSW
 $0643          3e 04    MVI A, #04
 $0645 o0645:   cd e6 03 CALL c03e6
 $0648 o0648:   c2 a8 06 JNZ j06a8
-$064b          21 80 23 LXI H, #2380
+$064b          21 80 23 LXI H, LAMPS_PAGE_1
 $064e j064e:   11 c0 23 LXI D, #23c0 ;o06ab
 $0651          3e 40    MVI A, #40
 $0653 o0653:   cd 60 0f CALL c0f60
@@ -855,37 +975,37 @@ $0660 o0660:   cd e6 03 CALL c03e6
 $0663 o0663:   ca 87 06 JZ j0687
 $0666          3a c9 21 LDA $21c9
 $0669          2f       CMA
-$066a          d3 00    OUT #00
+$066a          d3 00    OUT LAMP_0
 $066c          3a ca 21 LDA $21ca
 $066f          2f       CMA
-$0670          d3 01    OUT #01
+$0670          d3 01    OUT LAMP_1
 $0672          3a cb 21 LDA $21cb
 $0675          2f       CMA
-$0676          d3 02    OUT #02
+$0676          d3 02    OUT LAMP_2
 $0678          3a cc 21 LDA $21cc
 $067b          2f       CMA
-$067c          d3 03    OUT #03
+$067c          d3 03    OUT LAMP_3
 $067e          3a cd 21 LDA $21cd
 $0681          2f       CMA
-$0682          d3 04    OUT #04
+$0682          d3 04    OUT LAMP_4
 $0684 o0684:   c3 08 06 JMP jo0608
 $0687 j0687:   3a ce 21 LDA $21ce ;o0663
 $068a          2f       CMA
-$068b          d3 00    OUT #00
+$068b          d3 00    OUT LAMP_0
 $068d          3a cf 21 LDA $21cf
 $0690          2f       CMA
-$0691          d3 01    OUT #01
+$0691          d3 01    OUT LAMP_1
 $0693          3a d0 21 LDA $21d0
 $0696          2f       CMA
-$0697          d3 02    OUT #02
+$0697          d3 02    OUT LAMP_2
 $0699          3a d1 21 LDA $21d1
 $069c          2f       CMA
-$069d          d3 03    OUT #03
+$069d          d3 03    OUT LAMP_3
 $069f          3a d2 21 LDA $21d2
 $06a2          2f       CMA
-$06a3          d3 04    OUT #04
+$06a3          d3 04    OUT LAMP_4
 $06a5 o06a5:   c3 08 06 JMP jo0608
-$06a8 j06a8:   21 a0 23 LXI H, #23a0 ;o0648
+$06a8 j06a8:   21 a0 23 LXI H, LAMPS_PAGE_2 ;o0648
 $06ab o06ab:   c3 4e 06 JMP j064e
 $06ae          82       ADD D
 $06af          0c       INR C
@@ -893,7 +1013,6 @@ $06b0          89       ADC C
 $06b1          12       STAX D
 $06b2          50       MOV D,B
 $06b3          07       RLC
-; credit handler
 $06b4          b8       CMP B
 $06b5          1a       LDAX D
 $06b6          11 0b 57 LXI D, #570b
@@ -961,50 +1080,73 @@ $0721 o0721:   cd ce 03 CALL c03ce
 $0724          3e 09    MVI A, #09
 $0726          32 99 21 STA $2199
 $0729          3a c3 21 LDA $21c3
-$072c          2f       CMA
-$072d          d3 06    OUT #06
-$072f          3a c4 21 LDA $21c4
-$0732          2f       CMA
-$0733          d3 07    OUT #07
-$0735          21 9d 07 LXI H, #079d
-$0738          19       DAD D
-$0739          46       MOV B,M
-$073a          23       INX H
-$073b          66       MOV H,M
-$073c          68       MOV L,B
-$073d          d5       PUSH D
-$073e o073e:   cd e4 12 CALL c12e4
-$0741          d1       POP D
-$0742          21 ab 07 LXI H, #07ab
-$0745          19       DAD D
-$0746          46       MOV B,M
-$0747          23       INX H
-$0748          66       MOV H,M
-$0749          68       MOV L,B
-$074a o074a:   cd 6e 02 CALL c026e
-$074d o074d:   c3 7a 03 JMP jo037a
-$0750          3a c3 21 LDA $21c3
-$0753          e6 30    ANI #30
-$0755          32 c3 21 STA $21c3
-$0758          2f       CMA
-$0759          d3 06    OUT #06
-$075b          3a c4 21 LDA $21c4
-$075e          e6 20    ANI #20
+$072c          2f       DB #2f
+$072d          d3       DB #d3
+$072e          06       DB #06
+$072f          3a       DB #3a
+$0730          c4       DB #c4
+$0731          21       DB #21
+$0732          2f       DB #2f
+$0733          d3       DB #d3
+$0734          07       DB #07
+$0735          21       DB #21
+$0736          9d       DB #9d
+$0737          07       DB #07
+$0738          19       DB #19
+$0739          46       DB #46
+$073a          23       DB #23
+$073b          66       DB #66
+$073c          68       DB #68
+$073d          d5       DB #d5
+$073e          cd       DB #cd
+$073f          e4       DB #e4
+$0740          12       DB #12
+$0741          d1       DB #d1
+$0742          21       DB #21
+$0743          ab       DB #ab
+$0744          07       DB #07
+$0745          19       DB #19
+$0746          46       DB #46
+$0747          23       DB #23
+$0748          66       DB #66
+$0749          68       DB #68
+$074a          cd       DB #cd
+$074b          6e       DB #6e
+$074c          02       DB #02
+$074d          c3       DB #c3
+$074e          7a       DB #7a
+$074f          03       DB #03
+$0750          3a       DB #3a
+$0751          c3       DB #c3
+$0752          21       DB #21
+$0753          e6       DB #e6
+$0754          30       DB #30
+$0755          32       DB #32
+$0756          c3       DB #c3
+$0757          21       DB #21
+$0758          2f       DB #2f
+$0759          d3       DB #d3
+$075a          06       DB #06
+$075b          3a       DB #3a
+$075c          c4       DB #c4
+$075d          21       DB #21
+$075e          e6       DB #e6
+$075f          20       RIM
 $0760          32 c4 21 STA $21c4
 $0763          2f       CMA
-$0764          d3 07    OUT #07
+$0764          d3 07    OUT COIL_7
 $0766          3a ad 21 LDA $21ad
 $0769          b7       ORA A
 $076a o076a:   c2 08 06 JNZ jo0608
 $076d          3e 06    MVI A, #06
 $076f          32 ad 21 STA $21ad
 $0772 o0772:   c3 08 06 JMP jo0608
-$0775          21 90 21 LXI H, #2190
+$0775          21 90 21 LXI H, GAME_STATE
 $0778          3e 02    MVI A, #02
 $077a o077a:   cd e6 03 CALL c03e6
 $077d o077d:   c2 08 06 JNZ jo0608
 $0780          3e 80    MVI A, #80
-$0782          32 93 21 STA $2193
+$0782          32 93 21 STA STATE_OUTLANE_1
 $0785 o0785:   c3 08 06 JMP jo0608
 $0788          03       INX B
 $0789          00       NOP
@@ -1039,10 +1181,10 @@ $07ba          c3 21 f6 JMP $f621
 $07bd          10       (ARHL)
 $07be          32 c3 21 STA $21c3
 $07c1          2f       CMA
-$07c2          d3 06    OUT #06
+$07c2          d3 06    OUT COIL_6
 $07c4          3e 09    MVI A, #09
 $07c6          32 a8 21 STA $21a8
-$07c9          21 90 21 LXI H, #2190
+$07c9          21 90 21 LXI H, GAME_STATE
 $07cc          3e 05    MVI A, #05
 $07ce o07ce:   cd e6 03 CALL c03e6
 $07d1 o07d1:   c2 7a 03 JNZ jo037a
@@ -1059,34 +1201,55 @@ $07ed          21 c3 21 LXI H, #21c3
 $07f0          3e 04    MVI A, #04
 $07f2 o07f2:   cd e6 03 CALL c03e6
 $07f5 o07f5:   c2 0e 08 JNZ j080e
-$07f8          21 90 21 LXI H, #2190
+$07f8          21 90 21 LXI H, GAME_STATE
 $07fb          3e 02    MVI A, #02
 $07fd o07fd:   cd e6 03 CALL c03e6
 $0800 o0800:   c2 08 06 JNZ jo0608
 $0803          3e 04    MVI A, #04
-$0805          21 94 21 LXI H, #2194
+$0805          21 94 21 LXI H, SWITCH_LATCHED
 $0808 o0808:   cd d9 03 CALL c03d9
 $080b o080b:   c3 08 06 JMP jo0608
 $080e j080e:   3a c3 21 LDA $21c3 ;o07f5
 $0811          e6 2f    ANI #2f
 $0813          32 c3 21 STA $21c3
 $0816          2f       CMA
-$0817          d3 06    OUT #06
-$0819          3e 06    MVI A, #06
-$081b          32 a8 21 STA $21a8
-$081e o081e:   c3 08 06 JMP jo0608
-$0821          3a c3 21 LDA $21c3
-$0824          f6 30    ORI #30
-$0826          32 c3 21 STA $21c3
-$0829          3e 09    MVI A, #09
-$082b          32 a8 21 STA $21a8
-$082e          32 a9 21 STA $21a9
-$0831          3e 71    MVI A, #71
-$0833          32 9f 21 STA $219f
-$0836          3a 1f 22 LDA $221f
-$0839          3d       DCR A
-$083a          32 1f 22 STA $221f
-$083d o083d:   c2 62 08 JNZ j0862
+$0817          d3 06    OUT COIL_6
+$0819          3e       DB #3e
+$081a          06       DB #06
+$081b          32       DB #32
+$081c          a8       DB #a8
+$081d          21       DB #21
+$081e          c3       DB #c3
+$081f          08       DB #08
+$0820          06       DB #06
+$0821          3a       DB #3a
+$0822          c3       DB #c3
+$0823          21       DB #21
+$0824          f6       DB #f6
+$0825          30       DB #30
+$0826          32       DB #32
+$0827          c3       DB #c3
+$0828          21       DB #21
+$0829          3e       DB #3e
+$082a          09       DB #09
+$082b          32       DB #32
+$082c          a8       DB #a8
+$082d          21       DB #21
+$082e          32       DB #32
+$082f          a9       DB #a9
+$0830          21       DB #21
+$0831          3e       DB #3e
+$0832          71       DB #71
+$0833          32       DB #32
+$0834          9f       DB #9f
+$0835          21       DB #21
+$0836          3a       DB #3a
+; left flipper
+$0837          1f       RAR
+$0838          22 3d 32 SHLD $323d
+$083b          1f       RAR
+$083c          22 c2 62 SHLD $62c2
+$083f          08       (DSUB)
 $0840          3e 3c    MVI A, #3c
 $0842          32 1f 22 STA $221f
 $0845          3a 20 22 LDA $2220
@@ -1102,14 +1265,14 @@ $085a          3c       INR A
 $085b          27       DAA
 $085c          32 21 22 STA $2221
 $085f o085f:   c3 08 06 JMP jo0608
-$0862 j0862:   3a 20 22 LDA $2220 ;o083d
+$0862          3a 20 22 LDA $2220
 $0865          32 9a 23 STA CREDITS_2
 $0868          32 ba 23 STA CREDITS_3
 $086b          3a 21 22 LDA $2221
 $086e          32 9f 23 STA PRICE_2
 $0871          32 bf 23 STA PRICE_3
 $0874 o0874:   c3 08 06 JMP jo0608
-$0877          3a 92 21 LDA $2192
+$0877          3a 92 21 LDA GAME_STATE2
 $087a          e6 fe    ANI #fe
 $087c          47       MOV B,A
 $087d          e6 80    ANI #80
@@ -1128,7 +1291,7 @@ $0898 j0898:   e6 fe    ANI #fe ;o0890
 $089a j089a:   32 41 22 STA $2241 ;o0895
 $089d          78       MOV A,B
 $089e          f6 04    ORI #04
-$08a0          32 92 21 STA $2192
+$08a0          32 92 21 STA GAME_STATE2
 $08a3          3e 02    MVI A, #02
 $08a5          32 b0 21 STA $21b0
 $08a8          3e 20    MVI A, #20
@@ -1139,10 +1302,10 @@ $08ae j08ae:   3a c3 21 LDA $21c3 ;o087f
 $08b1          f6 20    ORI #20
 $08b3          32 c3 21 STA $21c3
 $08b6          2f       CMA
-$08b7          d3 06    OUT #06
+$08b7          d3 06    OUT COIL_6
 $08b9          3e 09    MVI A, #09
 $08bb          32 a9 21 STA $21a9
-$08be          21 90 21 LXI H, #2190
+$08be          21 90 21 LXI H, GAME_STATE
 $08c1          3e 05    MVI A, #05
 $08c3 o08c3:   cd e6 03 CALL c03e6
 $08c6 o08c6:   c2 7a 03 JNZ jo037a
@@ -1155,9 +1318,9 @@ $08d6 o08d6:   f2 eb 08 JP j08eb
 $08d9          db 04    IN PRICE_89_CAB
 $08db          e6 40    ANI #40
 $08dd o08dd:   c2 ee 08 JNZ j08ee
-$08e0          3a 92 21 LDA $2192
+$08e0          3a 92 21 LDA GAME_STATE2
 $08e3          e6 fb    ANI #fb
-$08e5          32 92 21 STA $2192
+$08e5          32 92 21 STA GAME_STATE2
 $08e8 o08e8:   c3 08 06 JMP jo0608
 $08eb j08eb:   32 43 22 STA $2243 ;o08d6
 $08ee j08ee:   3e 04    MVI A, #04 ;o08dd
@@ -1167,11 +1330,11 @@ $08f6          21 c3 21 LXI H, #21c3
 $08f9          3e 05    MVI A, #05
 $08fb o08fb:   cd e6 03 CALL c03e6
 $08fe o08fe:   c2 17 09 JNZ j0917
-$0901          21 90 21 LXI H, #2190
+$0901          21 90 21 LXI H, GAME_STATE
 $0904          3e 02    MVI A, #02
 $0906 o0906:   cd e6 03 CALL c03e6
 $0909 o0909:   c2 08 06 JNZ jo0608
-$090c          21 94 21 LXI H, #2194
+$090c          21 94 21 LXI H, SWITCH_LATCHED
 $090f          3e 05    MVI A, #05
 $0911 o0911:   cd d9 03 CALL c03d9
 $0914 o0914:   c3 08 06 JMP jo0608
@@ -1179,20 +1342,20 @@ $0917 j0917:   3a c3 21 LDA $21c3 ;o08fe
 $091a          e6 1f    ANI #1f
 $091c          32 c3 21 STA $21c3
 $091f          2f       CMA
-$0920          d3 06    OUT #06
+$0920          d3 06    OUT COIL_6
 $0922          3e 06    MVI A, #06
 $0924          32 a9 21 STA $21a9
 $0927 o0927:   c3 08 06 JMP jo0608
 $092a          db 04    IN PRICE_89_CAB
 $092c          e6 10    ANI #10
 $092e o092e:   ca 3f 09 JZ j093f
-$0931          3a 92 21 LDA $2192
+$0931          3a 92 21 LDA GAME_STATE2
 $0934          e6 fe    ANI #fe
 $0936          47       MOV B,A
 $0937 o0937:   cd 8a 08 CALL c088a
 $093a          3e 02    MVI A, #02
 $093c o093c:   c3 6e 03 JMP j036e
-$093f j093f:   3a 92 21 LDA $2192 ;o092e
+$093f j093f:   3a 92 21 LDA GAME_STATE2 ;o092e
 $0942          e6 20    ANI #20
 $0944 o0944:   c2 68 09 JNZ jo0968
 $0947          3e 00    MVI A, #00
@@ -1202,7 +1365,7 @@ $094f          32 9c 23 STA $239c
 $0952          32 9d 23 STA $239d
 $0955          32 bc 23 STA $23bc
 $0958          32 bd 23 STA $23bd
-$095b          21 92 21 LXI H, #2192
+$095b          21 92 21 LXI H, GAME_STATE2
 $095e          3e 05    MVI A, #05
 $0960 o0960:   cd ce 03 CALL c03ce
 $0963          3e 02    MVI A, #02
@@ -1214,9 +1377,9 @@ $096f          3e 01    MVI A, #01
 $0971 o0971:   c2 76 09 JNZ j0976
 $0974          3e 04    MVI A, #04
 $0976 j0976:   32 42 22 STA $2242 ;o0971
-$0979          3a 94 21 LDA $2194
+$0979          3a 94 21 LDA SWITCH_LATCHED
 $097c          f6 40    ORI #40
-$097e          32 94 21 STA $2194
+$097e          32 94 21 STA SWITCH_LATCHED
 $0981          21 c4 13 LXI H, #13c4
 $0984 o0984:   cd e4 12 CALL c12e4
 $0987 o0987:   c3 7a 03 JMP jo037a
@@ -1273,7 +1436,7 @@ $09f8 o09f8:   ca 0d 0a JZ j0a0d
 $09fb          21 1d 22 LXI H, #221d
 $09fe          35       DCR M
 $09ff o09ff:   c2 12 0a JNZ j0a12
-$0a02          21 92 21 LXI H, #2192
+$0a02          21 92 21 LXI H, GAME_STATE2
 $0a05          3e 05    MVI A, #05
 $0a07 o0a07:   cd d9 03 CALL c03d9
 $0a0a o0a0a:   c3 08 06 JMP jo0608
@@ -1295,9 +1458,9 @@ $0a33          35       DCR M
 $0a34 o0a34:   ca 3d 0a JZ j0a3d
 $0a37 o0a37:   cd 8a 09 CALL c098a
 $0a3a o0a3a:   c3 08 06 JMP jo0608
-$0a3d j0a3d:   3a 94 21 LDA $2194 ;o0a34
+$0a3d j0a3d:   3a 94 21 LDA SWITCH_LATCHED ;o0a34
 $0a40          e6 bb    ANI #bb
-$0a42          32 94 21 STA $2194
+$0a42          32 94 21 STA SWITCH_LATCHED
 $0a45 o0a45:   c3 08 06 JMP jo0608
 $0a48          06 24    MVI B, #24
 $0a4a          0e 00    MVI C, #00
@@ -1337,10 +1500,11 @@ $0a97          32 08 22 STA $2208
 $0a9a          3e 04    MVI A, #04
 $0a9c          32 97 21 STA $2197
 $0a9f o0a9f:   c3 7a 14 JMP jo147a
-$0aa2 j0aa2:   21 90 21 LXI H, #2190 ;o0a8a
+$0aa2 j0aa2:   21 90 21 LXI H, GAME_STATE ;o0a8a
 $0aa5          3e 07    MVI A, #07
 $0aa7 o0aa7:   cd ce 03 CALL c03ce
 $0aaa          3e 02    MVI A, #02
+; all cups complete
 $0aac o0aac:   cd e6 03 CALL c03e6
 $0aaf o0aaf:   ca c1 0a JZ jo0ac1
 $0ab2          79       MOV A,C
@@ -1351,13 +1515,13 @@ $0abb          32 a6 21 STA $21a6
 $0abe o0abe:   c3 7a 14 JMP jo147a
 $0ac1 jo0ac1:  cd 82 1d CALL co1d82 ;o0aaf
 $0ac4          79       MOV A,C
-$0ac5          21 c7 21 LXI H, #21c7
+$0ac5          21 c7 21 LXI H, CUPS_LEFT
 $0ac8 o0ac8:   cd e6 03 CALL c03e6
 $0acb o0acb:   ca 2a 0c JZ jo0c2a
 $0ace o0ace:   cd d9 03 CALL c03d9
 $0ad1          21 11 22 LXI H, #2211
 $0ad4          be       CMP M
-$0ad5          21 92 21 LXI H, #2192
+$0ad5          21 92 21 LXI H, GAME_STATE2
 $0ad8          3e 01    MVI A, #01
 $0ada o0ada:   c2 e3 0a JNZ jo0ae3
 $0add o0add:   cd ce 03 CALL c03ce
@@ -1394,7 +1558,7 @@ $0b1f          6f       MOV L,A
 $0b20 o0b20:   cd ed 0e CALL c0eed
 $0b23          21 60 13 LXI H, #1360
 $0b26 o0b26:   cd e4 12 CALL c12e4
-$0b29          21 92 21 LXI H, #2192
+$0b29          21 92 21 LXI H, GAME_STATE2
 $0b2c          3e 01    MVI A, #01
 $0b2e o0b2e:   cd e6 03 CALL c03e6
 $0b31 o0b31:   ca 7a 0b JZ j0b7a
@@ -1424,7 +1588,7 @@ $0b6f          32 9c 21 STA $219c
 $0b72          3e fa    MVI A, #fa
 $0b74          32 08 22 STA $2208
 $0b77 o0b77:   c3 08 06 JMP jo0608
-$0b7a j0b7a:   3a c7 21 LDA $21c7 ;o0b31,o0b3f,o0b6a
+$0b7a j0b7a:   3a c7 21 LDA CUPS_LEFT ;o0b31,o0b3f,o0b6a
 $0b7d          fe 00    CPI #00
 $0b7f o0b7f:   ca 93 0b JZ j0b93
 $0b82          2a 09 22 LHLD $2209
@@ -1466,8 +1630,8 @@ $0bd9 o0bd9:   cd ce 03 CALL c03ce
 $0bdc          3e 06    MVI A, #06
 $0bde          32 a6 21 STA $21a6
 $0be1          3e 1f    MVI A, #1f
-$0be3          32 c7 21 STA $21c7
-$0be6          21 90 21 LXI H, #2190
+$0be3          32 c7 21 STA CUPS_LEFT
+$0be6          21 90 21 LXI H, GAME_STATE
 $0be9          3e 03    MVI A, #03
 $0beb o0beb:   cd e6 03 CALL c03e6
 $0bee o0bee:   c2 fe 0b JNZ j0bfe
@@ -1536,14 +1700,14 @@ $0c6c          3a c4 21 LDA $21c4
 $0c6f          e6 1f    ANI #1f
 $0c71          32 c4 21 STA $21c4
 $0c74          2f       CMA
-$0c75          d3 07    OUT #07
+$0c75          d3 07    OUT COIL_7
 $0c77          21 c5 21 LXI H, #21c5
 $0c7a          3e 01    MVI A, #01
 $0c7c o0c7c:   cd d9 03 CALL c03d9
 $0c7f o0c7f:   c3 08 06 JMP jo0608
 $0c82          3e 00    MVI A, #00
 $0c84          32 08 22 STA $2208
-$0c87          21 92 21 LXI H, #2192
+$0c87          21 92 21 LXI H, GAME_STATE2
 $0c8a          3e 03    MVI A, #03
 $0c8c o0c8c:   cd d9 03 CALL c03d9
 $0c8f o0c8f:   c3 08 06 JMP jo0608
@@ -1575,7 +1739,7 @@ $0cb4          11 fc 11 LXI D, #11fc
 $0cb7 j0cb7:   06 39    MVI B, #39 ;o0a7a
 $0cb9 o0cb9:   cd 9d 1d CALL co1d9d
 $0cbc o0cbc:   ca de 0d JZ j0dde
-$0cbf          21 90 21 LXI H, #2190
+$0cbf          21 90 21 LXI H, GAME_STATE
 $0cc2          3e 02    MVI A, #02
 $0cc4 o0cc4:   cd e6 03 CALL c03e6
 $0cc7 o0cc7:   c2 de 0d JNZ j0dde
@@ -1601,7 +1765,7 @@ $0cf9 j0cf9:   32 0c 22 STA $220c ;o0ce7,o0cf4
 $0cfc          06 31    MVI B, #31
 $0cfe o0cfe:   cd 9d 1d CALL co1d9d
 $0d01 o0d01:   ca 3a 0d JZ j0d3a
-$0d04          21 90 21 LXI H, #2190
+$0d04          21 90 21 LXI H, GAME_STATE
 $0d07          3e 03    MVI A, #03
 $0d09 o0d09:   cd e6 03 CALL c03e6
 $0d0c o0d0c:   c2 3a 0d JNZ j0d3a
@@ -1629,16 +1793,16 @@ $0d45          47       MOV B,A
 $0d46          3a ee 23 LDA $23ee
 $0d49          90       SUB B
 $0d4a o0d4a:   fa 58 0d JM j0d58
-$0d4d          3a 94 21 LDA $2194
+$0d4d          3a 94 21 LDA SWITCH_LATCHED
 $0d50          e6 fd    ANI #fd
-$0d52          32 94 21 STA $2194
+$0d52          32 94 21 STA SWITCH_LATCHED
 $0d55 o0d55:   c3 08 06 JMP jo0608
 $0d58 j0d58:   3e 00    MVI A, #00 ;o0d4a
 $0d5a          32 97 21 STA $2197
-$0d5d          3a 94 21 LDA $2194
+$0d5d          3a 94 21 LDA SWITCH_LATCHED
 $0d60          f6 02    ORI #02
-$0d62          32 94 21 STA $2194
-$0d65          21 90 21 LXI H, #2190
+$0d62          32 94 21 STA SWITCH_LATCHED
+$0d65          21 90 21 LXI H, GAME_STATE
 $0d68          3e 00    MVI A, #00
 $0d6a o0d6a:   cd e6 03 CALL c03e6
 $0d6d o0d6d:   c2 ba 0d JNZ j0dba
@@ -1676,9 +1840,9 @@ $0dc1          3e 09    MVI A, #09
 $0dc3          32 a6 21 STA $21a6
 $0dc6          06 39    MVI B, #39
 $0dc8 o0dc8:   cd 82 1d CALL co1d82
-$0dcb          3a 94 21 LDA $2194
+$0dcb          3a 94 21 LDA SWITCH_LATCHED
 $0dce          e6 fd    ANI #fd
-$0dd0          32 94 21 STA $2194
+$0dd0          32 94 21 STA SWITCH_LATCHED
 $0dd3          3e 00    MVI A, #00
 $0dd5          32 0c 22 STA $220c
 $0dd8          21 b8 13 LXI H, #13b8
@@ -1700,7 +1864,7 @@ $0dff o0dff:   c3 07 0e JMP j0e07
 $0e02          3e 14    MVI A, #14
 $0e04 o0e04:   c3 07 0e JMP j0e07
 $0e07 j0e07:   32 25 22 STA $2225 ;o0df0,o0df5,o0dfa,o0dff,o0e04
-$0e0a          3a 90 21 LDA $2190
+$0e0a          3a 90 21 LDA GAME_STATE
 $0e0d          e6 04    ANI #04
 $0e0f o0e0f:   c2 7a 14 JNZ jo147a
 $0e12          3a af 21 LDA $21af
@@ -1710,7 +1874,7 @@ $0e19          3a 91 21 LDA $2191
 $0e1c          e6 df    ANI #df
 $0e1e          32 91 21 STA $2191
 $0e21          3e 80    MVI A, #80
-$0e23          32 93 21 STA $2193
+$0e23          32 93 21 STA STATE_OUTLANE_1
 $0e26 j0e26:   3e 03    MVI A, #03 ;o0e16
 $0e28          32 af 21 STA $21af
 $0e2b o0e2b:   c3 7a 14 JMP jo147a
@@ -1731,7 +1895,8 @@ $0e50 o0e50:   ca 62 0e JZ j0e62
 $0e53          21 e8 11 LXI H, #11e8
 $0e56 o0e56:   cd 6e 02 CALL c026e
 $0e59          21 63 13 LXI H, #1363
-$0e5c o0e5c:   cd e4 12 CALL c12e4
+$0e5c oADD_BONUS:
+               cd e4 12 CALL c12e4
 $0e5f o0e5f:   c3 72 0e JMP j0e72
 $0e62 j0e62:   21 f4 11 LXI H, #11f4 ;o0e50
 $0e65 o0e65:   cd 6e 02 CALL c026e
@@ -1744,7 +1909,7 @@ $0e75          e6 df    ANI #df
 $0e77          32 91 21 STA $2191
 $0e7a o0e7a:   c3 08 06 JMP jo0608
  
-$0e7d c0e7d:   11 f3 21 LXI D, #21f3 ;o0efa,o1004,o1090,o191f
+$0e7d c0e7d:   11 f3 21 LXI D, SPREAD_1 ;o0efa,o1004,o1090,o191f
 $0e80          b7       ORA A
 $0e81          f5       PUSH PSW
 $0e82 j0e82:   de 02    SBI #02 ;o0e9c
@@ -1782,7 +1947,7 @@ $0ea8          c9       RET
  
 $0ea9 c0ea9:   0e 00    MVI C, #00 ;o0f39,o1050,o1089,o10c0,o11b5,o1dc2,o1de8,o1df8,o1e22,o1e32,o1e42,o1e8d,o1e9f,o1eb1,o1ec3,o1ed5,o1ee7,o1ef9,o1f0b,o1f1d,o1f2f
 $0eab          b7       ORA A
-$0eac          11 f3 21 LXI D, #21f3
+$0eac          11 f3 21 LXI D, SPREAD_1
 $0eaf          f5       PUSH PSW
 $0eb0 j0eb0:   de 02    SBI #02 ;o0ecb
 $0eb2 o0eb2:   fa ce 0e JM j0ece
@@ -1827,26 +1992,26 @@ $0eea          e6 00    ANI #00
 $0eec          c9       RET
 
  
-$0eed c0eed:   11 f3 21 LXI D, #21f3 ;o0b20,o0b5a,o0d90,o0e69,o15ab,o164b,o195b
+$0eed c0eed:   11 f3 21 LXI D, SPREAD_1 ;o0b20,o0b5a,o0d90,o0e69,o15ab,o164b,o195b
 $0ef0          3e 08    MVI A, #08
 $0ef2 o0ef2:   cd 60 0f CALL c0f60
 $0ef5          21 5b 23 LXI H, #235b
 $0ef8          3e 08    MVI A, #08
 $0efa o0efa:   cd 7d 0e CALL c0e7d
-$0efd          21 f3 21 LXI H, #21f3
+$0efd          21 f3 21 LXI H, SPREAD_1
  
 $0f00 c0f00:   11 5b 23 LXI D, #235b ;o0da9,o192a,o1aed
 $0f03          3e 08    MVI A, #08
 $0f05 o0f05:   cd 60 0f CALL c0f60
 $0f08          21 5b 23 LXI H, #235b
-$0f0b          11 a0 23 LXI D, #23a0
+$0f0b          11 a0 23 LXI D, LAMPS_PAGE_2
 $0f0e          3e 06    MVI A, #06
 $0f10 o0f10:   cd 7b 0f CALL c0f7b
-$0f13          3a 90 21 LDA $2190
+$0f13          3a 90 21 LDA GAME_STATE
 $0f16          e6 01    ANI #01
 $0f18          c0       RNZ
-$0f19          21 a0 23 LXI H, #23a0
-$0f1c          11 80 23 LXI D, #2380
+$0f19          21 a0 23 LXI H, LAMPS_PAGE_2
+$0f1c          11 80 23 LXI D, LAMPS_PAGE_1
 $0f1f          3e 06    MVI A, #06
 $0f21 o0f21:   cd 60 0f CALL c0f60
 $0f24          06 39    MVI B, #39
@@ -1856,30 +2021,30 @@ $0f29          c9       RET
  
 $0f2a c0f2a:   e5       PUSH H ;o0d73,o0d9c,o193e,o1967
 $0f2b          21 5b 23 LXI H, #235b
-$0f2e          11 f3 21 LXI D, #21f3
+$0f2e          11 f3 21 LXI D, SPREAD_1
 $0f31          3e 08    MVI A, #08
 $0f33 o0f33:   cd 60 0f CALL c0f60
 $0f36          e1       POP H
 $0f37          3e 08    MVI A, #08
 $0f39 o0f39:   cd a9 0e CALL c0ea9
 $0f3c          f5       PUSH PSW
-$0f3d          21 f3 21 LXI H, #21f3
+$0f3d          21 f3 21 LXI H, SPREAD_1
 $0f40          11 5b 23 LXI D, #235b
 $0f43          3e 08    MVI A, #08
 $0f45 o0f45:   cd 60 0f CALL c0f60
 $0f48          21 5b 23 LXI H, #235b
-$0f4b          11 80 23 LXI D, #2380
+$0f4b          11 80 23 LXI D, LAMPS_PAGE_1
 $0f4e          3e 06    MVI A, #06
 $0f50 o0f50:   cd 7b 0f CALL c0f7b
-$0f53          21 80 23 LXI H, #2380
-$0f56          11 a0 23 LXI D, #23a0
+$0f53          21 80 23 LXI H, LAMPS_PAGE_1
+$0f56          11 a0 23 LXI D, LAMPS_PAGE_2
 $0f59          3e 06    MVI A, #06
 $0f5b o0f5b:   cd 60 0f CALL c0f60
 $0f5e          f1       POP PSW
 $0f5f          c9       RET
 
  
-$0f60 c0f60:   b7       ORA A ;o016d,o0180,o0313,o031e,o0653,o0cda,o0ef2,o0f05,o0f21,o0f33,o0f45,o0f5b,o0fd2,o100e,o1021,o1048,o1060,o1081,o109a,o10ad,o10b8,o10cf,o10e5,o114e,o1159,o11ad,o1693,o1716,o1721,o18d3,o1914,o1b04,o1b0f,o1bf7,o1c02,o1c71,o1c9e,o1f41,o1f4f,o1f5b,o1f6b,o1f82,o1f99,o1fa3,o1fb1,o1fbb,o1fc4,o1fda
+$0f60 c0f60:   b7       ORA A ;o016d,o0180,o0313,o031e,o0653,o0cda,o0ef2,o0f05,o0f21,o0f33,o0f45,o0f5b,o0fd2,o100e,o1021,o1048,o1060,o1081,o109a,o10ad,o10b8,o10cf,o10e5,o11ad,o1693,o1716,o1721,o18d3,o1914,o1b04,o1b0f,o1bf7,o1c02,o1c71,o1c9e,o1f41,o1f4f,o1f5b,o1f6b,o1f82,o1f99,o1fa3,o1fb1,o1fbb,o1fc4,o1fda
 $0f61 j0f61:   de 02    SBI #02 ;o0f6d
 $0f63 o0f63:   fa 71 0f JM j0f71
 $0f66          47       MOV B,A
@@ -1959,7 +2124,7 @@ $0fcb          12       STAX D
 $0fcc          c9       RET
 
  
-$0fcd c0fcd:   11 f3 21 LXI D, #21f3 ;o0254,o0d96,o177e,o1789,o1961
+$0fcd c0fcd:   11 f3 21 LXI D, SPREAD_1 ;o0254,o0d96,o177e,o1789,o1961
 $0fd0          3e 08    MVI A, #08
 $0fd2 o0fd2:   cd 60 0f CALL c0f60
 $0fd5          21 7e 23 LXI H, #237e
@@ -1972,21 +2137,21 @@ $0fe4 o0fe4:   c2 77 11 JNZ j1177
 $0fe7          3c       INR A
 $0fe8 o0fe8:   cd e6 03 CALL c03e6
 $0feb o0feb:   c2 8e 11 JNZ j118e
-$0fee          21 93 23 LXI H, #2393
+$0fee          21 93 23 LXI H, HIGH_SCORE_NOW
 $0ff1          e5       PUSH H
-$0ff2          21 73 23 LXI H, #2373
+$0ff2          21 73 23 LXI H, PL24_SCORE_1
 $0ff5          e5       PUSH H
-$0ff6          21 6b 23 LXI H, #236b
+$0ff6          21 6b 23 LXI H, PL2_SCORE_1
 $0ff9          e5       PUSH H
-$0ffa          21 90 23 LXI H, #2390
+$0ffa          21 90 23 LXI H, PL4_SCORE_2
 $0ffd          e5       PUSH H
-$0ffe          21 6f 23 LXI H, #236f
+$0ffe          21 6f 23 LXI H, PL4_SCORE_1
 $1001          e5       PUSH H
-$1002 j1002:   3e 08    MVI A, #08 ;o1174,o118b,o11a2
+$1002 j1002:   3e 08    MVI A, #08 ;o11a2
 $1004 o1004:   cd 7d 0e CALL c0e7d
 $1007          d1       POP D
 $1008          d5       PUSH D
-$1009          21 f3 21 LXI H, #21f3
+$1009          21 f3 21 LXI H, SPREAD_1
 $100c          3e 08    MVI A, #08
 $100e o100e:   cd 60 0f CALL c0f60
 $1011          e1       POP H
@@ -2014,36 +2179,36 @@ $1039          c0       RNZ
 $103a          3a 16 22 LDA DIP_SWITCHES
 $103d          e6 08    ANI #08
 $103f          c0       RNZ
-$1040          21 63 23 LXI H, #2363
-$1043          11 f3 21 LXI D, #21f3
+$1040          21 63 23 LXI H, PL1_SCORE_1
+$1043          11 f3 21 LXI D, SPREAD_1
 $1046          3e 07    MVI A, #07
 $1048 o1048:   cd 60 0f CALL c0f60
-$104b          21 6b 23 LXI H, #236b
+$104b          21 6b 23 LXI H, PL2_SCORE_1
 $104e          3e 07    MVI A, #07
 $1050 o1050:   cd a9 0e CALL c0ea9
 $1053          f5       PUSH PSW
 $1054 o1054:   dc 79 10 CC c1079
-$1057          21 f3 21 LXI H, #21f3
-$105a          11 77 23 LXI D, #2377
+$1057          21 f3 21 LXI H, SPREAD_1
+$105a          11 77 23 LXI D, PL1_SCORE_hrm
 $105d          d5       PUSH D
 $105e          3e 06    MVI A, #06
 $1060 o1060:   cd 60 0f CALL c0f60
 $1063          e1       POP H
 $1064          e5       PUSH H
-$1065          11 97 23 LXI D, #2397
+$1065          11 97 23 LXI D, SPREAD_4
 $1068          3e 06    MVI A, #06
 $106a o106a:   cd 7b 0f CALL c0f7b
 $106d          e1       POP H
-$106e          11 b7 23 LXI D, #23b7
+$106e          11 b7 23 LXI D, SPREAD_3
 $1071          3e 06    MVI A, #06
 $1073 o1073:   cd 7b 0f CALL c0f7b
 $1076 o1076:   c3 e8 10 JMP j10e8
  
-$1079 c1079:   21 6b 23 LXI H, #236b ;o1054
-$107c          11 f3 21 LXI D, #21f3
+$1079 c1079:   21 6b 23 LXI H, PL2_SCORE_1 ;o1054
+$107c          11 f3 21 LXI D, SPREAD_1
 $107f          3e 07    MVI A, #07
 $1081 o1081:   cd 60 0f CALL c0f60
-$1084          21 63 23 LXI H, #2363
+$1084          21 63 23 LXI H, PL1_SCORE_1
 $1087          3e 07    MVI A, #07
 $1089 o1089:   cd a9 0e CALL c0ea9
 $108c          c9       RET
@@ -2051,7 +2216,7 @@ $108c          c9       RET
 $108d j108d:   e1       POP H ;o102c
 $108e          3e 08    MVI A, #08
 $1090 o1090:   cd 7d 0e CALL c0e7d
-$1093          21 f3 21 LXI H, #21f3
+$1093          21 f3 21 LXI H, SPREAD_1
 $1096          d1       POP D
 $1097          d5       PUSH D
 $1098          3e 07    MVI A, #07
@@ -2067,25 +2232,25 @@ $10a9          19       DAD D
 $10aa          eb       XCHG
 $10ab          3e 07    MVI A, #07
 $10ad o10ad:   cd 60 0f CALL c0f60
-$10b0          21 67 23 LXI H, #2367
-$10b3          11 f3 21 LXI D, #21f3
+$10b0          21 67 23 LXI H, PL13_SCORE_1
+$10b3          11 f3 21 LXI D, SPREAD_1
 $10b6          3e 07    MVI A, #07
 $10b8 o10b8:   cd 60 0f CALL c0f60
-$10bb          21 73 23 LXI H, #2373
+$10bb          21 73 23 LXI H, PL24_SCORE_1
 $10be          3e 07    MVI A, #07
 $10c0 o10c0:   cd a9 0e CALL c0ea9
 $10c3          f5       PUSH PSW
 $10c4 o10c4:   da a5 11 JC j11a5
-$10c7 j10c7:   21 f3 21 LXI H, #21f3 ;o11b8
-$10ca          11 77 23 LXI D, #2377
+$10c7 j10c7:   21 f3 21 LXI H, SPREAD_1 ;o11b8
+$10ca          11 77 23 LXI D, PL1_SCORE_hrm
 $10cd          3e 06    MVI A, #06
 $10cf o10cf:   cd 60 0f CALL c0f60
-$10d2          21 77 23 LXI H, #2377
-$10d5          11 97 23 LXI D, #2397
+$10d2          21 77 23 LXI H, PL1_SCORE_hrm
+$10d5          11 97 23 LXI D, SPREAD_4
 $10d8          3e 06    MVI A, #06
 $10da o10da:   cd 7b 0f CALL c0f7b
-$10dd          21 97 23 LXI H, #2397
-$10e0          11 b7 23 LXI D, #23b7
+$10dd          21 97 23 LXI H, SPREAD_4
+$10e0          11 b7 23 LXI D, SPREAD_3
 $10e3          3e 06    MVI A, #06
 $10e5 o10e5:   cd 60 0f CALL c0f60
 $10e8 j10e8:   f1       POP PSW ;o1076
@@ -2133,57 +2298,97 @@ $1140          3e 05    MVI A, #05
 $1142 o1142:   cd d9 03 CALL c03d9
 $1145          e5       PUSH H
 $1146          21 08 12 LXI H, #1208
-$1149          11 97 23 LXI D, #2397
-$114c          3e 06    MVI A, #06
-$114e o114e:   cd 60 0f CALL c0f60
-$1151          21 08 12 LXI H, #1208
-$1154          11 b7 23 LXI D, #23b7
-$1157          3e 06    MVI A, #06
-$1159 o1159:   cd 60 0f CALL c0f60
-$115c          e1       POP H
-$115d o115d:   c3 bb 11 JMP j11bb
-$1160 j1160:   21 89 23 LXI H, #2389 ;o0fdd
-$1163          e5       PUSH H
-$1164          21 67 23 LXI H, #2367
-$1167          e5       PUSH H
-$1168          21 5f 23 LXI H, #235f
-$116b          e5       PUSH H
-$116c          21 86 23 LXI H, #2386
-$116f          e5       PUSH H
-$1170          21 63 23 LXI H, #2363
-$1173          e5       PUSH H
-$1174 o1174:   c3 02 10 JMP j1002
-$1177 j1177:   21 93 23 LXI H, #2393 ;o0fe4
-$117a          e5       PUSH H
-$117b          21 73 23 LXI H, #2373
-$117e          e5       PUSH H
-$117f          21 6f 23 LXI H, #236f
-$1182          e5       PUSH H
-$1183          21 8d 23 LXI H, #238d
-$1186          e5       PUSH H
-$1187          21 6b 23 LXI H, #236b
-$118a          e5       PUSH H
-$118b o118b:   c3 02 10 JMP j1002
-$118e j118e:   21 89 23 LXI H, #2389 ;o0feb
+; scores
+$1149          11       DB #11
+$114a          97       DB #97
+$114b          23       DB #23
+$114c          3e       DB #3e
+$114d          06       DB #06
+$114e          cd       DB #cd
+$114f          60       DB #60
+$1150          0f       DB #0f
+$1151          21       DB #21
+$1152          08       DB #08
+$1153          12       DB #12
+$1154          11       DB #11
+$1155          b7       DB #b7
+$1156          23       DB #23
+$1157          3e       DB #3e
+$1158          06       DB #06
+$1159          cd       DB #cd
+$115a          60       DB #60
+$115b          0f       DB #0f
+$115c          e1       DB #e1
+$115d          c3       DB #c3
+$115e          bb       DB #bb
+$115f          11       DB #11
+$1160 j1160:   21       DB #21 ;o0fdd
+$1161          89       DB #89
+$1162          23       DB #23
+$1163          e5       DB #e5
+$1164          21       DB #21
+$1165          67       DB #67
+$1166          23       DB #23
+$1167          e5       DB #e5
+$1168          21       DB #21
+$1169          5f       DB #5f
+$116a          23       DB #23
+$116b          e5       DB #e5
+$116c          21       DB #21
+$116d          86       DB #86
+$116e          23       DB #23
+$116f          e5       DB #e5
+$1170          21       DB #21
+$1171          63       DB #63
+$1172          23       DB #23
+$1173          e5       DB #e5
+$1174          c3       DB #c3
+$1175          02       DB #02
+$1176          10       DB #10
+$1177 j1177:   21       DB #21 ;o0fe4
+$1178          93       DB #93
+$1179          23       DB #23
+$117a          e5       DB #e5
+$117b          21       DB #21
+$117c          73       DB #73
+$117d          23       DB #23
+$117e          e5       DB #e5
+$117f          21       DB #21
+$1180          6f       DB #6f
+; default high score
+$1181          23       DB #23
+$1182          e5       DB #e5
+$1183          21       DB #21
+$1184          8d       DB #8d
+$1185          23       DB #23
+$1186          e5       DB #e5
+$1187          21       DB #21
+$1188          6b       DB #6b
+$1189          23       DB #23
+$118a          e5       DB #e5
+$118b          c3       DB #c3
+$118c          02       DB #02
+$118d          10       (ARHL)
+$118e j118e:   21 89 23 LXI H, PL1_AND_3 ;o0feb
 $1191          e5       PUSH H
-$1192          21 67 23 LXI H, #2367
+$1192          21 67 23 LXI H, PL13_SCORE_1
 $1195          e5       PUSH H
-$1196          21 63 23 LXI H, #2363
+$1196          21 63 23 LXI H, PL1_SCORE_1
 $1199          e5       PUSH H
-$119a          21 83 23 LXI H, #2383
+$119a          21 83 23 LXI H, PL3_SCORE_DISPLAY_2
 $119d          e5       PUSH H
-$119e          21 5f 23 LXI H, #235f
+$119e          21 5f 23 LXI H, PL3_SCORE_1
 $11a1          e5       PUSH H
 $11a2 o11a2:   c3 02 10 JMP j1002
-$11a5 j11a5:   21 73 23 LXI H, #2373 ;o10c4
-$11a8          11 f3 21 LXI D, #21f3
+$11a5 j11a5:   21 73 23 LXI H, PL24_SCORE_1 ;o10c4
+$11a8          11 f3 21 LXI D, SPREAD_1
 $11ab          3e 07    MVI A, #07
 $11ad o11ad:   cd 60 0f CALL c0f60
-$11b0          21 67 23 LXI H, #2367
+$11b0          21 67 23 LXI H, PL13_SCORE_1
 $11b3          3e 07    MVI A, #07
 $11b5 o11b5:   cd a9 0e CALL c0ea9
 $11b8 o11b8:   c3 c7 10 JMP j10c7
-$11bb j11bb:   7e       MOV A,M ;o1121,o115d
+$11bb j11bb:   7e       MOV A,M ;o1121
 $11bc          e6 30    ANI #30
 $11be          47       MOV B,A
 $11bf          3a 8c 23 LDA $238c
@@ -2237,14 +2442,16 @@ $11f8          00       NOP
 $11f9          60       MOV H,B
 $11fa          00       NOP
 $11fb          00       NOP
-$11fc          00       NOP
-$11fd          80       ADD B
-$11fe          00       NOP
-$11ff          00       NOP
-$1200          00       NOP
-$1201          00       NOP
-$1202          01 00 00 LXI B, #0000
-$1205          50       MOV D,B
+$11fc          00       DB #00
+$11fd          80       DB #80
+$11fe          00       DB #00
+$11ff          00       DB #00
+$1200          00       DB #00
+$1201          00       DB #00
+$1202          01       DB #01
+$1203          00       DB #00
+$1204          00       DB #00
+$1205          50       DB #50
 $1206          02       STAX B
 $1207          00       NOP
 $1208          f0       RP
@@ -2255,9 +2462,8 @@ $120c          ff       RST 7
 $120d          ff       RST 7
 $120e          ff       RST 7
 $120f          ff       RST 7
- 
-$1210 c1210:   3e ff    MVI A, #ff ;o12be,o12de
-$1212          d3 09    OUT #09
+$1210          3e ff    MVI A, #ff
+$1212          d3 09    OUT TONE_ENABLE_DUR
 $1214          11 2f 13 LXI D, #132f
 $1217          7d       MOV A,L
 $1218          93       SUB E
@@ -2272,13 +2478,13 @@ $1222          9c       SBB H
 $1223          f8       RM
 $1224          7e       MOV A,M
 $1225          2f       CMA
-$1226          d3 0a    OUT #0a
+$1226          d3 0a    OUT TONE_PITCH
 $1228          23       INX H
 $1229          7e       MOV A,M
 $122a          2f       CMA
-$122b          d3 09    OUT #09
+$122b          d3 09    OUT TONE_ENABLE_DUR
 $122d          2f       CMA
-$122e          22 b1 21 SHLD $21b1
+$122e          22 b1 21 SHLD NEXT_TONE
 $1231          11 7f 12 LXI D, #127f
 $1234          fe 00    CPI #00
 $1236 o1236:   ca 72 12 JZ j1272
@@ -2312,7 +2518,7 @@ $1270 j1270:   13       INX D ;o1240
 $1271 j1271:   13       INX D ;o123b
 $1272 j1272:   1a       LDAX D ;o1236,o1266
 $1273          32 98 21 STA $2198
-$1276          21 90 21 LXI H, #2190
+$1276          21 90 21 LXI H, GAME_STATE
 $1279          3e 05    MVI A, #05
 $127b o127b:   cd ce 03 CALL c03ce
 $127e          c9       RET
@@ -2332,147 +2538,237 @@ $1291 o1291:   c2 a5 12 JNZ jo12a5
 $1294          3e 06    MVI A, #06
 $1296 o1296:   cd ce 03 CALL c03ce
 $1299          3e fe    MVI A, #fe
-$129b          d3 09    OUT #09
+$129b          d3 09    OUT TONE_ENABLE_DUR
 $129d          3e 02    MVI A, #02
 $129f          32 98 21 STA $2198
 $12a2 o12a2:   c3 08 06 JMP jo0608
 $12a5 jo12a5:  cd d9 03 CALL c03d9 ;o1291
 $12a8          3e 06    MVI A, #06
 $12aa o12aa:   cd e6 03 CALL c03e6
-$12ad o12ad:   c2 d8 12 JNZ jo12d8
-$12b0          3e ff    MVI A, #ff
-$12b2          d3 09    OUT #09
-$12b4          2a b1 21 LHLD $21b1
-$12b7          23       INX H
-$12b8          7e       MOV A,M
-$12b9          fe ff    CPI #ff
-$12bb o12bb:   ca c4 12 JZ j12c4
-$12be o12be:   cd 10 12 CALL c1210
-$12c1 o12c1:   c3 08 06 JMP jo0608
-$12c4 j12c4:   3a b3 21 LDA $21b3 ;o12bb
-$12c7          fe 00    CPI #00
-$12c9 o12c9:   c2 db 12 JNZ jo12db
-$12cc          3e ff    MVI A, #ff
-$12ce          d3 09    OUT #09
-$12d0          3e 0c    MVI A, #0c
-$12d2          32 98 21 STA $2198
-$12d5 o12d5:   c3 08 06 JMP jo0608
-$12d8 jo12d8:  cd d9 03 CALL c03d9 ;o12ad
-$12db jo12db:  cd 0f 13 CALL c130f ;o12c9
-$12de o12de:   cd 10 12 CALL c1210
-$12e1 o12e1:   c3 08 06 JMP jo0608
+BUMPER_25_MUSIC_2          c2       DB #c2
+$12ae          d8       DB #d8
+$12af          12       DB #12
+$12b0          3e       DB #3e
+$12b1          ff       DB #ff
+$12b2          d3       DB #d3
+$12b3          09       DB #09
+$12b4          2a       DB #2a
+$12b5          b1       DB #b1
+$12b6          21       DB #21
+$12b7          23       DB #23
+$12b8          7e       DB #7e
+LEFT_SLING_TONE          fe       DB #fe
+$12ba          ff       DB #ff
+$12bb          ca       DB #ca
+RIGHT_SLING_TONE          c4       DB #c4
+$12bd          12       DB #12
+$12be          cd       DB #cd
+SILENCE_END_LOOP_MUSIC          10       DB #10
+$12c0          12       DB #12
+$12c1          c3       DB #c3
+TILT_MUSIC          08       DB #08
+$12c3          06       DB #06
+$12c4          3a       DB #3a
+$12c5          b3       DB #b3
+$12c6          21       DB #21
+$12c7          fe       DB #fe
+$12c8          00       DB #00
+$12c9          c2       DB #c2
+$12ca          db       DB #db
+$12cb          12       DB #12
+$12cc          3e       DB #3e
+$12cd          ff       DB #ff
+$12ce          d3       DB #d3
+$12cf          09       DB #09
+$12d0          3e       DB #3e
+$12d1          0c       DB #0c
+$12d2          32       DB #32
+$12d3          98       DB #98
+$12d4          21       DB #21
+$12d5          c3       DB #c3
+$12d6          08       DB #08
+BONUS_MUSIC          06       DB #06
+$12d8          cd       DB #cd
+$12d9          d9       DB #d9
+START_PLAYER_MUSIC          03       DB #03
+$12db          cd       DB #cd
+$12dc          0f       DB #0f
+UNKNOWN_MUSIC          13       DB #13
+$12de          cd       DB #cd
+$12df          10       DB #10
+LOW_MUSIC          12       DB #12
+$12e1          c3       DB #c3
+$12e2          08       DB #08
+OOPS_MUSIC          06       DB #06
  
-$12e4 c12e4:   eb       XCHG ;o053b,o0558,o058e,o073e,o07d7,o08cc,o0984,o0b01,o0b26,o0b60,o0bc3,o0c41,o0d1f,o0d87,jo0db4,o0e5c,o0e6f,jo1108,o151e,o1550,o15e1,o1602,o162c,o1651,o1800,o18c7,o1935,o1952,o1a2e,o1adf,o1b6d,o1f71,o1f88
-$12e5          2a be 21 LHLD $21be
-$12e8          01 be 21 LXI B, #21be
-$12eb          79       MOV A,C
-$12ec          32 b3 21 STA $21b3
-$12ef          95       SUB L
-$12f0 o12f0:   c2 f6 12 JNZ j12f6
-$12f3          21 b4 21 LXI H, #21b4
-$12f6 j12f6:   73       MOV M,E ;o12f0
-$12f7          23       INX H
-$12f8          72       MOV M,D
-$12f9          23       INX H
-$12fa          22 be 21 SHLD $21be
-$12fd          21 90 21 LXI H, #2190
-$1300          3e 05    MVI A, #05
-$1302 o1302:   cd e6 03 CALL c03e6
-$1305          c0       RNZ
-$1306 o1306:   cd ce 03 CALL c03ce
-$1309          3e 01    MVI A, #01
-$130b          32 98 21 STA $2198
-$130e          c9       RET
+$12e4 c12e4:   eb       DB #eb ;o053b,o0558,o058e,o07d7,o08cc,o0984,o0b01,o0b26,o0b60,o0bc3,o0c41,o0d1f,o0d87,jo0db4,oADD_BONUS,o0e6f,jo1108,o151e,o1550,o15e1,o1602,o162c,o1651,o1800,o18c7,o1935,o1952,o1a2e,o1adf,o1b6d,o1f71,o1f88
+$12e5          2a       DB #2a
+$12e6          be       DB #be
+$12e7          21       DB #21
+OOPS2_MUSIC          01       DB #01
+$12e9          be       DB #be
+$12ea          21       DB #21
+$12eb          79       DB #79
+$12ec          32       DB #32
+LIL_VICTORY_MUSIC          b3       DB #b3
+$12ee          21       DB #21
+$12ef          95       DB #95
+$12f0          c2       DB #c2
+$12f1          f6       DB #f6
+LIT_STANDUP_MUSIC          12       DB #12
+$12f3          21       DB #21
+$12f4          b4       DB #b4
+$12f5          21       DB #21
+$12f6          73       DB #73
+$12f7          23       DB #23
+$12f8          72       DB #72
+$12f9          23       DB #23
+$12fa          22       DB #22
+$12fb          be       DB #be
+$12fc          21       DB #21
+$12fd          21       DB #21
+$12fe          90       DB #90
+; game over music
+GAME_OVER_MUSIC          21       DB #21
+$1300          3e       DB #3e
+$1301          05       DB #05
+$1302          cd       DB #cd
+$1303          e6       DB #e6
+$1304          03       DB #03
+$1305          c0       DB #c0
+$1306          cd       DB #cd
+$1307          ce       DB #ce
+$1308          03       DB #03
+$1309          3e       DB #3e
+$130a          01       DB #01
+$130b          32       DB #32
+$130c          98       DB #98
+$130d          21       DB #21
+$130e          c9       DB #c9
 
- 
-$130f c130f:   2a c0 21 LHLD $21c0 ;jo12db
-$1312          01 be 21 LXI B, #21be
-$1315          79       MOV A,C
-$1316          95       SUB L
-$1317 o1317:   c2 1d 13 JNZ j131d
-$131a          21 b4 21 LXI H, #21b4
-$131d j131d:   5e       MOV E,M ;o1317
-$131e          23       INX H
-$131f          56       MOV D,M
-$1320          23       INX H
-$1321          22 c0 21 SHLD $21c0
-$1324          d5       PUSH D
-$1325          7d       MOV A,L
-$1326          2a be 21 LHLD $21be
-$1329          95       SUB L
-$132a          32 b3 21 STA $21b3
-$132d          e1       POP H
-$132e          c9       RET
+$130f          2a       DB #2a
+$1310          c0       DB #c0
+$1311          21       DB #21
+$1312          01       DB #01
+$1313          be       DB #be
+$1314          21       DB #21
+$1315          79       DB #79
+; spread takeover music
+SPREAD_TAKEOVER_MUSIC          95       DB #95
+$1317          c2       DB #c2
+$1318          1d       DB #1d
+$1319          13       DB #13
+$131a          21       DB #21
+$131b          b4       DB #b4
+$131c          21       DB #21
+$131d          5e       DB #5e
+$131e          23       DB #23
+$131f          56       DB #56
+$1320          23       DB #23
+; morse code music
+MORSE_CODE_MUSIC          22       DB #22
+$1322          c0       DB #c0
+$1323          21       DB #21
+$1324          d5       DB #d5
+$1325          7d       DB #7d
+$1326          2a       DB #2a
+$1327          be       DB #be
+$1328          21       DB #21
+$1329          95       DB #95
+$132a          32       DB #32
+$132b          b3       DB #b3
+$132c          21       DB #21
+$132d          e1       DB #e1
+$132e          c9       DB #c9
 
-$132f          ff       RST 7
-$1330          ca 08 ff JZ $ff08
-$1333          aa       XRA D
-$1334          08       (DSUB)
-$1335          ff       RST 7
-$1336          87       ADD A
-$1337          08       (DSUB)
-$1338          ff       RST 7
-$1339          65       MOV H,L
-$133a          08       (DSUB)
-$133b          ff       RST 7
-$133c          1c       INR E
-$133d          0c       INR C
-$133e          ff       RST 7
-$133f          1c       INR E
-$1340          0c       INR C
-$1341          ff       RST 7
-$1342          1c       INR E
-$1343          00       NOP
-$1344          ff       RST 7
-$1345          43       MOV B,E
-$1346          08       (DSUB)
-$1347          87       ADD A
-$1348          08       (DSUB)
-$1349          43       MOV B,E
-$134a          08       (DSUB)
-$134b          87       ADD A
-$134c          08       (DSUB)
-$134d          43       MOV B,E
-$134e          08       (DSUB)
-$134f          87       ADD A
-$1350          08       (DSUB)
-$1351          43       MOV B,E
-$1352          08       (DSUB)
-$1353          87       ADD A
-$1354          08       (DSUB)
-$1355          43       MOV B,E
-$1356          08       (DSUB)
-$1357          87       ADD A
-$1358          08       (DSUB)
-$1359          ff       RST 7
-$135a          55       MOV D,L
-$135b          08       (DSUB)
-$135c          ff       RST 7
-$135d          3c       INR A
-$135e          08       (DSUB)
-$135f          ff       RST 7
-$1360          2b       DCX H
-$1361          08       (DSUB)
-$1362          ff       RST 7
-$1363          22 08 ff SHLD $ff08
-$1366          22 28 1e SHLD $1e28
-$1369          0c       INR C
-$136a          ff       RST 7
-$136b          15       DCR D
-$136c          02       STAX B
-$136d          15       DCR D
-$136e          0c       INR C
-$136f          ff       RST 7
-$1370          4c       MOV C,H
-$1371          08       (DSUB)
-$1372          65       MOV H,L
-$1373          0c       INR C
-$1374          ff       RST 7
-$1375          78       MOV A,B
-$1376          28 50    (LDHI) #50
-$1378          28 78    (LDHI) #78
-$137a          28 50    (LDHI) #50
-$137c          28 78    (LDHI) #78
+$132f          ff       DB #ff
+$1330          ca       DB #ca
+$1331          08       DB #08
+; bumper 25 music
+BUMPER_25_MUSIC          ff       DB #ff
+$1333          aa       DB #aa
+$1334          08       DB #08
+; spread music
+SPREAD_HRM_MUSIC          ff       DB #ff
+$1336          87       DB #87
+$1337          08       DB #08
+; longer bumper 25 music
+LONGER_BUMPER_25_MUSIC          ff       DB #ff
+$1339          65       DB #65
+$133a          08       DB #08
+$133b          ff       DB #ff
+$133c          1c       DB #1c
+$133d          0c       DB #0c
+$133e          ff       DB #ff
+$133f          1c       DB #1c
+$1340          0c       DB #0c
+; credit music
+CREDIT_MUSIC          ff       DB #ff
+$1342          1c       DB #1c
+$1343          00       DB #00
+$1344          ff       DB #ff
+$1345          43       DB #43
+; next player music
+NEXT_PLAYER_MUSIC          08       DB #08
+$1347          87       DB #87
+$1348          08       DB #08
+$1349          43       DB #43
+$134a          08       DB #08
+; outlane music
+OUTLANE_MUSIC          87       DB #87
+$134c          08       DB #08
+$134d          43       DB #43
+; silence music
+SILENCE_MUSIC          08       DB #08
+$134f          87       DB #87
+$1350          08       DB #08
+; funkytown
+HIGH_SCORE_MUSIC          43       DB #43
+$1352          08       DB #08
+$1353          87       DB #87
+$1354          08       DB #08
+$1355          43       DB #43
+$1356          08       DB #08
+$1357          87       DB #87
+$1358          08       DB #08
+$1359          ff       DB #ff
+$135a          55       DB #55
+$135b          08       DB #08
+$135c          ff       DB #ff
+$135d          3c       DB #3c
+$135e          08       DB #08
+$135f          ff       DB #ff
+$1360          2b       DB #2b
+$1361          08       DB #08
+$1362          ff       DB #ff
+$1363          22       DB #22
+$1364          08       DB #08
+$1365          ff       DB #ff
+$1366          22       DB #22
+$1367          28       DB #28
+$1368          1e       DB #1e
+$1369          0c       DB #0c
+; popcorn
+POPCORN_MUSIC          ff       DB #ff
+$136b          15       DB #15
+$136c          02       DB #02
+$136d          15       DB #15
+$136e          0c       DB #0c
+$136f          ff       DB #ff
+$1370          4c       DB #4c
+$1371          08       DB #08
+$1372          65       DB #65
+$1373          0c       DB #0c
+$1374          ff       DB #ff
+$1375          78       DB #78
+$1376          28       DB #28
+$1377          50       DB #50
+$1378          28       DB #28
+$1379          78       DB #78
+$137a          28       DB #28
+$137b          50       DB #50
+$137c          28       DB #28
+$137d          78       MOV A,B
 $137e          28 50    (LDHI) #50
 $1380          28 ff    (LDHI) #ff
 $1382          55       MOV D,L
@@ -2562,7 +2858,7 @@ $13dd          fe 21    CPI #21
 $13df          91       SUB C
 $13e0          21 3e 03 LXI H, #033e
 $13e3 o13e3:   cd d9 03 CALL c03d9
-$13e6          d3 0f    OUT #0f
+$13e6          d3 0f    OUT LAMP_F
 $13e8          21 e0 23 LXI H, #23e0
 $13eb          11 3b 23 LXI D, #233b
 $13ee j13ee:   46       MOV B,M ;o140b
@@ -2618,7 +2914,9 @@ $1452 o1452:   cd d9 03 CALL c03d9
 $1455          3c       INR A
 $1456 o1456:   cd e6 03 CALL c03e6
 $1459 o1459:   c2 63 14 JNZ jo1463
-$145c o145c:   cd ce 03 CALL c03ce
+$145c          cd       DB #cd
+$145d          ce       DB #ce
+$145e          03       DB #03
 $145f          e1       POP H
 $1460 o1460:   c3 7d 14 JMP jo147d
 $1463 jo1463:  cd d9 03 CALL c03d9 ;o1459
@@ -2712,14 +3010,14 @@ $14ec          06 21    MVI B, #21
 $14ee o14ee:   c3 f5 14 JMP j14f5
 $14f1          0e 07    MVI C, #07
 $14f3          06 0a    MVI B, #0a
-$14f5 j14f5:   21 90 21 LXI H, #2190 ;o14c4,o14cb,o14d2,o14d9,o14e0,o14e7,o14ee
+$14f5 j14f5:   21 90 21 LXI H, GAME_STATE ;o14c4,o14cb,o14d2,o14d9,o14e0,o14e7,o14ee
 $14f8          3e 07    MVI A, #07
 $14fa o14fa:   cd ce 03 CALL c03ce
 $14fd          3e 02    MVI A, #02
 $14ff o14ff:   cd e6 03 CALL c03e6
 $1502 o1502:   c2 7a 14 JNZ jo147a
 $1505          79       MOV A,C
-$1506          21 c6 21 LXI H, #21c6
+$1506          21 c6 21 LXI H, ROLLOVERS
 $1509 o1509:   cd e6 03 CALL c03e6
 $150c o150c:   ca 7a 14 JZ jo147a
 $150f o150f:   cd d9 03 CALL c03d9
@@ -2728,7 +3026,7 @@ $1515          21 e4 11 LXI H, #11e4
 $1518 o1518:   cd 6e 02 CALL c026e
 $151b          21 5a 13 LXI H, #135a
 $151e o151e:   cd e4 12 CALL c12e4
-$1521          3a c6 21 LDA $21c6
+$1521          3a c6 21 LDA ROLLOVERS
 $1524          fe 00    CPI #00
 $1526 o1526:   c2 7a 14 JNZ jo147a
 $1529          3e 3d    MVI A, #3d
@@ -2736,6 +3034,7 @@ $152b          32 a4 21 STA $21a4
 $152e          3e 00    MVI A, #00
 $1530          32 05 22 STA $2205
 $1533 o1533:   c3 7a 14 JMP jo147a
+; 10,000 / EB lane
 $1536          3a 05 22 LDA $2205
 $1539          3c       INR A
 $153a          32 05 22 STA $2205
@@ -2766,7 +3065,7 @@ $1576          06 38    MVI B, #38
 $1578 o1578:   cd 77 1d CALL co1d77
 $157b o157b:   c3 7e 15 JMP j157e
 $157e j157e:   3e ff    MVI A, #ff ;o1568,o1570,o157b
-$1580          32 c6 21 STA $21c6
+$1580          32 c6 21 STA ROLLOVERS
 $1583          97       SUB A
 $1584          32 05 22 STA $2205
 $1587 o1587:   c3 08 06 JMP jo0608
@@ -2774,7 +3073,7 @@ $158a          02       STAX B
 $158b          2a 10 1a LHLD $1a10
 $158e          01 19 21 LXI B, #2119
 $1591          0a       LDAX B
-$1592          21 90 21 LXI H, #2190
+$1592          21 90 21 LXI H, GAME_STATE
 $1595          3e 07    MVI A, #07
 $1597 o1597:   cd e6 03 CALL c03e6
 $159a o159a:   ca 7a 14 JZ jo147a
@@ -2784,16 +3083,17 @@ $15a2 o15a2:   cd e6 03 CALL c03e6
 $15a5 o15a5:   c2 7a 14 JNZ jo147a
 $15a8          21 00 12 LXI H, #1200
 $15ab o15ab:   cd ed 0e CALL c0eed
-$15ae          21 90 21 LXI H, #2190
+$15ae          21 90 21 LXI H, GAME_STATE
 $15b1          3e 04    MVI A, #04
 $15b3 o15b3:   cd e6 03 CALL c03e6
 $15b6 o15b6:   ca e4 15 JZ j15e4
+; don't let outlane scrore > 1x
 $15b9          21 91 21 LXI H, #2191
 $15bc          3e 01    MVI A, #01
 $15be o15be:   cd e6 03 CALL c03e6
 $15c1 o15c1:   c2 e4 15 JNZ j15e4
 $15c4 o15c4:   cd ce 03 CALL c03ce
-$15c7          3a c7 21 LDA $21c7
+$15c7          3a c7 21 LDA CUPS_LEFT
 $15ca          06 ff    MVI B, #ff
 $15cc j15cc:   04       INR B ;o15ce
 $15cd          1f       RAR
@@ -2801,12 +3101,13 @@ $15ce o15ce:   d2 cc 15 JNC j15cc
 $15d1          78       MOV A,B
 $15d2          3d       DCR A
 $15d3 o15d3:   f2 d8 15 JP j15d8
+; inlane routine
 $15d6          3e 04    MVI A, #04
 $15d8 j15d8:   32 11 22 STA $2211 ;o15d3
 $15db o15db:   cd fa 03 CALL c03fa
 $15de          21 bb 13 LXI H, #13bb
 $15e1 o15e1:   cd e4 12 CALL c12e4
-$15e4 j15e4:   21 90 21 LXI H, #2190 ;o15b6,o15c1
+$15e4 j15e4:   21 90 21 LXI H, GAME_STATE ;o15b6,o15c1
 $15e7          3e 03    MVI A, #03
 $15e9 o15e9:   cd e6 03 CALL c03e6
 $15ec o15ec:   c2 ff 15 JNZ j15ff
@@ -2820,11 +3121,11 @@ $15ff j15ff:   21 70 13 LXI H, #1370 ;o15ec,o15f4
 $1602 o1602:   cd e4 12 CALL c12e4
 $1605 o1605:   c3 7a 14 JMP jo147a
 $1608          3e ff    MVI A, #ff
-$160a          32 93 21 STA $2193
-$160d          3a 94 21 LDA $2194
+$160a          32 93 21 STA STATE_OUTLANE_1
+$160d          3a 94 21 LDA SWITCH_LATCHED
 $1610          f6 30    ORI #30
-$1612          32 94 21 STA $2194
-$1615          21 90 21 LXI H, #2190
+$1612          32 94 21 STA SWITCH_LATCHED
+$1615          21 90 21 LXI H, GAME_STATE
 $1618          3e 02    MVI A, #02
 $161a o161a:   cd e6 03 CALL c03e6
 $161d o161d:   c2 7a 14 JNZ jo147a
@@ -2834,7 +3135,7 @@ $1626 o1626:   cd 6e 02 CALL c026e
 $1629          21 ce 13 LXI H, #13ce
 $162c o162c:   cd e4 12 CALL c12e4
 $162f o162f:   c3 7a 14 JMP jo147a
-$1632          21 90 21 LXI H, #2190
+$1632          21 90 21 LXI H, GAME_STATE
 $1635          3e 02    MVI A, #02
 $1637 o1637:   cd e6 03 CALL c03e6
 $163a o163a:   c2 7a 14 JNZ jo147a
@@ -2847,7 +3148,7 @@ $164b o164b:   cd ed 0e CALL c0eed
 $164e          21 b8 13 LXI H, #13b8
 $1651 o1651:   cd e4 12 CALL c12e4
 $1654 o1654:   c3 7a 14 JMP jo147a
-$1657          21 92 21 LXI H, #2192
+$1657          21 92 21 LXI H, GAME_STATE2
 $165a          3e 00    MVI A, #00
 $165c o165c:   cd e6 03 CALL c03e6
 $165f o165f:   c2 03 18 JNZ j1803
@@ -2872,7 +3173,7 @@ $168e          11 20 23 LXI D, #2320
 $1691          3e 2e    MVI A, #2e
 $1693 o1693:   cd 60 0f CALL c0f60
 $1696 o1696:   cd 22 18 CALL c1822
-$1699          21 92 21 LXI H, #2192
+$1699          21 92 21 LXI H, GAME_STATE2
 $169c          3e 04    MVI A, #04
 $169e o169e:   cd e6 03 CALL c03e6
 $16a1 o16a1:   ca b1 16 JZ j16b1
@@ -2883,18 +3184,17 @@ $16ac          3e 01    MVI A, #01
 $16ae o16ae:   c3 cd 16 JMP j16cd
 $16b1 j16b1:   3e 06    MVI A, #06 ;o16a1,o16a9
 $16b3 o16b3:   cd ce 03 CALL c03ce
-$16b6          3a 90 21 LDA $2190
+$16b6          3a 90 21 LDA GAME_STATE
 $16b9          f6 05    ORI #05
-$16bb          32 90 21 STA $2190
+$16bb          32 90 21 STA GAME_STATE
 $16be          3e ff    MVI A, #ff
-$16c0          32 93 21 STA $2193
-$16c3          3a 94 21 LDA $2194
+$16c0          32 93 21 STA STATE_OUTLANE_1
+$16c3          3a 94 21 LDA SWITCH_LATCHED
 $16c6          f6 30    ORI #30
-$16c8          32 94 21 STA $2194
+$16c8          32 94 21 STA SWITCH_LATCHED
 $16cb          3e 00    MVI A, #00
 $16cd j16cd:   32 7b 23 STA BALL_IN_PLAY_hrm ;o16ae
 $16d0          32 9b 23 STA BALL_IN_PLAY_1
-; decrease credits
 $16d3          32 bb 23 STA BALL_IN_PLAY_2
 $16d6          3e 11    MVI A, #11
 $16d8          32 7e 23 STA $237e
@@ -2902,30 +3202,30 @@ $16db          32 be 23 STA $23be
 $16de          3e 01    MVI A, #01
 $16e0          32 9e 23 STA $239e
 $16e3          3e f0    MVI A, #f0
-$16e5          32 86 23 STA $2386
-$16e8          32 a6 23 STA $23a6
-$16eb          32 80 23 STA $2380
-$16ee          32 a0 23 STA $23a0
+$16e5          32 86 23 STA PL1_SCORE_DISPLAY2
+$16e8          32 a6 23 STA PL1_SCORE_DISPLAY
+$16eb          32 80 23 STA LAMPS_PAGE_1
+$16ee          32 a0 23 STA LAMPS_PAGE_2
 $16f1          3e 00    MVI A, #00
 $16f3          32 14 22 STA $2214
 $16f6          11 d3 21 LXI D, #21d3
 $16f9          06 04    MVI B, #04
 $16fb o16fb:   cd 08 18 CALL jc1808
-$16fe          21 92 21 LXI H, #2192
+$16fe          21 92 21 LXI H, GAME_STATE2
 $1701          3e 06    MVI A, #06
 $1703 o1703:   cd d9 03 CALL c03d9
 $1706          21 b6 23 LXI H, #23b6
 $1709          3e 06    MVI A, #06
 $170b o170b:   cd d9 03 CALL c03d9
 $170e          21 d3 21 LXI H, #21d3
-$1711          11 c6 21 LXI D, #21c6
+$1711          11 c6 21 LXI D, ROLLOVERS
 $1714          3e 10    MVI A, #10
 $1716 o1716:   cd 60 0f CALL c0f60
 $1719          21 c9 21 LXI H, #21c9
 $171c          11 ce 21 LXI D, #21ce
 $171f          3e 0a    MVI A, #0a
 $1721 o1721:   cd 60 0f CALL c0f60
-$1724          21 90 21 LXI H, #2190
+$1724          21 90 21 LXI H, GAME_STATE
 $1727          3e 04    MVI A, #04
 $1729 o1729:   cd d9 03 CALL c03d9
 $172c j172c:   3a 7a 23 LDA CREDITS_1 ;o17e4
@@ -2953,8 +3253,8 @@ $1761 o1761:   ca b2 17 JZ jo17b2
 $1764          3e 03    MVI A, #03
 $1766 o1766:   cd ce 03 CALL c03ce
 $1769          3e f0    MVI A, #f0
-$176b          32 90 23 STA $2390
-$176e          32 b0 23 STA $23b0
+$176b          32 90 23 STA PL4_SCORE_2
+$176e          32 b0 23 STA PL4_SCORE_3
 $1771          f3       DI
 $1772          3a 7e 23 LDA $237e
 $1775          f5       PUSH PSW
@@ -2972,28 +3272,32 @@ $1790          fb       EI
 $1791 o1791:   c3 d4 17 JMP j17d4
 $1794 jo1794:  cd ce 03 CALL c03ce ;o1759
 $1797          3e f0    MVI A, #f0
-$1799          32 8d 23 STA $238d
-$179c          32 ad 23 STA $23ad
+$1799          32 8d 23 STA PL2_SCORE_2
+$179c          32 ad 23 STA PL2_SCORE_3
 $179f          3a 16 22 LDA DIP_SWITCHES
-$17a2          e6 08    ANI #08
-$17a4 o17a4:   c2 d4 17 JNZ j17d4
-$17a7          3e f0    MVI A, #f0
-$17a9          32 97 23 STA $2397
-$17ac          32 b7 23 STA $23b7
+$17a2          e6       DB #e6
+$17a3          08       DB #08
+$17a4          c2       DB #c2
+$17a5          d4       DB #d4
+$17a6          17       DB #17
+$17a7          3e       DB #3e
+$17a8          f0       RP
+$17a9          32 97 23 STA SPREAD_4
+$17ac          32 b7 23 STA SPREAD_3
 $17af o17af:   c3 d4 17 JMP j17d4
 $17b2 jo17b2:  cd ce 03 CALL c03ce ;o1761
 $17b5          3e f0    MVI A, #f0
-$17b7          32 83 23 STA $2383
+$17b7          32 83 23 STA PL3_SCORE_DISPLAY_2
 $17ba          32 a3 23 STA $23a3
 $17bd          3e ff    MVI A, #ff
-$17bf          32 97 23 STA $2397
+$17bf          32 97 23 STA SPREAD_4
 $17c2          32 98 23 STA $2398
 $17c5          32 99 23 STA $2399
-$17c8          32 b7 23 STA $23b7
+$17c8          32 b7 23 STA SPREAD_3
 $17cb          32 b8 23 STA $23b8
 $17ce          32 b9 23 STA $23b9
 $17d1 o17d1:   c3 d4 17 JMP j17d4
-$17d4 j17d4:   3a 7e 23 LDA $237e ;o1791,o17a4,o17af,o17d1
+$17d4 j17d4:   3a 7e 23 LDA $237e ;o1791,o17af,o17d1
 $17d7          32 be 23 STA $23be
 $17da          e6 0f    ANI #0f
 $17dc          47       MOV B,A
@@ -3041,14 +3345,14 @@ $1829 j1829:   77       MOV M,A ;o182c
 $182a          23       INX H
 $182b          15       DCR D
 $182c o182c:   c2 29 18 JNZ j1829
-$182f          21 80 23 LXI H, #2380
+$182f          21 80 23 LXI H, LAMPS_PAGE_1
 $1832          3e ff    MVI A, #ff
 $1834          16 1a    MVI D, #1a
 $1836 j1836:   77       MOV M,A ;o1839
 $1837          23       INX H
 $1838          15       DCR D
 $1839 o1839:   c2 36 18 JNZ j1836
-$183c          21 a0 23 LXI H, #23a0
+$183c          21 a0 23 LXI H, LAMPS_PAGE_2
 $183f          3e ff    MVI A, #ff
 $1841          16 1a    MVI D, #1a
 $1843 j1843:   77       MOV M,A ;o1846
@@ -3067,7 +3371,7 @@ $1858 c1858:   3a 7e 23 LDA $237e ;o18ee,o196a
 $185b          e6 02    ANI #02
 $185d          3e 20    MVI A, #20
 $185f          c8       RZ
-$1860          21 90 21 LXI H, #2190
+$1860          21 90 21 LXI H, GAME_STATE
 $1863          3e 03    MVI A, #03
 $1865 o1865:   cd e6 03 CALL c03e6
 $1868          3e 20    MVI A, #20
@@ -3079,7 +3383,7 @@ $1872          c8       RZ
 $1873          3e 80    MVI A, #80
 $1875          c9       RET
 
-$1876          21 92 21 LXI H, #2192
+$1876          21 92 21 LXI H, GAME_STATE2
 $1879          3e 04    MVI A, #04
 $187b o187b:   cd e6 03 CALL c03e6
 $187e o187e:   c2 7a 14 JNZ jo147a
@@ -3094,29 +3398,29 @@ $1891 j1891:   3e 32    MVI A, #32 ;o1887
 $1893          32 08 22 STA $2208
 $1896 o1896:   c3 7a 14 JMP jo147a
 $1899 j1899:   3e ff    MVI A, #ff ;o188b
-$189b          32 93 21 STA $2193
+$189b          32 93 21 STA STATE_OUTLANE_1
 $189e          3e 00    MVI A, #00
 $18a0          32 0c 22 STA $220c
 $18a3          32 c3 21 STA $21c3
 $18a6          32 a8 21 STA $21a8
 $18a9          32 a9 21 STA $21a9
-$18ac          3a 94 21 LDA $2194
+$18ac          3a 94 21 LDA SWITCH_LATCHED
 $18af          f6 30    ORI #30
-$18b1          32 94 21 STA $2194
-$18b4          21 90 21 LXI H, #2190
+$18b1          32 94 21 STA SWITCH_LATCHED
+$18b4          21 90 21 LXI H, GAME_STATE
 $18b7          3e 02    MVI A, #02
 $18b9 o18b9:   cd ce 03 CALL c03ce
-$18bc          21 92 21 LXI H, #2192
+$18bc          21 92 21 LXI H, GAME_STATE2
 $18bf          3e 04    MVI A, #04
 $18c1 o18c1:   cd ce 03 CALL c03ce
 $18c4          21 6b 13 LXI H, #136b
 $18c7 o18c7:   cd e4 12 CALL c12e4
 $18ca o18ca:   cd a3 1b CALL c1ba3
 $18cd          eb       XCHG
-$18ce          21 c6 21 LXI H, #21c6
+$18ce          21 c6 21 LXI H, ROLLOVERS
 $18d1          3e 10    MVI A, #10
 $18d3 o18d3:   cd 60 0f CALL c0f60
-$18d6          21 90 21 LXI H, #2190
+$18d6          21 90 21 LXI H, GAME_STATE
 $18d9          3e 00    MVI A, #00
 $18db o18db:   cd e6 03 CALL c03e6
 $18de o18de:   c2 e9 18 JNZ j18e9
@@ -3133,7 +3437,7 @@ $18fa          29       DAD H
 $18fb          29       DAD H
 $18fc          29       DAD H
 $18fd          29       DAD H
-$18fe          22 f3 21 SHLD $21f3
+$18fe          22 f3 21 SHLD SPREAD_1
 $1901          2a 5d 23 LHLD $235d
 $1904          29       DAD H
 $1905          29       DAD H
@@ -3141,7 +3445,7 @@ $1906          29       DAD H
 $1907          29       DAD H
 $1908          7c       MOV A,H
 $1909          32 f5 21 STA $21f5
-$190c          21 f3 21 LXI H, #21f3
+$190c          21 f3 21 LXI H, SPREAD_1
 $190f          11 0d 22 LXI D, #220d
 $1912          3e 06    MVI A, #06
 $1914 o1914:   cd 60 0f CALL c0f60
@@ -3153,7 +3457,7 @@ $191f o191f:   cd 7d 0e CALL c0e7d
 $1922          f1       POP PSW
 $1923          3d       DCR A
 $1924 o1924:   c2 19 19 JNZ j1919
-$1927          21 f3 21 LXI H, #21f3
+$1927          21 f3 21 LXI H, SPREAD_1
 $192a o192a:   cd 00 0f CALL c0f00
 $192d          3e 3c    MVI A, #3c
 $192f          32 ae 21 STA $21ae
@@ -3188,11 +3492,11 @@ $197f o197f:   c3 08 06 JMP jo0608
 $1982 j1982:   3e 01    MVI A, #01 ;o1977
 $1984          32 12 22 STA $2212
 $1987          3e 32    MVI A, #32
-$1989          32 94 21 STA $2194
-$198c          21 92 21 LXI H, #2192
+$1989          32 94 21 STA SWITCH_LATCHED
+$198c          21 92 21 LXI H, GAME_STATE2
 $198f          3e 03    MVI A, #03
 $1991 o1991:   cd d9 03 CALL c03d9
-$1994          21 90 21 LXI H, #2190
+$1994          21 90 21 LXI H, GAME_STATE
 $1997 o1997:   cd e6 03 CALL c03e6
 $199a o199a:   ca b9 19 JZ j19b9
 $199d o199d:   cd d9 03 CALL c03d9
@@ -3236,9 +3540,9 @@ $19f1          3e 00    MVI A, #00
 $19f3 o19f3:   cd e6 03 CALL c03e6
 $19f6          3e 01    MVI A, #01
 $19f8 o19f8:   c2 5b 1a JNZ j1a5b
-$19fb          3a 92 21 LDA $2192
+$19fb          3a 92 21 LDA GAME_STATE2
 $19fe          f6 c0    ORI #c0
-$1a00          32 92 21 STA $2192
+$1a00          32 92 21 STA GAME_STATE2
 $1a03          21 b6 23 LXI H, #23b6
 $1a06          3e 06    MVI A, #06
 $1a08 o1a08:   cd ce 03 CALL c03ce
@@ -3272,10 +3576,18 @@ $1a4e          3e 7d    MVI A, #7d
 $1a50          32 9a 21 STA $219a
 $1a53          3e 2d    MVI A, #2d
 $1a55          32 17 22 STA $2217
-$1a58 o1a58:   c3 08 06 JMP jo0608
-$1a5b j1a5b:   32 7b 23 STA BALL_IN_PLAY_hrm ;o19c2,o19eb,o19f8
-$1a5e          32 9b 23 STA BALL_IN_PLAY_1
-$1a61          32 bb 23 STA BALL_IN_PLAY_2
+$1a58          c3       DB #c3
+$1a59          08       DB #08
+$1a5a          06       DB #06
+$1a5b j1a5b:   32       DB #32 ;o19c2,o19eb,o19f8
+$1a5c          7b       DB #7b
+$1a5d          23       DB #23
+$1a5e          32       DB #32
+$1a5f          9b       DB #9b
+$1a60          23       DB #23
+$1a61          32       DB #32
+$1a62          bb       CMP E
+$1a63          23       INX H
 $1a64          3e 04    MVI A, #04
 $1a66          21 7e 23 LXI H, #237e
 $1a69 jo1a69:  cd ce 03 CALL c03ce ;o19de
@@ -3284,7 +3596,7 @@ $1a6f          4f       MOV C,A
 $1a70          3a 7b 23 LDA BALL_IN_PLAY_hrm
 $1a73          b9       CMP C
 $1a74 o1a74:   c2 8a 1a JNZ j1a8a
-$1a77          21 90 21 LXI H, #2190
+$1a77          21 90 21 LXI H, GAME_STATE
 $1a7a          3e 04    MVI A, #04
 $1a7c o1a7c:   cd ce 03 CALL c03ce
 $1a7f          06 00    MVI B, #00
@@ -3296,7 +3608,7 @@ $1a8d          32 be 23 STA $23be
 $1a90          47       MOV B,A
 $1a91          e6 0f    ANI #0f
 $1a93          32 9e 23 STA $239e
-$1a96          21 90 21 LXI H, #2190
+$1a96          21 90 21 LXI H, GAME_STATE
 $1a99          3e 00    MVI A, #00
 $1a9b o1a9b:   cd d9 03 CALL c03d9
 $1a9e          3e 03    MVI A, #03
@@ -3335,7 +3647,7 @@ $1af3          32 18 22 STA $2218
 $1af6          3a ce 21 LDA $21ce
 $1af9          32 19 22 STA $2219
 $1afc o1afc:   cd a3 1b CALL c1ba3
-$1aff          11 c6 21 LXI D, #21c6
+$1aff          11 c6 21 LXI D, ROLLOVERS
 $1b02          3e 10    MVI A, #10
 $1b04 o1b04:   cd 60 0f CALL c0f60
 $1b07          21 c9 21 LXI H, #21c9
@@ -3376,7 +3688,7 @@ $1b59          b0       ORA B
 $1b5a          32 ce 21 STA $21ce
 $1b5d          06 39    MVI B, #39
 $1b5f o1b5f:   cd 82 1d CALL co1d82
-$1b62          21 92 21 LXI H, #2192
+$1b62          21 92 21 LXI H, GAME_STATE2
 $1b65          3e 07    MVI A, #07
 $1b67 o1b67:   cd ce 03 CALL c03ce
 $1b6a          21 c9 13 LXI H, #13c9
@@ -3415,7 +3727,7 @@ $1bb4 j1bb4:   fb       EI ;o0260
 $1bb5          21 15 22 LXI H, #2215
 $1bb8          db 04    IN PRICE_89_CAB
 $1bba          77       MOV M,A
-$1bbb          3a 92 21 LDA $2192
+$1bbb          3a 92 21 LDA GAME_STATE2
 $1bbe          e6 04    ANI #04
 $1bc0 o1bc0:   c2 53 1c JNZ j1c53
 $1bc3          f3       DI
@@ -3423,33 +3735,33 @@ $1bc4          3a 53 23 LDA $2353
 $1bc7          47       MOV B,A
 $1bc8          3a f8 23 LDA $23f8
 $1bcb          90       SUB B
-$1bcc          3a 94 21 LDA $2194
+$1bcc          3a 94 21 LDA SWITCH_LATCHED
 $1bcf o1bcf:   fa d7 1b JM j1bd7
 $1bd2          e6 dd    ANI #dd
 $1bd4 o1bd4:   c3 db 1b JMP j1bdb
 $1bd7 j1bd7:   f6 02    ORI #02 ;o1bcf
 $1bd9          e6 df    ANI #df
-$1bdb j1bdb:   32 94 21 STA $2194 ;o1bd4
-$1bde          3a 92 21 LDA $2192
+$1bdb j1bdb:   32 94 21 STA SWITCH_LATCHED ;o1bd4
+$1bde          3a 92 21 LDA GAME_STATE2
 $1be1          e6 01    ANI #01
 $1be3          fb       EI
 $1be4 o1be4:   ca 05 1c JZ j1c05
-$1be7          3a 92 21 LDA $2192
+$1be7          3a 92 21 LDA GAME_STATE2
 $1bea          e6 fe    ANI #fe
-$1bec          32 92 21 STA $2192
+$1bec          32 92 21 STA GAME_STATE2
 $1bef          21 44 22 LXI H, #2244
-$1bf2          11 80 23 LXI D, #2380
+$1bf2          11 80 23 LXI D, LAMPS_PAGE_1
 $1bf5          3e 34    MVI A, #34
 $1bf7 o1bf7:   cd 60 0f CALL c0f60
 $1bfa          21 64 22 LXI H, #2264
-$1bfd          11 a0 23 LXI D, #23a0
+$1bfd          11 a0 23 LXI D, LAMPS_PAGE_2
 $1c00          3e 34    MVI A, #34
 $1c02 o1c02:   cd 60 0f CALL c0f60
 $1c05 j1c05:   3a 15 22 LDA $2215 ;o1be4
 $1c08          e6 20    ANI #20
 $1c0a o1c0a:   c2 e1 1c JNZ j1ce1
 $1c0d          fb       EI
-$1c0e          3a 92 21 LDA $2192
+$1c0e          3a 92 21 LDA GAME_STATE2
 $1c11          e6 40    ANI #40
 $1c13 o1c13:   ca 2e 1c JZ j1c2e
 $1c16          3a 7a 23 LDA CREDITS_1
@@ -3477,7 +3789,7 @@ $1c48          3e 00    MVI A, #00
 $1c4a o1c4a:   cd d9 03 CALL c03d9
 $1c4d          32 9f 21 STA $219f
 $1c50 o1c50:   c3 a2 01 JMP j01a2
-$1c53 j1c53:   21 92 21 LXI H, #2192 ;o1bc0
+$1c53 j1c53:   21 92 21 LXI H, GAME_STATE2 ;o1bc0
 $1c56          3e 00    MVI A, #00
 $1c58 o1c58:   cd e6 03 CALL c03e6
 $1c5b o1c5b:   c2 08 02 JNZ j0208
@@ -3485,12 +3797,12 @@ $1c5e o1c5e:   cd ce 03 CALL c03ce
 $1c61          3a 41 22 LDA $2241
 $1c64          e6 01    ANI #01
 $1c66 o1c66:   c2 74 1c JNZ j1c74
-$1c69          21 80 23 LXI H, #2380
+$1c69          21 80 23 LXI H, LAMPS_PAGE_1
 $1c6c          11 44 22 LXI D, #2244
 $1c6f          3e 80    MVI A, #80
 $1c71 o1c71:   cd 60 0f CALL c0f60
 $1c74 j1c74:   3e ff    MVI A, #ff ;o1c66
-$1c76          21 83 23 LXI H, #2383
+$1c76          21 83 23 LXI H, PL3_SCORE_DISPLAY_2
 $1c79          06 17    MVI B, #17
 $1c7b j1c7b:   77       MOV M,A ;o1c7e
 $1c7c          23       INX H
@@ -3530,7 +3842,7 @@ $1cc8          11 a9 23 LXI D, #23a9
 $1ccb          21 28 22 LXI H, #2228
 $1cce          3e 08    MVI A, #08
 $1cd0 o1cd0:   cd 7b 0f CALL c0f7b
-$1cd3          11 b3 23 LXI D, #23b3
+$1cd3          11 b3 23 LXI D, HIGH_SCORE_DISP3
 $1cd6          21 2c 22 LXI H, #222c
 $1cd9          3e 08    MVI A, #08
 $1cdb o1cdb:   cd 7b 0f CALL c0f7b
@@ -3540,7 +3852,7 @@ $1ce4          47       MOV B,A
 $1ce5          3a f8 23 LDA $23f8
 $1ce8          90       SUB B
 $1ce9 o1ce9:   f2 08 02 JP j0208
-$1cec          21 92 21 LXI H, #2192
+$1cec          21 92 21 LXI H, GAME_STATE2
 $1cef          3e 06    MVI A, #06
 $1cf1 o1cf1:   cd e6 03 CALL c03e6
 $1cf4 o1cf4:   ca fa 1c JZ j1cfa
@@ -3562,24 +3874,24 @@ $1d1e          3e 05    MVI A, #05
 $1d20 o1d20:   cd ce 03 CALL c03ce
 $1d23          3a c2 21 LDA $21c2
 $1d26          2f       CMA
-$1d27          d3 05    OUT #05
+$1d27          d3 05    OUT COIL_5
 $1d29          3e 80    MVI A, #80
-$1d2b          32 93 21 STA $2193
+$1d2b          32 93 21 STA STATE_OUTLANE_1
 $1d2e          3e 06    MVI A, #06
 $1d30          32 ac 21 STA $21ac
 $1d33          3e 00    MVI A, #00
-$1d35          32 94 21 STA $2194
-$1d38          3a 90 21 LDA $2190
+$1d35          32 94 21 STA SWITCH_LATCHED
+$1d38          3a 90 21 LDA GAME_STATE
 $1d3b          e6 30    ANI #30
 $1d3d          f6 80    ORI #80
-$1d3f          32 90 21 STA $2190
-$1d42          3a 92 21 LDA $2192
+$1d3f          32 90 21 STA GAME_STATE
+$1d42          3a 92 21 LDA GAME_STATE2
 $1d45          e6 67    ANI #67
-$1d47          32 92 21 STA $2192
+$1d47          32 92 21 STA GAME_STATE2
 $1d4a          21 91 21 LXI H, #2191
 $1d4d          3e 01    MVI A, #01
 $1d4f o1d4f:   cd d9 03 CALL c03d9
-$1d52          21 94 21 LXI H, #2194
+$1d52          21 94 21 LXI H, SWITCH_LATCHED
 $1d55          3e 04    MVI A, #04
 $1d57 o1d57:   cd ce 03 CALL c03ce
 $1d5a          3e 06    MVI A, #06
@@ -3639,23 +3951,23 @@ $1db4          11 05 00 LXI D, #0005
 $1db7          c9       RET
 
  
-$1db8 c1db8:   21 63 23 LXI H, #2363 ;o1a43
+$1db8 c1db8:   21 63 23 LXI H, PL1_SCORE_1 ;o1a43
 $1dbb o1dbb:   cd c8 1f CALL c1fc8
-$1dbe          21 6b 23 LXI H, #236b
+$1dbe          21 6b 23 LXI H, PL2_SCORE_1
 $1dc1          e5       PUSH H
 $1dc2 o1dc2:   cd a9 0e CALL c0ea9
 $1dc5          e1       POP H
 $1dc6 o1dc6:   d2 d5 1d JNC j1dd5
 $1dc9          22 38 22 SHLD $2238
-$1dcc          21 63 23 LXI H, #2363
+$1dcc          21 63 23 LXI H, PL1_SCORE_1
 $1dcf          22 3a 22 SHLD $223a
 $1dd2 o1dd2:   c3 de 1d JMP j1dde
 $1dd5 j1dd5:   22 3a 22 SHLD $223a ;o1dc6
-$1dd8          21 63 23 LXI H, #2363
+$1dd8          21 63 23 LXI H, PL1_SCORE_1
 $1ddb          22 38 22 SHLD $2238
 $1dde j1dde:   2a 38 22 LHLD $2238 ;o1dd2
 $1de1 o1de1:   cd c8 1f CALL c1fc8
-$1de4          21 5f 23 LXI H, #235f
+$1de4          21 5f 23 LXI H, PL3_SCORE_1
 $1de7          e5       PUSH H
 $1de8 o1de8:   cd a9 0e CALL c0ea9
 $1deb          e1       POP H
@@ -3681,7 +3993,7 @@ $1e14          e1       POP H
 $1e15          22 3a 22 SHLD $223a
 $1e18 j1e18:   2a 38 22 LHLD $2238 ;o1e02,o1e0d
 $1e1b o1e1b:   cd c8 1f CALL c1fc8
-$1e1e          21 6f 23 LXI H, #236f
+$1e1e          21 6f 23 LXI H, PL4_SCORE_1
 $1e21          e5       PUSH H
 $1e22 o1e22:   cd a9 0e CALL c0ea9
 $1e25          e1       POP H
@@ -3900,14 +4212,14 @@ $1fc4 o1fc4:   cd 60 0f CALL c0f60
 $1fc7          c9       RET
 
  
-$1fc8 c1fc8:   11 f3 21 LXI D, #21f3 ;o1dbb,o1de1,o1df3,o1e1b,o1e2d,o1e3d,o1e86,o1e98,o1eaa,o1ebc,o1ece,o1ee0,o1ef2,o1f04,o1f16,o1f28
+$1fc8 c1fc8:   11 f3 21 LXI D, SPREAD_1 ;o1dbb,o1de1,o1df3,o1e1b,o1e2d,o1e3d,o1e86,o1e98,o1eaa,o1ebc,o1ece,o1ee0,o1ef2,o1f04,o1f16,o1f28
 $1fcb          3e 00    MVI A, #00
 $1fcd          06 04    MVI B, #04
 $1fcf j1fcf:   12       STAX D ;o1fd2
 $1fd0          13       INX D
 $1fd1          05       DCR B
 $1fd2 o1fd2:   c2 cf 1f JNZ j1fcf
-$1fd5          11 f3 21 LXI D, #21f3
+$1fd5          11 f3 21 LXI D, SPREAD_1
 $1fd8          3e 07    MVI A, #07
 $1fda o1fda:   cd 60 0f CALL c0f60
 $1fdd          3e 07    MVI A, #07

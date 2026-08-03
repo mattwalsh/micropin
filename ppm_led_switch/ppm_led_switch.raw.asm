@@ -159,23 +159,17 @@ l0143:  IN #04
         MOV B,A
         ANI #20
 l0148:  JNZ l0168
-        MOV B,A
+        LDA $2192
         ANI #df
         STA $2192
-        MOV B,A
-        ANI #40
-l0154:  JNZ l029e
-        MOV B,A
+        MOV A,B
         ANI #10
-l015a:  JNZ l02c8
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
+l0156:  JNZ l029e
+        MOV A,B
+        ANI #40
+l015c:  JNZ l02c8
+        LXI H, #12ff
+l0162:  CALL l1261
 l0165:  JMP l01bf
 l0168:  CALL l17a8
         MVI A, #d0
