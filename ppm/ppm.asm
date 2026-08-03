@@ -263,21 +263,22 @@ o0132:  JNZ j012d
         DI
 o0140:  CALL jc137d
 j0143:  IN PRICE_89_CAB ;o00f8,o0300
+        MOV B,A
         ANI #20
-o0147:  JNZ jo0168
+o0148:  JNZ jo0168
         LDA GAME_STATE2
         ANI #df
         STA GAME_STATE2
-        IN PRICE_TENS_07_PORT
-        CPI #fe
-o0156:  JNZ j01bf
-        IN PRICE_CENTS_07_PORT
-        CPI #fb
-o015d:  JZ j029e
-        CPI #f7
-o0162:  JZ j02c8
+        MOV A,B
+        ANI #10
+o0154:  JNZ jTEST_ROUTINE_1
+        MOV A,B
+        ANI #40
+o015a:  JNZ jTEST_ROUTINE_2
+        LXI H, GAME_OVER_MUSIC
+        CALL cPLAY_SOUND
 o0165:  JMP j01bf
-jo0168: CALL c17a8 ;o0147,o02c5
+jo0168: CALL c17a8
         MVI A, #d0
         STA GAME_STATE2
         MVI A, #00
@@ -311,7 +312,7 @@ j01b9:  MOV M,A ;o01bc
         INX H
         DCR B
 o01bc:  JNZ j01b9
-j01bf:  DI ;o0156,o0165,o02a4
+j01bf:  DI
         MVI A, #30
         STA STATE_OUTLANE_1
         LDA GAME_STATE2
@@ -437,7 +438,8 @@ cADD_BONUS_HL:
         SHLD $21f9
         RET
 
-j029e:  LDA $2191 ;o015d
+jTEST_ROUTINE_1:
+              LDA $2191 ;o0154
         MOV B,A
         ANI #01
 o02a4:  JNZ j01bf
@@ -455,7 +457,8 @@ o02a4:  JNZ j01bf
         STA $2220
         STA $2221
 o02c5:  JMP jo0168
-j02c8:  DI ;o0162
+jTEST_ROUTINE_2:
+              DI ;o015a
         LXI H, #23c0
         MVI B, #0c
 j02ce:  MVI M, #88 ;o02d2

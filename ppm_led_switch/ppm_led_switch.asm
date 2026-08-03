@@ -276,12 +276,8 @@ o0154:  JNZ jTEST_ROUTINE_1
         MOV A,B
         ANI #40
 o015a:  JNZ jTEST_ROUTINE_2
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
+        LXI H, GAME_OVER_MUSIC
+        CALL cPLAY_SOUND
 o0165:  JMP j01bf
 jo0168: CALL c17a8 ;o0148,o02c5
         MVI A, #d0

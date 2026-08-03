@@ -132,6 +132,9 @@ labels:
    ADD_BONUS : $0e5c
    ADD_PTS : $0f3c
    FLASH_ROUTINE : $0636
+   TEST_ROUTINE_1 : $029e
+   TEST_ROUTINE_2 : $02c8
+
 
 not_code:
    COIN : [$03ca , $03cb]
