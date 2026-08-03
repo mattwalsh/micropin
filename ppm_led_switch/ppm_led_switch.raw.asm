@@ -156,19 +156,26 @@ l0132:  JNZ l012d
         DI
         CALL $137d
 l0143:  IN #04
+        MOV B,A
         ANI #20
-l0147:  JNZ l0168
-        LDA $2192
+l0148:  JNZ l0168
+        MOV B,A
         ANI #df
         STA $2192
-        IN #03
-        CPI #fe
-l0156:  JNZ l01bf
-        IN #02
-        CPI #fb
-l015d:  JZ l029e
-        CPI #f7
-l0162:  JZ l02c8
+        MOV B,A
+        ANI #40
+l0154:  JNZ l029e
+        MOV B,A
+        ANI #10
+l015a:  JNZ l02c8
+        NOP
+        NOP
+        NOP
+        NOP
+        NOP
+        NOP
+        NOP
+        NOP
 l0165:  JMP l01bf
 l0168:  CALL l17a8
         MVI A, #d0

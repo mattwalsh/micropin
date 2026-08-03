@@ -5,7 +5,7 @@ DISASM_DIR="/Users/msw/dev/8085-Disassembler/"
 if [ -z "${1}" ]; then
    echo "Usage: give a filename"
    exit
-fi   
+fi
 
 filename=$(basename -- "$1")
 #extension="${filename##*.}"
@@ -13,7 +13,7 @@ filename="${filename%.*}"
 
 if [ ! -d "${filename}" ]; then
    echo "no such game / directory ${filename}"
-fi   
+fi
 
 cd ${filename}
 
@@ -22,7 +22,7 @@ if [ ! -f "rom_prefix" ]; then
    exit
 else
    ROM_PREFIX=$(cat rom_prefix)
-fi   
+fi
 
 ONE_FILE=${filename}.bin
 echo ${ONE_FILE}
