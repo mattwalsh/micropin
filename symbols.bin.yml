@@ -194,6 +194,16 @@ outPorts:
    LAMP_E : $0E
    LAMP_F : $0F
 
+# COILS:
+# game code writes bits to these, then they get inverted and sent out
+#$21c2 → port $05
+#$21c3 → port $06
+#$21c4 → port $07
+#$21c5 → port $08
+# COIN_COUNTER : Port $08, bit $08 active-low (raw OUT value $F7 if it is the only asserted coil)
+# LAUNCHER_OR_OUTHOLE_EJECT : Port $05, bit $20 active-low (sidebar coil 5; raw OUT value $DF if alone; asserted at $1d1a)
+# LEFT_FLIPPER : Port $06, bit $10 active-low (sidebar coil 12; asserted by auxiliary switch 4 at $0837)
+# RIGHT_FLIPPER : Port $06, bit $20 active-low (sidebar coil 13; likely auxiliary switch 5 path at $0909)
 
 notes:
   $002f:  "TRAP"
