@@ -113,7 +113,7 @@ addresses:
    NEXT_PLAYER_MUSIC : $1346
    OUTLANE_MUSIC : $134b
    SILENCE_MUSIC : $134e
-   POPCORN_MUSIC : $136a
+   POPCORN_MUSIC : $2400
 
    HIGH_SCORE_MUSIC : $1351
 
@@ -165,6 +165,7 @@ not_code:
    COIL_VECTORS_HRM : [$03b6, $03d5]
    TONE_STOCATTO_TABLE: [$11fc, $1205 ]
    MYSTERY_PORT_1_VECTORS : [$03b6, $03c5]
+   MYSTERY_PORT_1_VECTORS : [$03b6, $03c5]
 
 inPorts:
    SWITCH_PORT: $00
@@ -196,6 +197,8 @@ outPorts:
 
 
 notes:
+  $2000:  "RAM RESERVE"
+  $2400:  "Jeri's Ram"
   $002f:  "TRAP"
   $003C:  "RST7.5"
   $0034:  "RST6.5"
