@@ -164,10 +164,10 @@ l0148:  JNZ l0168
         STA $2192
         MOV A,B
         ANI #10
-l0156:  JNZ l029e
+l0156:  JNZ l0168
         MOV A,B
         ANI #40
-l015c:  JNZ l02c8
+l015c:  JNZ l0168
         LXI H, #12ff
 l0162:  CALL l1261
 l0165:  JMP l01bf
@@ -327,26 +327,24 @@ l0292:  XCHG
         SHLD $21f9
         RET
 
-l029e:  LDA $2191
-        MOV B,A
-        ANI #01
-l02a4:  JNZ l01bf
-        MOV A,B
-        ORI #01
-        STA $2191
-        DI
-        MVI A, #30
-        STA $2194
-        MVI A, #7d
-        STA $219f
-        MVI A, #3c
-        STA $221f
-        MVI A, #00
-        STA $2220
-        STA $2221
-l02c5:  JMP l0168
-l02c8:  DI
-        LXI H, #23c0
+l029e:  LDA $21c3
+        ANI #10
+l02a3:  JZ l087b
+        IN #04
+        ANI #20
+l02aa:  JZ l0891
+        MVI A, #09
+        STA $21a8
+l02b2:  JMP l061e
+l02b5:  LDA $21c3
+        ANI #20
+l02ba:  JZ l0938
+        IN #04
+        ANI #40
+l02c1:  JZ l094e
+        MVI A, #09
+        STA $21a9
+l02c9:  JMP l061e
         MVI B, #0c
 l02ce:  MVI M, #88
         INX H
@@ -1077,11 +1075,11 @@ l0865:  JZ l0382
         MVI A, #7d
         STA $219f
 l086d:  JMP l0382
-        LXI H, #21c3
+l0870:  JMP l029e
         MVI A, #04
 l0875:  CALL l03ee
 l0878:  JNZ l0891
-        LXI H, #2190
+l087b:  LXI H, #2190
         MVI A, #02
 l0880:  CALL l03ee
 l0883:  JNZ l061e
@@ -1152,11 +1150,11 @@ l0921:  JNZ l0382
         LXI H, #134e
 l0927:  CALL l1261
 l092a:  JMP l0382
-        LXI H, #21c3
+l092d:  JMP l02b5
         MVI A, #05
 l0932:  CALL l03ee
 l0935:  JNZ l094e
-        LXI H, #2190
+l0938:  LXI H, #2190
         MVI A, #02
 l093d:  CALL l03ee
 l0940:  JNZ l061e

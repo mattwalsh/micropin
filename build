@@ -1,75 +1,68 @@
 #!/bin/bash
 
 ASM_DIR="/Users/msw/dev/8085-Assembler/"
-MAME_ROM_DIR="/Users/msw/.pinmame/roms/"
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+cd "$SCRIPT_DIR" || exit 1
+MAME_ROM_DIR="$SCRIPT_DIR/upstream/mame/roms"
+ROM_SIZE=2048
 
-if [ -z "${1}" ]; then
-   echo "Usage: give a filename"
-   exit
+if [ -z "$1" ]; then
+    echo "Usage: $0 <source-game>"
+    exit 1
 fi
 
 src_filename=$(basename -- "$1")
-#extension="${src_filename##*.}"
 src_filename="${src_filename%.*}"
-
-if [ ! -d "${src_filename}" ]; then
-   echo "no such game / directory ${src_filename}"
+if [ -n "$2" ]; then
+    echo "build now chooses its MAME target from rom_count; do not pass a destination"
+    exit 1
 fi
 
-if [ -z "${2}" ]; then
-   dst_filename=${src_filename}
-else
-   dst_filename=$(basename -- "$2")
-   dst_filename="${dst_filename%.*}"
+config=$(python3 "$SCRIPT_DIR/rom_config.py" "$src_filename") || exit $?
+IFS=$'\t' read -r ROM_COUNT MAME_SYSTEM MAME_ROM_PREFIX SRC_ROM_PREFIX <<< "$config"
+cd "$src_filename" || exit 1
+FILE="$src_filename.asm"
+ONE_FILE="$src_filename.bin"
+if [ ! -f "$FILE" ]; then
+    echo "File $FILE not found!"
+    exit 1
 fi
 
-ROM_FOLDER=${MAME_ROM_DIR}/${dst_filename}
-
-if [ ! -d ${ROM_FOLDER} ]; then
-   echo "no such ROM directory ${ROM_FOLDER}"
+python3 "$ASM_DIR/src/assembler.py" "$FILE" -b -o "$ONE_FILE"
+if [ $? -ne 0 ]; then
+    echo "assembler failed"
+    exit 1
 fi
 
-cd ${dst_filename}
-DST_ROM_PREFIX=$(cat rom_prefix)
-
-cd ../${src_filename}
-SRC_ROM_PREFIX=$(cat rom_prefix)
-
-FILE="${src_filename}.asm"
-
-if [ ! -f $FILE ]; then
-   echo "File $FILE not found!"
-   exit
+EXPECTED_SIZE=$((ROM_SIZE * ROM_COUNT))
+FILESIZE=$(wc -c < "$ONE_FILE")
+if [ "$FILESIZE" -ne "$EXPECTED_SIZE" ]; then
+    echo "BUILD FAILED! Size is $FILESIZE; expected $EXPECTED_SIZE ($ROM_COUNT ROMs)"
+    rm -f "$ONE_FILE"
+    exit 1
 fi
 
-python3 ${ASM_DIR}/src/assembler.py $FILE -b -o "${src_filename}.bin"
-retval=$?
-
-if [ $retval -ne 0 ]; then
-   echo "bailing!!!"
-   exit 1
+ROM_FOLDER="$MAME_ROM_DIR/$MAME_SYSTEM"
+if [ ! -d "$ROM_FOLDER" ]; then
+    echo "missing MAME ROM directory $ROM_FOLDER"
+    rm -f "$ONE_FILE"
+    exit 1
 fi
 
-FILESIZE=$(wc -c < "${src_filename}.bin")
+echo "writing $ROM_COUNT ROMs with prefix $SRC_ROM_PREFIX"
+for i in $(seq 1 "$ROM_COUNT"); do
+    ROM_FILE="${SRC_ROM_PREFIX}_${i}.bin"
+    dd if="$ONE_FILE" of="$ROM_FILE" bs="$ROM_SIZE" skip=$((i - 1)) count=1 status=none
+    ROM_FILESIZE=$(wc -c < "$ROM_FILE")
+    if [ "$ROM_FILESIZE" -ne "$ROM_SIZE" ]; then
+        echo "BUILD FAILED! $ROM_FILE is $ROM_FILESIZE bytes; expected $ROM_SIZE"
+        rm -f "$ONE_FILE"
+        exit 1
+    fi
+done
+rm -f "$ONE_FILE"
 
-if [ $FILESIZE != 8192 ]; then
-   echo "BUILD FAILED!  Size is ${FILESIZE}"
-   exit 1
-fi
-
-split -b 2048 "${src_filename}.bin" outfile
-
-echo "writing to $SRC_ROM_PREFIX"
-
-rm ${src_filename}.bin
-mv outfileaa ${SRC_ROM_PREFIX}_1.bin
-mv outfileab ${SRC_ROM_PREFIX}_2.bin
-mv outfileac ${SRC_ROM_PREFIX}_3.bin
-mv outfilead ${SRC_ROM_PREFIX}_4.bin
-
-echo "deploying to ${dst_filename} in rom folder ${ROM_FOLDER}"
-cp ${SRC_ROM_PREFIX}_1.bin ${ROM_FOLDER}/${DST_ROM_PREFIX}_1.bin
-cp ${SRC_ROM_PREFIX}_2.bin ${ROM_FOLDER}/${DST_ROM_PREFIX}_2.bin
-cp ${SRC_ROM_PREFIX}_3.bin ${ROM_FOLDER}/${DST_ROM_PREFIX}_3.bin
-cp ${SRC_ROM_PREFIX}_4.bin ${ROM_FOLDER}/${DST_ROM_PREFIX}_4.bin
-exit 0
+echo "deploying to MAME $MAME_SYSTEM as ${MAME_ROM_PREFIX}_*.bin"
+for i in $(seq 1 "$ROM_COUNT"); do
+    cp "${SRC_ROM_PREFIX}_${i}.bin" "$ROM_FOLDER/${MAME_ROM_PREFIX}_${i}.bin"
+done
