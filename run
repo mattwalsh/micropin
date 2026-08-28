@@ -1,0 +1,17 @@
+#!/bin/bash
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+cd "$SCRIPT_DIR" || exit 1
+
+if [ -z "$1" ]; then
+    echo "Usage: $0 <source-game> [MAME options...]"
+    exit 1
+fi
+
+variant="$1"
+shift
+"$SCRIPT_DIR/build" "$variant" || exit $?
+
+config=$(python3 "$SCRIPT_DIR/rom_config.py" "$(basename -- "$variant")") || exit $?
+IFS=$'\t' read -r rom_count mame_system mame_prefix source_prefix <<< "$config"
+exec "$SCRIPT_DIR/upstream/mame/run-${mame_system}.sh" "$@"

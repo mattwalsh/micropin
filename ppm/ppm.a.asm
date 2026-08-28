@@ -278,7 +278,7 @@ $014e          e6 df    ANI #df
 $0150          32 92 21 STA GAME_STATE2
 $0153          78       MOV A,B
 $0154          e6 10    ANI #10
-$0156 o0156:   c2 9e 02 JNZ FLIPPER_HOLD_ROUTINE
+$0156 o0156:   c2 9e 02 JNZ TEST_ROUTINE_1
 $0159          78       MOV A,B
 $015a          e6 40    ANI #40
 $015c o015c:   c2 c8 02 JNZ TEST_ROUTINE_2
@@ -446,7 +446,7 @@ $0299          23       INX H
 $029a          22 f9 21 SHLD $21f9
 $029d          c9       RET
 
-$029e FLIPPER_HOLD_ROUTINE:
+$029e TEST_ROUTINE_1:
          3a 91 21 LDA CONTROL_FLAGS ;o0156
 $02a1          47       MOV B,A
 $02a2          e6 01    ANI #01
@@ -1273,7 +1273,6 @@ $0865 o0865:   ca 82 03 JZ jo0382
 $0868          3e 7d    MVI A, #7d
 $086a          32 9f 21 STA $219f
 $086d o086d:   c3 82 03 JMP jo0382
-; left flipper release
 $0870          21 c3 21 LXI H, #21c3
 $0873          3e 04    MVI A, #04
 $0875 o0875:   cd ee 03 CALL CHECK_ATH_BIT_OF_HL
@@ -1362,7 +1361,6 @@ $0943          21 94 21 LXI H, SWITCH_LATCHED
 $0946          3e 05    MVI A, #05
 $0948 o0948:   cd e1 03 CALL CLEAR_ATH_BIT_OF_HL
 $094b o094b:   c3 1e 06 JMP END_MAIN_LOOP
-; right flipper release
 $094e j094e:   3a c3 21 LDA $21c3 ;o0935
 $0951          e6 1f    ANI #1f
 $0953          32 c3 21 STA $21c3

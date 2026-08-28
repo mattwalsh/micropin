@@ -275,7 +275,7 @@ o0148:  JNZ jo0168
         STA GAME_STATE2
         MOV A,B
         ANI #10
-o0156:  JNZ FLIPPER_HOLD_ROUTINE
+o0156:  JNZ TEST_ROUTINE_1
         MOV A,B
         ANI #40
 o015c:  JNZ TEST_ROUTINE_2
@@ -442,7 +442,7 @@ ADD_BONUS_HL:
         SHLD $21f9
         RET
 
-FLIPPER_HOLD_ROUTINE:
+TEST_ROUTINE_1:
         LDA CONTROL_FLAGS ;o0156
         MOV B,A
         ANI #01
@@ -1254,7 +1254,6 @@ o0865:  JZ jo0382
         MVI A, #7d
         STA $219f
 o086d:  JMP jo0382
-; left flipper release
         LXI H, #21c3
         MVI A, #04
 o0875:  CALL CHECK_ATH_BIT_OF_HL
@@ -1343,7 +1342,6 @@ o0940:  JNZ END_MAIN_LOOP
         MVI A, #05
 o0948:  CALL CLEAR_ATH_BIT_OF_HL
 o094b:  JMP END_MAIN_LOOP
-; right flipper release
 j094e:  LDA $21c3 ;o0935
         ANI #1f
         STA $21c3
