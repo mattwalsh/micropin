@@ -11,6 +11,13 @@ MAME_TARGETS = {
     5: ("pencup2c", "coin"),
 }
 
+# Named experiments can select a deliberately isolated MAME target even when
+# they have an otherwise ordinary ROM count.  In particular, bridge needs the
+# $3000-$31ff Pico-facing aperture, which is not present on pencup2c.
+MAME_VARIANT_TARGETS = {
+    "bridge": ("pencupx", "x"),
+}
+
 
 def fail(message: str) -> None:
     print(message, file=sys.stderr)
@@ -46,7 +53,7 @@ def main() -> None:
     if rom_count < 1 or str(rom_count) != count_text:
         fail(f"invalid rom_count in {count_path}: {count_text!r}")
 
-    target = MAME_TARGETS.get(rom_count)
+    target = MAME_VARIANT_TARGETS.get(variant.name, MAME_TARGETS.get(rom_count))
     if target is None:
         fail(f"no MAME deployment target exists yet for {rom_count} ROMs")
     mame_system, mame_prefix = target

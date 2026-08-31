@@ -5,6 +5,7 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd "$SCRIPT_DIR" || exit 1
 MAME_ROM_DIR="$SCRIPT_DIR/upstream/mame/roms"
 ROM_SIZE=2048
+ROM5_HOLE_SLOT=4
 
 if [ -z "$1" ]; then
     echo "Usage: $0 <source-game>"
@@ -34,12 +35,27 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-EXPECTED_SIZE=$((ROM_SIZE * ROM_COUNT))
+# The fifth physical ROM is decoded at $2800, leaving the CPU-visible
+# $2000-$27ff NVRAM region between ROM 4 and ROM 5.  Preserve that hole in
+# the assembled image so labels and file offsets remain CPU addresses.
+IMAGE_SLOTS=$ROM_COUNT
+if [ "$ROM_COUNT" -eq 5 ]; then
+    IMAGE_SLOTS=$((ROM_COUNT + 1))
+fi
+EXPECTED_SIZE=$((ROM_SIZE * IMAGE_SLOTS))
 FILESIZE=$(wc -c < "$ONE_FILE")
 if [ "$FILESIZE" -ne "$EXPECTED_SIZE" ]; then
-    echo "BUILD FAILED! Size is $FILESIZE; expected $EXPECTED_SIZE ($ROM_COUNT ROMs)"
+    echo "BUILD FAILED! Size is $FILESIZE; expected $EXPECTED_SIZE (CPU address image for $ROM_COUNT ROMs)"
     rm -f "$ONE_FILE"
     exit 1
+fi
+
+if [ "$ROM_COUNT" -eq 5 ]; then
+    if ! cmp -s <(dd if="$ONE_FILE" bs="$ROM_SIZE" skip="$ROM5_HOLE_SLOT" count=1 status=none) <(dd if=/dev/zero bs="$ROM_SIZE" count=1 status=none); then
+        echo 'BUILD FAILED! $2000-$27ff must be 2048 zero/NOP bytes before ROM 5'
+        rm -f "$ONE_FILE"
+        exit 1
+    fi
 fi
 
 ROM_FOLDER="$MAME_ROM_DIR/$MAME_SYSTEM"
@@ -52,7 +68,11 @@ fi
 echo "writing $ROM_COUNT ROMs with prefix $SRC_ROM_PREFIX"
 for i in $(seq 1 "$ROM_COUNT"); do
     ROM_FILE="${SRC_ROM_PREFIX}_${i}.bin"
-    dd if="$ONE_FILE" of="$ROM_FILE" bs="$ROM_SIZE" skip=$((i - 1)) count=1 status=none
+    IMAGE_SLOT=$((i - 1))
+    if [ "$ROM_COUNT" -eq 5 ] && [ "$i" -eq 5 ]; then
+        IMAGE_SLOT=$((IMAGE_SLOT + 1))
+    fi
+    dd if="$ONE_FILE" of="$ROM_FILE" bs="$ROM_SIZE" skip="$IMAGE_SLOT" count=1 status=none
     ROM_FILESIZE=$(wc -c < "$ROM_FILE")
     if [ "$ROM_FILESIZE" -ne "$ROM_SIZE" ]; then
         echo "BUILD FAILED! $ROM_FILE is $ROM_FILESIZE bytes; expected $ROM_SIZE"

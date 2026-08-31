@@ -79,7 +79,7 @@ CREDIT_MUSIC EQU 0x1341
 NEXT_PLAYER_MUSIC EQU 0x1346
 OUTLANE_MUSIC EQU 0x134b
 SILENCE_MUSIC EQU 0x134e
-POPCORN_MUSIC EQU 0x2400
+POPCORN_MUSIC EQU 0x136a
 HIGH_SCORE_MUSIC EQU 0x1351
 
 ; INPUT PORTS
@@ -1250,7 +1250,7 @@ $0833          4d       DB #4d
 $0834          11       DB #11
 $0835          49       DB #49
 $0836          11       DB #11
-; left flipper
+; left flipper fire
 $0837          3a c3 21 LDA $21c3
 $083a          f6 10    ORI #10
 $083c          32 c3 21 STA $21c3
@@ -2406,13 +2406,13 @@ $1194          7d       MOV A,L
 $1195          93       SUB E
 $1196          7c       MOV A,H
 $1197          9a       SBB D
-$1198          00       NOP
+$1198          f8       RM
 $1199          11 7c 13 LXI D, #137c
 $119c          7b       MOV A,E
 $119d          95       SUB L
 $119e          7a       MOV A,D
 $119f          9c       SBB H
-$11a0          00       NOP
+$11a0          f8       RM
 $11a1          7e       MOV A,M
 $11a2          2f       CMA
 $11a3          d3 0a    OUT TONE_PITCH
@@ -2752,22 +2752,22 @@ $1367          87       DB #87
 $1368          0c       DB #0c
 $1369          ff       DB #ff
 ; popcorn
-$136a          00       DB #00
-$136b          00       DB #00
-$136c          00       DB #00
-$136d          00       DB #00
-$136e          00       DB #00
-$136f          00       DB #00
-$1370          00       DB #00
-$1371          00       DB #00
-$1372          00       DB #00
-$1373          00       DB #00
-$1374          00       DB #00
-$1375          00       DB #00
-$1376          00       DB #00
-$1377          00       DB #00
-$1378          00       DB #00
-$1379          00       DB #00
+POPCORN_MUSIC          f1       DB #f1
+$136b          04       DB #04
+$136c          d6       DB #d6
+$136d          04       DB #04
+$136e          f1       DB #f1
+$136f          04       DB #04
+$1370          b4       DB #b4
+$1371          04       DB #04
+$1372          8f       DB #8f
+$1373          04       DB #04
+$1374          b4       DB #b4
+$1375          04       DB #04
+$1376          78       DB #78
+$1377          04       DB #04
+$1378          ff       DB #ff
+$1379          ff       DB #ff
 $137a          ff       DB #ff
 $137b          ff       DB #ff
 $137c          fe       DB #fe
@@ -3232,7 +3232,7 @@ $1779          3a 9e 23 LDA $239e
 $177c          b0       ORA B
 $177d          32 9e 23 STA $239e
 $1780 o1780:   c3 d0 16 JMP DECREASE_CREDIT
-$1783 j1783:   21 00 24 LXI H, POPCORN_MUSIC ;o16ea
+$1783 j1783:   21 6a 13 LXI H, POPCORN_MUSIC ;o16ea
 $1786 o1786:   cd 61 12 CALL PLAY_SOUND
 $1789 j1789:   3e 06    MVI A, #06 ;o1603,o1612,o161d,o16f2
 $178b o178b:   c3 76 03 JMP j0376
@@ -4233,7 +4233,6 @@ $1ffc          00       NOP
 $1ffd          00       NOP
 $1ffe          60       MOV H,B
 $1fff          92       SUB D
-; RAM RESERVE
 $2000          00       NOP
 $2001          00       NOP
 $2002          00       NOP
@@ -5258,22 +5257,22 @@ $23fc          00       NOP
 $23fd          00       NOP
 PL3_SCORE_2          00       NOP
 $23ff          00       NOP
-; Jeri's Ram
-POPCORN_MUSIC          f1       POP PSW
-$2401          04       INR B
-$2402          d6 04    SUI #04
-$2404          f1       POP PSW
-$2405          04       INR B
-$2406          b4       ORA H
-$2407          04       INR B
-$2408          8f       ADC A
-$2409          04       INR B
-$240a          b4       ORA H
-$240b          04       INR B
-$240c          78       MOV A,B
-$240d          04       INR B
-$240e          ff       RST 7
-$240f          ff       RST 7
+$2400          00       NOP
+$2401          00       NOP
+$2402          00       NOP
+$2403          00       NOP
+$2404          00       NOP
+$2405          00       NOP
+$2406          00       NOP
+$2407          00       NOP
+$2408          00       NOP
+$2409          00       NOP
+$240a          00       NOP
+$240b          00       NOP
+$240c          00       NOP
+$240d          00       NOP
+$240e          00       NOP
+$240f          00       NOP
 $2410          00       NOP
 $2411          00       NOP
 $2412          00       NOP
@@ -6282,3 +6281,2052 @@ $27fc          00       NOP
 $27fd          00       NOP
 $27fe          00       NOP
 $27ff          00       NOP
+; extra 2k start
+$2800          00       DB #00
+$2801          00       DB #00
+$2802          00       DB #00
+$2803          00       DB #00
+$2804          00       DB #00
+$2805          00       DB #00
+$2806          00       DB #00
+$2807          00       DB #00
+$2808          00       DB #00
+$2809          00       DB #00
+$280a          00       DB #00
+$280b          00       DB #00
+$280c          00       DB #00
+$280d          00       DB #00
+$280e          00       DB #00
+$280f          00       DB #00
+$2810          00       DB #00
+$2811          00       DB #00
+$2812          00       DB #00
+$2813          00       DB #00
+$2814          00       DB #00
+$2815          00       DB #00
+$2816          00       DB #00
+$2817          00       DB #00
+$2818          00       DB #00
+$2819          00       DB #00
+$281a          00       DB #00
+$281b          00       DB #00
+$281c          00       DB #00
+$281d          00       DB #00
+$281e          00       DB #00
+$281f          00       DB #00
+$2820          00       DB #00
+$2821          00       DB #00
+$2822          00       DB #00
+$2823          00       DB #00
+$2824          00       DB #00
+$2825          00       DB #00
+$2826          00       DB #00
+$2827          00       DB #00
+$2828          00       DB #00
+$2829          00       DB #00
+$282a          00       DB #00
+$282b          00       DB #00
+$282c          00       DB #00
+$282d          00       DB #00
+$282e          00       DB #00
+$282f          00       DB #00
+$2830          00       DB #00
+$2831          00       DB #00
+$2832          00       DB #00
+$2833          00       DB #00
+$2834          00       DB #00
+$2835          00       DB #00
+$2836          00       DB #00
+$2837          00       DB #00
+$2838          00       DB #00
+$2839          00       DB #00
+$283a          00       DB #00
+$283b          00       DB #00
+$283c          00       DB #00
+$283d          00       DB #00
+$283e          00       DB #00
+$283f          00       DB #00
+$2840          00       DB #00
+$2841          00       DB #00
+$2842          00       DB #00
+$2843          00       DB #00
+$2844          00       DB #00
+$2845          00       DB #00
+$2846          00       DB #00
+$2847          00       DB #00
+$2848          00       DB #00
+$2849          00       DB #00
+$284a          00       DB #00
+$284b          00       DB #00
+$284c          00       DB #00
+$284d          00       DB #00
+$284e          00       DB #00
+$284f          00       DB #00
+$2850          00       DB #00
+$2851          00       DB #00
+$2852          00       DB #00
+$2853          00       DB #00
+$2854          00       DB #00
+$2855          00       DB #00
+$2856          00       DB #00
+$2857          00       DB #00
+$2858          00       DB #00
+$2859          00       DB #00
+$285a          00       DB #00
+$285b          00       DB #00
+$285c          00       DB #00
+$285d          00       DB #00
+$285e          00       DB #00
+$285f          00       DB #00
+$2860          00       DB #00
+$2861          00       DB #00
+$2862          00       DB #00
+$2863          00       DB #00
+$2864          00       DB #00
+$2865          00       DB #00
+$2866          00       DB #00
+$2867          00       DB #00
+$2868          00       DB #00
+$2869          00       DB #00
+$286a          00       DB #00
+$286b          00       DB #00
+$286c          00       DB #00
+$286d          00       DB #00
+$286e          00       DB #00
+$286f          00       DB #00
+$2870          00       DB #00
+$2871          00       DB #00
+$2872          00       DB #00
+$2873          00       DB #00
+$2874          00       DB #00
+$2875          00       DB #00
+$2876          00       DB #00
+$2877          00       DB #00
+$2878          00       DB #00
+$2879          00       DB #00
+$287a          00       DB #00
+$287b          00       DB #00
+$287c          00       DB #00
+$287d          00       DB #00
+$287e          00       DB #00
+$287f          00       DB #00
+$2880          00       DB #00
+$2881          00       DB #00
+$2882          00       DB #00
+$2883          00       DB #00
+$2884          00       DB #00
+$2885          00       DB #00
+$2886          00       DB #00
+$2887          00       DB #00
+$2888          00       DB #00
+$2889          00       DB #00
+$288a          00       DB #00
+$288b          00       DB #00
+$288c          00       DB #00
+$288d          00       DB #00
+$288e          00       DB #00
+$288f          00       DB #00
+$2890          00       DB #00
+$2891          00       DB #00
+$2892          00       DB #00
+$2893          00       DB #00
+$2894          00       DB #00
+$2895          00       DB #00
+$2896          00       DB #00
+$2897          00       DB #00
+$2898          00       DB #00
+$2899          00       DB #00
+$289a          00       DB #00
+$289b          00       DB #00
+$289c          00       DB #00
+$289d          00       DB #00
+$289e          00       DB #00
+$289f          00       DB #00
+$28a0          00       DB #00
+$28a1          00       DB #00
+$28a2          00       DB #00
+$28a3          00       DB #00
+$28a4          00       DB #00
+$28a5          00       DB #00
+$28a6          00       DB #00
+$28a7          00       DB #00
+$28a8          00       DB #00
+$28a9          00       DB #00
+$28aa          00       DB #00
+$28ab          00       DB #00
+$28ac          00       DB #00
+$28ad          00       DB #00
+$28ae          00       DB #00
+$28af          00       DB #00
+$28b0          00       DB #00
+$28b1          00       DB #00
+$28b2          00       DB #00
+$28b3          00       DB #00
+$28b4          00       DB #00
+$28b5          00       DB #00
+$28b6          00       DB #00
+$28b7          00       DB #00
+$28b8          00       DB #00
+$28b9          00       DB #00
+$28ba          00       DB #00
+$28bb          00       DB #00
+$28bc          00       DB #00
+$28bd          00       DB #00
+$28be          00       DB #00
+$28bf          00       DB #00
+$28c0          00       DB #00
+$28c1          00       DB #00
+$28c2          00       DB #00
+$28c3          00       DB #00
+$28c4          00       DB #00
+$28c5          00       DB #00
+$28c6          00       DB #00
+$28c7          00       DB #00
+$28c8          00       DB #00
+$28c9          00       DB #00
+$28ca          00       DB #00
+$28cb          00       DB #00
+$28cc          00       DB #00
+$28cd          00       DB #00
+$28ce          00       DB #00
+$28cf          00       DB #00
+$28d0          00       DB #00
+$28d1          00       DB #00
+$28d2          00       DB #00
+$28d3          00       DB #00
+$28d4          00       DB #00
+$28d5          00       DB #00
+$28d6          00       DB #00
+$28d7          00       DB #00
+$28d8          00       DB #00
+$28d9          00       DB #00
+$28da          00       DB #00
+$28db          00       DB #00
+$28dc          00       DB #00
+$28dd          00       DB #00
+$28de          00       DB #00
+$28df          00       DB #00
+$28e0          00       DB #00
+$28e1          00       DB #00
+$28e2          00       DB #00
+$28e3          00       DB #00
+$28e4          00       DB #00
+$28e5          00       DB #00
+$28e6          00       DB #00
+$28e7          00       DB #00
+$28e8          00       DB #00
+$28e9          00       DB #00
+$28ea          00       DB #00
+$28eb          00       DB #00
+$28ec          00       DB #00
+$28ed          00       DB #00
+$28ee          00       DB #00
+$28ef          00       DB #00
+$28f0          00       DB #00
+$28f1          00       DB #00
+$28f2          00       DB #00
+$28f3          00       DB #00
+$28f4          00       DB #00
+$28f5          00       DB #00
+$28f6          00       DB #00
+$28f7          00       DB #00
+$28f8          00       DB #00
+$28f9          00       DB #00
+$28fa          00       DB #00
+$28fb          00       DB #00
+$28fc          00       DB #00
+$28fd          00       DB #00
+$28fe          00       DB #00
+$28ff          00       DB #00
+$2900          00       DB #00
+$2901          00       NOP
+$2902          00       NOP
+$2903          00       NOP
+$2904          00       NOP
+$2905          00       NOP
+$2906          00       NOP
+$2907          00       NOP
+$2908          00       NOP
+$2909          00       NOP
+$290a          00       NOP
+$290b          00       NOP
+$290c          00       NOP
+$290d          00       NOP
+$290e          00       NOP
+$290f          00       NOP
+$2910          00       NOP
+$2911          00       NOP
+$2912          00       NOP
+$2913          00       NOP
+$2914          00       NOP
+$2915          00       NOP
+$2916          00       NOP
+$2917          00       NOP
+$2918          00       NOP
+$2919          00       NOP
+$291a          00       NOP
+$291b          00       NOP
+$291c          00       NOP
+$291d          00       NOP
+$291e          00       NOP
+$291f          00       NOP
+$2920          00       NOP
+$2921          00       NOP
+$2922          00       NOP
+$2923          00       NOP
+$2924          00       NOP
+$2925          00       NOP
+$2926          00       NOP
+$2927          00       NOP
+$2928          00       NOP
+$2929          00       NOP
+$292a          00       NOP
+$292b          00       NOP
+$292c          00       NOP
+$292d          00       NOP
+$292e          00       NOP
+$292f          00       NOP
+$2930          00       NOP
+$2931          00       NOP
+$2932          00       NOP
+$2933          00       NOP
+$2934          00       NOP
+$2935          00       NOP
+$2936          00       NOP
+$2937          00       NOP
+$2938          00       NOP
+$2939          00       NOP
+$293a          00       NOP
+$293b          00       NOP
+$293c          00       NOP
+$293d          00       NOP
+$293e          00       NOP
+$293f          00       NOP
+$2940          00       NOP
+$2941          00       NOP
+$2942          00       NOP
+$2943          00       NOP
+$2944          00       NOP
+$2945          00       NOP
+$2946          00       NOP
+$2947          00       NOP
+$2948          00       NOP
+$2949          00       NOP
+$294a          00       NOP
+$294b          00       NOP
+$294c          00       NOP
+$294d          00       NOP
+$294e          00       NOP
+$294f          00       NOP
+$2950          00       NOP
+$2951          00       NOP
+$2952          00       NOP
+$2953          00       NOP
+$2954          00       NOP
+$2955          00       NOP
+$2956          00       NOP
+$2957          00       NOP
+$2958          00       NOP
+$2959          00       NOP
+$295a          00       NOP
+$295b          00       NOP
+$295c          00       NOP
+$295d          00       NOP
+$295e          00       NOP
+$295f          00       NOP
+$2960          00       NOP
+$2961          00       NOP
+$2962          00       NOP
+$2963          00       NOP
+$2964          00       NOP
+$2965          00       NOP
+$2966          00       NOP
+$2967          00       NOP
+$2968          00       NOP
+$2969          00       NOP
+$296a          00       NOP
+$296b          00       NOP
+$296c          00       NOP
+$296d          00       NOP
+$296e          00       NOP
+$296f          00       NOP
+$2970          00       NOP
+$2971          00       NOP
+$2972          00       NOP
+$2973          00       NOP
+$2974          00       NOP
+$2975          00       NOP
+$2976          00       NOP
+$2977          00       NOP
+$2978          00       NOP
+$2979          00       NOP
+$297a          00       NOP
+$297b          00       NOP
+$297c          00       NOP
+$297d          00       NOP
+$297e          00       NOP
+$297f          00       NOP
+$2980          00       NOP
+$2981          00       NOP
+$2982          00       NOP
+$2983          00       NOP
+$2984          00       NOP
+$2985          00       NOP
+$2986          00       NOP
+$2987          00       NOP
+$2988          00       NOP
+$2989          00       NOP
+$298a          00       NOP
+$298b          00       NOP
+$298c          00       NOP
+$298d          00       NOP
+$298e          00       NOP
+$298f          00       NOP
+$2990          00       NOP
+$2991          00       NOP
+$2992          00       NOP
+$2993          00       NOP
+$2994          00       NOP
+$2995          00       NOP
+$2996          00       NOP
+$2997          00       NOP
+$2998          00       NOP
+$2999          00       NOP
+$299a          00       NOP
+$299b          00       NOP
+$299c          00       NOP
+$299d          00       NOP
+$299e          00       NOP
+$299f          00       NOP
+$29a0          00       NOP
+$29a1          00       NOP
+$29a2          00       NOP
+$29a3          00       NOP
+$29a4          00       NOP
+$29a5          00       NOP
+$29a6          00       NOP
+$29a7          00       NOP
+$29a8          00       NOP
+$29a9          00       NOP
+$29aa          00       NOP
+$29ab          00       NOP
+$29ac          00       NOP
+$29ad          00       NOP
+$29ae          00       NOP
+$29af          00       NOP
+$29b0          00       NOP
+$29b1          00       NOP
+$29b2          00       NOP
+$29b3          00       NOP
+$29b4          00       NOP
+$29b5          00       NOP
+$29b6          00       NOP
+$29b7          00       NOP
+$29b8          00       NOP
+$29b9          00       NOP
+$29ba          00       NOP
+$29bb          00       NOP
+$29bc          00       NOP
+$29bd          00       NOP
+$29be          00       NOP
+$29bf          00       NOP
+$29c0          00       NOP
+$29c1          00       NOP
+$29c2          00       NOP
+$29c3          00       NOP
+$29c4          00       NOP
+$29c5          00       NOP
+$29c6          00       NOP
+$29c7          00       NOP
+$29c8          00       NOP
+$29c9          00       NOP
+$29ca          00       NOP
+$29cb          00       NOP
+$29cc          00       NOP
+$29cd          00       NOP
+$29ce          00       NOP
+$29cf          00       NOP
+$29d0          00       NOP
+$29d1          00       NOP
+$29d2          00       NOP
+$29d3          00       NOP
+$29d4          00       NOP
+$29d5          00       NOP
+$29d6          00       NOP
+$29d7          00       NOP
+$29d8          00       NOP
+$29d9          00       NOP
+$29da          00       NOP
+$29db          00       NOP
+$29dc          00       NOP
+$29dd          00       NOP
+$29de          00       NOP
+$29df          00       NOP
+$29e0          00       NOP
+$29e1          00       NOP
+$29e2          00       NOP
+$29e3          00       NOP
+$29e4          00       NOP
+$29e5          00       NOP
+$29e6          00       NOP
+$29e7          00       NOP
+$29e8          00       NOP
+$29e9          00       NOP
+$29ea          00       NOP
+$29eb          00       NOP
+$29ec          00       NOP
+$29ed          00       NOP
+$29ee          00       NOP
+$29ef          00       NOP
+$29f0          00       NOP
+$29f1          00       NOP
+$29f2          00       NOP
+$29f3          00       NOP
+$29f4          00       NOP
+$29f5          00       NOP
+$29f6          00       NOP
+$29f7          00       NOP
+$29f8          00       NOP
+$29f9          00       NOP
+$29fa          00       NOP
+$29fb          00       NOP
+$29fc          00       NOP
+$29fd          00       NOP
+$29fe          00       NOP
+$29ff          00       NOP
+$2a00          00       NOP
+$2a01          00       NOP
+$2a02          00       NOP
+$2a03          00       NOP
+$2a04          00       NOP
+$2a05          00       NOP
+$2a06          00       NOP
+$2a07          00       NOP
+$2a08          00       NOP
+$2a09          00       NOP
+$2a0a          00       NOP
+$2a0b          00       NOP
+$2a0c          00       NOP
+$2a0d          00       NOP
+$2a0e          00       NOP
+$2a0f          00       NOP
+$2a10          00       NOP
+$2a11          00       NOP
+$2a12          00       NOP
+$2a13          00       NOP
+$2a14          00       NOP
+$2a15          00       NOP
+$2a16          00       NOP
+$2a17          00       NOP
+$2a18          00       NOP
+$2a19          00       NOP
+$2a1a          00       NOP
+$2a1b          00       NOP
+$2a1c          00       NOP
+$2a1d          00       NOP
+$2a1e          00       NOP
+$2a1f          00       NOP
+$2a20          00       NOP
+$2a21          00       NOP
+$2a22          00       NOP
+$2a23          00       NOP
+$2a24          00       NOP
+$2a25          00       NOP
+$2a26          00       NOP
+$2a27          00       NOP
+$2a28          00       NOP
+$2a29          00       NOP
+$2a2a          00       NOP
+$2a2b          00       NOP
+$2a2c          00       NOP
+$2a2d          00       NOP
+$2a2e          00       NOP
+$2a2f          00       NOP
+$2a30          00       NOP
+$2a31          00       NOP
+$2a32          00       NOP
+$2a33          00       NOP
+$2a34          00       NOP
+$2a35          00       NOP
+$2a36          00       NOP
+$2a37          00       NOP
+$2a38          00       NOP
+$2a39          00       NOP
+$2a3a          00       NOP
+$2a3b          00       NOP
+$2a3c          00       NOP
+$2a3d          00       NOP
+$2a3e          00       NOP
+$2a3f          00       NOP
+$2a40          00       NOP
+$2a41          00       NOP
+$2a42          00       NOP
+$2a43          00       NOP
+$2a44          00       NOP
+$2a45          00       NOP
+$2a46          00       NOP
+$2a47          00       NOP
+$2a48          00       NOP
+$2a49          00       NOP
+$2a4a          00       NOP
+$2a4b          00       NOP
+$2a4c          00       NOP
+$2a4d          00       NOP
+$2a4e          00       NOP
+$2a4f          00       NOP
+$2a50          00       NOP
+$2a51          00       NOP
+$2a52          00       NOP
+$2a53          00       NOP
+$2a54          00       NOP
+$2a55          00       NOP
+$2a56          00       NOP
+$2a57          00       NOP
+$2a58          00       NOP
+$2a59          00       NOP
+$2a5a          00       NOP
+$2a5b          00       NOP
+$2a5c          00       NOP
+$2a5d          00       NOP
+$2a5e          00       NOP
+$2a5f          00       NOP
+$2a60          00       NOP
+$2a61          00       NOP
+$2a62          00       NOP
+$2a63          00       NOP
+$2a64          00       NOP
+$2a65          00       NOP
+$2a66          00       NOP
+$2a67          00       NOP
+$2a68          00       NOP
+$2a69          00       NOP
+$2a6a          00       NOP
+$2a6b          00       NOP
+$2a6c          00       NOP
+$2a6d          00       NOP
+$2a6e          00       NOP
+$2a6f          00       NOP
+$2a70          00       NOP
+$2a71          00       NOP
+$2a72          00       NOP
+$2a73          00       NOP
+$2a74          00       NOP
+$2a75          00       NOP
+$2a76          00       NOP
+$2a77          00       NOP
+$2a78          00       NOP
+$2a79          00       NOP
+$2a7a          00       NOP
+$2a7b          00       NOP
+$2a7c          00       NOP
+$2a7d          00       NOP
+$2a7e          00       NOP
+$2a7f          00       NOP
+$2a80          00       NOP
+$2a81          00       NOP
+$2a82          00       NOP
+$2a83          00       NOP
+$2a84          00       NOP
+$2a85          00       NOP
+$2a86          00       NOP
+$2a87          00       NOP
+$2a88          00       NOP
+$2a89          00       NOP
+$2a8a          00       NOP
+$2a8b          00       NOP
+$2a8c          00       NOP
+$2a8d          00       NOP
+$2a8e          00       NOP
+$2a8f          00       NOP
+$2a90          00       NOP
+$2a91          00       NOP
+$2a92          00       NOP
+$2a93          00       NOP
+$2a94          00       NOP
+$2a95          00       NOP
+$2a96          00       NOP
+$2a97          00       NOP
+$2a98          00       NOP
+$2a99          00       NOP
+$2a9a          00       NOP
+$2a9b          00       NOP
+$2a9c          00       NOP
+$2a9d          00       NOP
+$2a9e          00       NOP
+$2a9f          00       NOP
+$2aa0          00       NOP
+$2aa1          00       NOP
+$2aa2          00       NOP
+$2aa3          00       NOP
+$2aa4          00       NOP
+$2aa5          00       NOP
+$2aa6          00       NOP
+$2aa7          00       NOP
+$2aa8          00       NOP
+$2aa9          00       NOP
+$2aaa          00       NOP
+$2aab          00       NOP
+$2aac          00       NOP
+$2aad          00       NOP
+$2aae          00       NOP
+$2aaf          00       NOP
+$2ab0          00       NOP
+$2ab1          00       NOP
+$2ab2          00       NOP
+$2ab3          00       NOP
+$2ab4          00       NOP
+$2ab5          00       NOP
+$2ab6          00       NOP
+$2ab7          00       NOP
+$2ab8          00       NOP
+$2ab9          00       NOP
+$2aba          00       NOP
+$2abb          00       NOP
+$2abc          00       NOP
+$2abd          00       NOP
+$2abe          00       NOP
+$2abf          00       NOP
+$2ac0          00       NOP
+$2ac1          00       NOP
+$2ac2          00       NOP
+$2ac3          00       NOP
+$2ac4          00       NOP
+$2ac5          00       NOP
+$2ac6          00       NOP
+$2ac7          00       NOP
+$2ac8          00       NOP
+$2ac9          00       NOP
+$2aca          00       NOP
+$2acb          00       NOP
+$2acc          00       NOP
+$2acd          00       NOP
+$2ace          00       NOP
+$2acf          00       NOP
+$2ad0          00       NOP
+$2ad1          00       NOP
+$2ad2          00       NOP
+$2ad3          00       NOP
+$2ad4          00       NOP
+$2ad5          00       NOP
+$2ad6          00       NOP
+$2ad7          00       NOP
+$2ad8          00       NOP
+$2ad9          00       NOP
+$2ada          00       NOP
+$2adb          00       NOP
+$2adc          00       NOP
+$2add          00       NOP
+$2ade          00       NOP
+$2adf          00       NOP
+$2ae0          00       NOP
+$2ae1          00       NOP
+$2ae2          00       NOP
+$2ae3          00       NOP
+$2ae4          00       NOP
+$2ae5          00       NOP
+$2ae6          00       NOP
+$2ae7          00       NOP
+$2ae8          00       NOP
+$2ae9          00       NOP
+$2aea          00       NOP
+$2aeb          00       NOP
+$2aec          00       NOP
+$2aed          00       NOP
+$2aee          00       NOP
+$2aef          00       NOP
+$2af0          00       NOP
+$2af1          00       NOP
+$2af2          00       NOP
+$2af3          00       NOP
+$2af4          00       NOP
+$2af5          00       NOP
+$2af6          00       NOP
+$2af7          00       NOP
+$2af8          00       NOP
+$2af9          00       NOP
+$2afa          00       NOP
+$2afb          00       NOP
+$2afc          00       NOP
+$2afd          00       NOP
+$2afe          00       NOP
+$2aff          00       NOP
+$2b00          00       NOP
+$2b01          00       NOP
+$2b02          00       NOP
+$2b03          00       NOP
+$2b04          00       NOP
+$2b05          00       NOP
+$2b06          00       NOP
+$2b07          00       NOP
+$2b08          00       NOP
+$2b09          00       NOP
+$2b0a          00       NOP
+$2b0b          00       NOP
+$2b0c          00       NOP
+$2b0d          00       NOP
+$2b0e          00       NOP
+$2b0f          00       NOP
+$2b10          00       NOP
+$2b11          00       NOP
+$2b12          00       NOP
+$2b13          00       NOP
+$2b14          00       NOP
+$2b15          00       NOP
+$2b16          00       NOP
+$2b17          00       NOP
+$2b18          00       NOP
+$2b19          00       NOP
+$2b1a          00       NOP
+$2b1b          00       NOP
+$2b1c          00       NOP
+$2b1d          00       NOP
+$2b1e          00       NOP
+$2b1f          00       NOP
+$2b20          00       NOP
+$2b21          00       NOP
+$2b22          00       NOP
+$2b23          00       NOP
+$2b24          00       NOP
+$2b25          00       NOP
+$2b26          00       NOP
+$2b27          00       NOP
+$2b28          00       NOP
+$2b29          00       NOP
+$2b2a          00       NOP
+$2b2b          00       NOP
+$2b2c          00       NOP
+$2b2d          00       NOP
+$2b2e          00       NOP
+$2b2f          00       NOP
+$2b30          00       NOP
+$2b31          00       NOP
+$2b32          00       NOP
+$2b33          00       NOP
+$2b34          00       NOP
+$2b35          00       NOP
+$2b36          00       NOP
+$2b37          00       NOP
+$2b38          00       NOP
+$2b39          00       NOP
+$2b3a          00       NOP
+$2b3b          00       NOP
+$2b3c          00       NOP
+$2b3d          00       NOP
+$2b3e          00       NOP
+$2b3f          00       NOP
+$2b40          00       NOP
+$2b41          00       NOP
+$2b42          00       NOP
+$2b43          00       NOP
+$2b44          00       NOP
+$2b45          00       NOP
+$2b46          00       NOP
+$2b47          00       NOP
+$2b48          00       NOP
+$2b49          00       NOP
+$2b4a          00       NOP
+$2b4b          00       NOP
+$2b4c          00       NOP
+$2b4d          00       NOP
+$2b4e          00       NOP
+$2b4f          00       NOP
+$2b50          00       NOP
+$2b51          00       NOP
+$2b52          00       NOP
+$2b53          00       NOP
+$2b54          00       NOP
+$2b55          00       NOP
+$2b56          00       NOP
+$2b57          00       NOP
+$2b58          00       NOP
+$2b59          00       NOP
+$2b5a          00       NOP
+$2b5b          00       NOP
+$2b5c          00       NOP
+$2b5d          00       NOP
+$2b5e          00       NOP
+$2b5f          00       NOP
+$2b60          00       NOP
+$2b61          00       NOP
+$2b62          00       NOP
+$2b63          00       NOP
+$2b64          00       NOP
+$2b65          00       NOP
+$2b66          00       NOP
+$2b67          00       NOP
+$2b68          00       NOP
+$2b69          00       NOP
+$2b6a          00       NOP
+$2b6b          00       NOP
+$2b6c          00       NOP
+$2b6d          00       NOP
+$2b6e          00       NOP
+$2b6f          00       NOP
+$2b70          00       NOP
+$2b71          00       NOP
+$2b72          00       NOP
+$2b73          00       NOP
+$2b74          00       NOP
+$2b75          00       NOP
+$2b76          00       NOP
+$2b77          00       NOP
+$2b78          00       NOP
+$2b79          00       NOP
+$2b7a          00       NOP
+$2b7b          00       NOP
+$2b7c          00       NOP
+$2b7d          00       NOP
+$2b7e          00       NOP
+$2b7f          00       NOP
+$2b80          00       NOP
+$2b81          00       NOP
+$2b82          00       NOP
+$2b83          00       NOP
+$2b84          00       NOP
+$2b85          00       NOP
+$2b86          00       NOP
+$2b87          00       NOP
+$2b88          00       NOP
+$2b89          00       NOP
+$2b8a          00       NOP
+$2b8b          00       NOP
+$2b8c          00       NOP
+$2b8d          00       NOP
+$2b8e          00       NOP
+$2b8f          00       NOP
+$2b90          00       NOP
+$2b91          00       NOP
+$2b92          00       NOP
+$2b93          00       NOP
+$2b94          00       NOP
+$2b95          00       NOP
+$2b96          00       NOP
+$2b97          00       NOP
+$2b98          00       NOP
+$2b99          00       NOP
+$2b9a          00       NOP
+$2b9b          00       NOP
+$2b9c          00       NOP
+$2b9d          00       NOP
+$2b9e          00       NOP
+$2b9f          00       NOP
+$2ba0          00       NOP
+$2ba1          00       NOP
+$2ba2          00       NOP
+$2ba3          00       NOP
+$2ba4          00       NOP
+$2ba5          00       NOP
+$2ba6          00       NOP
+$2ba7          00       NOP
+$2ba8          00       NOP
+$2ba9          00       NOP
+$2baa          00       NOP
+$2bab          00       NOP
+$2bac          00       NOP
+$2bad          00       NOP
+$2bae          00       NOP
+$2baf          00       NOP
+$2bb0          00       NOP
+$2bb1          00       NOP
+$2bb2          00       NOP
+$2bb3          00       NOP
+$2bb4          00       NOP
+$2bb5          00       NOP
+$2bb6          00       NOP
+$2bb7          00       NOP
+$2bb8          00       NOP
+$2bb9          00       NOP
+$2bba          00       NOP
+$2bbb          00       NOP
+$2bbc          00       NOP
+$2bbd          00       NOP
+$2bbe          00       NOP
+$2bbf          00       NOP
+$2bc0          00       NOP
+$2bc1          00       NOP
+$2bc2          00       NOP
+$2bc3          00       NOP
+$2bc4          00       NOP
+$2bc5          00       NOP
+$2bc6          00       NOP
+$2bc7          00       NOP
+$2bc8          00       NOP
+$2bc9          00       NOP
+$2bca          00       NOP
+$2bcb          00       NOP
+$2bcc          00       NOP
+$2bcd          00       NOP
+$2bce          00       NOP
+$2bcf          00       NOP
+$2bd0          00       NOP
+$2bd1          00       NOP
+$2bd2          00       NOP
+$2bd3          00       NOP
+$2bd4          00       NOP
+$2bd5          00       NOP
+$2bd6          00       NOP
+$2bd7          00       NOP
+$2bd8          00       NOP
+$2bd9          00       NOP
+$2bda          00       NOP
+$2bdb          00       NOP
+$2bdc          00       NOP
+$2bdd          00       NOP
+$2bde          00       NOP
+$2bdf          00       NOP
+$2be0          00       NOP
+$2be1          00       NOP
+$2be2          00       NOP
+$2be3          00       NOP
+$2be4          00       NOP
+$2be5          00       NOP
+$2be6          00       NOP
+$2be7          00       NOP
+$2be8          00       NOP
+$2be9          00       NOP
+$2bea          00       NOP
+$2beb          00       NOP
+$2bec          00       NOP
+$2bed          00       NOP
+$2bee          00       NOP
+$2bef          00       NOP
+$2bf0          00       NOP
+$2bf1          00       NOP
+$2bf2          00       NOP
+$2bf3          00       NOP
+$2bf4          00       NOP
+$2bf5          00       NOP
+$2bf6          00       NOP
+$2bf7          00       NOP
+$2bf8          00       NOP
+$2bf9          00       NOP
+$2bfa          00       NOP
+$2bfb          00       NOP
+$2bfc          00       NOP
+$2bfd          00       NOP
+$2bfe          00       NOP
+$2bff          00       NOP
+$2c00          00       NOP
+$2c01          00       NOP
+$2c02          00       NOP
+$2c03          00       NOP
+$2c04          00       NOP
+$2c05          00       NOP
+$2c06          00       NOP
+$2c07          00       NOP
+$2c08          00       NOP
+$2c09          00       NOP
+$2c0a          00       NOP
+$2c0b          00       NOP
+$2c0c          00       NOP
+$2c0d          00       NOP
+$2c0e          00       NOP
+$2c0f          00       NOP
+$2c10          00       NOP
+$2c11          00       NOP
+$2c12          00       NOP
+$2c13          00       NOP
+$2c14          00       NOP
+$2c15          00       NOP
+$2c16          00       NOP
+$2c17          00       NOP
+$2c18          00       NOP
+$2c19          00       NOP
+$2c1a          00       NOP
+$2c1b          00       NOP
+$2c1c          00       NOP
+$2c1d          00       NOP
+$2c1e          00       NOP
+$2c1f          00       NOP
+$2c20          00       NOP
+$2c21          00       NOP
+$2c22          00       NOP
+$2c23          00       NOP
+$2c24          00       NOP
+$2c25          00       NOP
+$2c26          00       NOP
+$2c27          00       NOP
+$2c28          00       NOP
+$2c29          00       NOP
+$2c2a          00       NOP
+$2c2b          00       NOP
+$2c2c          00       NOP
+$2c2d          00       NOP
+$2c2e          00       NOP
+$2c2f          00       NOP
+$2c30          00       NOP
+$2c31          00       NOP
+$2c32          00       NOP
+$2c33          00       NOP
+$2c34          00       NOP
+$2c35          00       NOP
+$2c36          00       NOP
+$2c37          00       NOP
+$2c38          00       NOP
+$2c39          00       NOP
+$2c3a          00       NOP
+$2c3b          00       NOP
+$2c3c          00       NOP
+$2c3d          00       NOP
+$2c3e          00       NOP
+$2c3f          00       NOP
+$2c40          00       NOP
+$2c41          00       NOP
+$2c42          00       NOP
+$2c43          00       NOP
+$2c44          00       NOP
+$2c45          00       NOP
+$2c46          00       NOP
+$2c47          00       NOP
+$2c48          00       NOP
+$2c49          00       NOP
+$2c4a          00       NOP
+$2c4b          00       NOP
+$2c4c          00       NOP
+$2c4d          00       NOP
+$2c4e          00       NOP
+$2c4f          00       NOP
+$2c50          00       NOP
+$2c51          00       NOP
+$2c52          00       NOP
+$2c53          00       NOP
+$2c54          00       NOP
+$2c55          00       NOP
+$2c56          00       NOP
+$2c57          00       NOP
+$2c58          00       NOP
+$2c59          00       NOP
+$2c5a          00       NOP
+$2c5b          00       NOP
+$2c5c          00       NOP
+$2c5d          00       NOP
+$2c5e          00       NOP
+$2c5f          00       NOP
+$2c60          00       NOP
+$2c61          00       NOP
+$2c62          00       NOP
+$2c63          00       NOP
+$2c64          00       NOP
+$2c65          00       NOP
+$2c66          00       NOP
+$2c67          00       NOP
+$2c68          00       NOP
+$2c69          00       NOP
+$2c6a          00       NOP
+$2c6b          00       NOP
+$2c6c          00       NOP
+$2c6d          00       NOP
+$2c6e          00       NOP
+$2c6f          00       NOP
+$2c70          00       NOP
+$2c71          00       NOP
+$2c72          00       NOP
+$2c73          00       NOP
+$2c74          00       NOP
+$2c75          00       NOP
+$2c76          00       NOP
+$2c77          00       NOP
+$2c78          00       NOP
+$2c79          00       NOP
+$2c7a          00       NOP
+$2c7b          00       NOP
+$2c7c          00       NOP
+$2c7d          00       NOP
+$2c7e          00       NOP
+$2c7f          00       NOP
+$2c80          00       NOP
+$2c81          00       NOP
+$2c82          00       NOP
+$2c83          00       NOP
+$2c84          00       NOP
+$2c85          00       NOP
+$2c86          00       NOP
+$2c87          00       NOP
+$2c88          00       NOP
+$2c89          00       NOP
+$2c8a          00       NOP
+$2c8b          00       NOP
+$2c8c          00       NOP
+$2c8d          00       NOP
+$2c8e          00       NOP
+$2c8f          00       NOP
+$2c90          00       NOP
+$2c91          00       NOP
+$2c92          00       NOP
+$2c93          00       NOP
+$2c94          00       NOP
+$2c95          00       NOP
+$2c96          00       NOP
+$2c97          00       NOP
+$2c98          00       NOP
+$2c99          00       NOP
+$2c9a          00       NOP
+$2c9b          00       NOP
+$2c9c          00       NOP
+$2c9d          00       NOP
+$2c9e          00       NOP
+$2c9f          00       NOP
+$2ca0          00       NOP
+$2ca1          00       NOP
+$2ca2          00       NOP
+$2ca3          00       NOP
+$2ca4          00       NOP
+$2ca5          00       NOP
+$2ca6          00       NOP
+$2ca7          00       NOP
+$2ca8          00       NOP
+$2ca9          00       NOP
+$2caa          00       NOP
+$2cab          00       NOP
+$2cac          00       NOP
+$2cad          00       NOP
+$2cae          00       NOP
+$2caf          00       NOP
+$2cb0          00       NOP
+$2cb1          00       NOP
+$2cb2          00       NOP
+$2cb3          00       NOP
+$2cb4          00       NOP
+$2cb5          00       NOP
+$2cb6          00       NOP
+$2cb7          00       NOP
+$2cb8          00       NOP
+$2cb9          00       NOP
+$2cba          00       NOP
+$2cbb          00       NOP
+$2cbc          00       NOP
+$2cbd          00       NOP
+$2cbe          00       NOP
+$2cbf          00       NOP
+$2cc0          00       NOP
+$2cc1          00       NOP
+$2cc2          00       NOP
+$2cc3          00       NOP
+$2cc4          00       NOP
+$2cc5          00       NOP
+$2cc6          00       NOP
+$2cc7          00       NOP
+$2cc8          00       NOP
+$2cc9          00       NOP
+$2cca          00       NOP
+$2ccb          00       NOP
+$2ccc          00       NOP
+$2ccd          00       NOP
+$2cce          00       NOP
+$2ccf          00       NOP
+$2cd0          00       NOP
+$2cd1          00       NOP
+$2cd2          00       NOP
+$2cd3          00       NOP
+$2cd4          00       NOP
+$2cd5          00       NOP
+$2cd6          00       NOP
+$2cd7          00       NOP
+$2cd8          00       NOP
+$2cd9          00       NOP
+$2cda          00       NOP
+$2cdb          00       NOP
+$2cdc          00       NOP
+$2cdd          00       NOP
+$2cde          00       NOP
+$2cdf          00       NOP
+$2ce0          00       NOP
+$2ce1          00       NOP
+$2ce2          00       NOP
+$2ce3          00       NOP
+$2ce4          00       NOP
+$2ce5          00       NOP
+$2ce6          00       NOP
+$2ce7          00       NOP
+$2ce8          00       NOP
+$2ce9          00       NOP
+$2cea          00       NOP
+$2ceb          00       NOP
+$2cec          00       NOP
+$2ced          00       NOP
+$2cee          00       NOP
+$2cef          00       NOP
+$2cf0          00       NOP
+$2cf1          00       NOP
+$2cf2          00       NOP
+$2cf3          00       NOP
+$2cf4          00       NOP
+$2cf5          00       NOP
+$2cf6          00       NOP
+$2cf7          00       NOP
+$2cf8          00       NOP
+$2cf9          00       NOP
+$2cfa          00       NOP
+$2cfb          00       NOP
+$2cfc          00       NOP
+$2cfd          00       NOP
+$2cfe          00       NOP
+$2cff          00       NOP
+$2d00          00       NOP
+$2d01          00       NOP
+$2d02          00       NOP
+$2d03          00       NOP
+$2d04          00       NOP
+$2d05          00       NOP
+$2d06          00       NOP
+$2d07          00       NOP
+$2d08          00       NOP
+$2d09          00       NOP
+$2d0a          00       NOP
+$2d0b          00       NOP
+$2d0c          00       NOP
+$2d0d          00       NOP
+$2d0e          00       NOP
+$2d0f          00       NOP
+$2d10          00       NOP
+$2d11          00       NOP
+$2d12          00       NOP
+$2d13          00       NOP
+$2d14          00       NOP
+$2d15          00       NOP
+$2d16          00       NOP
+$2d17          00       NOP
+$2d18          00       NOP
+$2d19          00       NOP
+$2d1a          00       NOP
+$2d1b          00       NOP
+$2d1c          00       NOP
+$2d1d          00       NOP
+$2d1e          00       NOP
+$2d1f          00       NOP
+$2d20          00       NOP
+$2d21          00       NOP
+$2d22          00       NOP
+$2d23          00       NOP
+$2d24          00       NOP
+$2d25          00       NOP
+$2d26          00       NOP
+$2d27          00       NOP
+$2d28          00       NOP
+$2d29          00       NOP
+$2d2a          00       NOP
+$2d2b          00       NOP
+$2d2c          00       NOP
+$2d2d          00       NOP
+$2d2e          00       NOP
+$2d2f          00       NOP
+$2d30          00       NOP
+$2d31          00       NOP
+$2d32          00       NOP
+$2d33          00       NOP
+$2d34          00       NOP
+$2d35          00       NOP
+$2d36          00       NOP
+$2d37          00       NOP
+$2d38          00       NOP
+$2d39          00       NOP
+$2d3a          00       NOP
+$2d3b          00       NOP
+$2d3c          00       NOP
+$2d3d          00       NOP
+$2d3e          00       NOP
+$2d3f          00       NOP
+$2d40          00       NOP
+$2d41          00       NOP
+$2d42          00       NOP
+$2d43          00       NOP
+$2d44          00       NOP
+$2d45          00       NOP
+$2d46          00       NOP
+$2d47          00       NOP
+$2d48          00       NOP
+$2d49          00       NOP
+$2d4a          00       NOP
+$2d4b          00       NOP
+$2d4c          00       NOP
+$2d4d          00       NOP
+$2d4e          00       NOP
+$2d4f          00       NOP
+$2d50          00       NOP
+$2d51          00       NOP
+$2d52          00       NOP
+$2d53          00       NOP
+$2d54          00       NOP
+$2d55          00       NOP
+$2d56          00       NOP
+$2d57          00       NOP
+$2d58          00       NOP
+$2d59          00       NOP
+$2d5a          00       NOP
+$2d5b          00       NOP
+$2d5c          00       NOP
+$2d5d          00       NOP
+$2d5e          00       NOP
+$2d5f          00       NOP
+$2d60          00       NOP
+$2d61          00       NOP
+$2d62          00       NOP
+$2d63          00       NOP
+$2d64          00       NOP
+$2d65          00       NOP
+$2d66          00       NOP
+$2d67          00       NOP
+$2d68          00       NOP
+$2d69          00       NOP
+$2d6a          00       NOP
+$2d6b          00       NOP
+$2d6c          00       NOP
+$2d6d          00       NOP
+$2d6e          00       NOP
+$2d6f          00       NOP
+$2d70          00       NOP
+$2d71          00       NOP
+$2d72          00       NOP
+$2d73          00       NOP
+$2d74          00       NOP
+$2d75          00       NOP
+$2d76          00       NOP
+$2d77          00       NOP
+$2d78          00       NOP
+$2d79          00       NOP
+$2d7a          00       NOP
+$2d7b          00       NOP
+$2d7c          00       NOP
+$2d7d          00       NOP
+$2d7e          00       NOP
+$2d7f          00       NOP
+$2d80          00       NOP
+$2d81          00       NOP
+$2d82          00       NOP
+$2d83          00       NOP
+$2d84          00       NOP
+$2d85          00       NOP
+$2d86          00       NOP
+$2d87          00       NOP
+$2d88          00       NOP
+$2d89          00       NOP
+$2d8a          00       NOP
+$2d8b          00       NOP
+$2d8c          00       NOP
+$2d8d          00       NOP
+$2d8e          00       NOP
+$2d8f          00       NOP
+$2d90          00       NOP
+$2d91          00       NOP
+$2d92          00       NOP
+$2d93          00       NOP
+$2d94          00       NOP
+$2d95          00       NOP
+$2d96          00       NOP
+$2d97          00       NOP
+$2d98          00       NOP
+$2d99          00       NOP
+$2d9a          00       NOP
+$2d9b          00       NOP
+$2d9c          00       NOP
+$2d9d          00       NOP
+$2d9e          00       NOP
+$2d9f          00       NOP
+$2da0          00       NOP
+$2da1          00       NOP
+$2da2          00       NOP
+$2da3          00       NOP
+$2da4          00       NOP
+$2da5          00       NOP
+$2da6          00       NOP
+$2da7          00       NOP
+$2da8          00       NOP
+$2da9          00       NOP
+$2daa          00       NOP
+$2dab          00       NOP
+$2dac          00       NOP
+$2dad          00       NOP
+$2dae          00       NOP
+$2daf          00       NOP
+$2db0          00       NOP
+$2db1          00       NOP
+$2db2          00       NOP
+$2db3          00       NOP
+$2db4          00       NOP
+$2db5          00       NOP
+$2db6          00       NOP
+$2db7          00       NOP
+$2db8          00       NOP
+$2db9          00       NOP
+$2dba          00       NOP
+$2dbb          00       NOP
+$2dbc          00       NOP
+$2dbd          00       NOP
+$2dbe          00       NOP
+$2dbf          00       NOP
+$2dc0          00       NOP
+$2dc1          00       NOP
+$2dc2          00       NOP
+$2dc3          00       NOP
+$2dc4          00       NOP
+$2dc5          00       NOP
+$2dc6          00       NOP
+$2dc7          00       NOP
+$2dc8          00       NOP
+$2dc9          00       NOP
+$2dca          00       NOP
+$2dcb          00       NOP
+$2dcc          00       NOP
+$2dcd          00       NOP
+$2dce          00       NOP
+$2dcf          00       NOP
+$2dd0          00       NOP
+$2dd1          00       NOP
+$2dd2          00       NOP
+$2dd3          00       NOP
+$2dd4          00       NOP
+$2dd5          00       NOP
+$2dd6          00       NOP
+$2dd7          00       NOP
+$2dd8          00       NOP
+$2dd9          00       NOP
+$2dda          00       NOP
+$2ddb          00       NOP
+$2ddc          00       NOP
+$2ddd          00       NOP
+$2dde          00       NOP
+$2ddf          00       NOP
+$2de0          00       NOP
+$2de1          00       NOP
+$2de2          00       NOP
+$2de3          00       NOP
+$2de4          00       NOP
+$2de5          00       NOP
+$2de6          00       NOP
+$2de7          00       NOP
+$2de8          00       NOP
+$2de9          00       NOP
+$2dea          00       NOP
+$2deb          00       NOP
+$2dec          00       NOP
+$2ded          00       NOP
+$2dee          00       NOP
+$2def          00       NOP
+$2df0          00       NOP
+$2df1          00       NOP
+$2df2          00       NOP
+$2df3          00       NOP
+$2df4          00       NOP
+$2df5          00       NOP
+$2df6          00       NOP
+$2df7          00       NOP
+$2df8          00       NOP
+$2df9          00       NOP
+$2dfa          00       NOP
+$2dfb          00       NOP
+$2dfc          00       NOP
+$2dfd          00       NOP
+$2dfe          00       NOP
+$2dff          00       NOP
+$2e00          00       NOP
+$2e01          00       NOP
+$2e02          00       NOP
+$2e03          00       NOP
+$2e04          00       NOP
+$2e05          00       NOP
+$2e06          00       NOP
+$2e07          00       NOP
+$2e08          00       NOP
+$2e09          00       NOP
+$2e0a          00       NOP
+$2e0b          00       NOP
+$2e0c          00       NOP
+$2e0d          00       NOP
+$2e0e          00       NOP
+$2e0f          00       NOP
+$2e10          00       NOP
+$2e11          00       NOP
+$2e12          00       NOP
+$2e13          00       NOP
+$2e14          00       NOP
+$2e15          00       NOP
+$2e16          00       NOP
+$2e17          00       NOP
+$2e18          00       NOP
+$2e19          00       NOP
+$2e1a          00       NOP
+$2e1b          00       NOP
+$2e1c          00       NOP
+$2e1d          00       NOP
+$2e1e          00       NOP
+$2e1f          00       NOP
+$2e20          00       NOP
+$2e21          00       NOP
+$2e22          00       NOP
+$2e23          00       NOP
+$2e24          00       NOP
+$2e25          00       NOP
+$2e26          00       NOP
+$2e27          00       NOP
+$2e28          00       NOP
+$2e29          00       NOP
+$2e2a          00       NOP
+$2e2b          00       NOP
+$2e2c          00       NOP
+$2e2d          00       NOP
+$2e2e          00       NOP
+$2e2f          00       NOP
+$2e30          00       NOP
+$2e31          00       NOP
+$2e32          00       NOP
+$2e33          00       NOP
+$2e34          00       NOP
+$2e35          00       NOP
+$2e36          00       NOP
+$2e37          00       NOP
+$2e38          00       NOP
+$2e39          00       NOP
+$2e3a          00       NOP
+$2e3b          00       NOP
+$2e3c          00       NOP
+$2e3d          00       NOP
+$2e3e          00       NOP
+$2e3f          00       NOP
+$2e40          00       NOP
+$2e41          00       NOP
+$2e42          00       NOP
+$2e43          00       NOP
+$2e44          00       NOP
+$2e45          00       NOP
+$2e46          00       NOP
+$2e47          00       NOP
+$2e48          00       NOP
+$2e49          00       NOP
+$2e4a          00       NOP
+$2e4b          00       NOP
+$2e4c          00       NOP
+$2e4d          00       NOP
+$2e4e          00       NOP
+$2e4f          00       NOP
+$2e50          00       NOP
+$2e51          00       NOP
+$2e52          00       NOP
+$2e53          00       NOP
+$2e54          00       NOP
+$2e55          00       NOP
+$2e56          00       NOP
+$2e57          00       NOP
+$2e58          00       NOP
+$2e59          00       NOP
+$2e5a          00       NOP
+$2e5b          00       NOP
+$2e5c          00       NOP
+$2e5d          00       NOP
+$2e5e          00       NOP
+$2e5f          00       NOP
+$2e60          00       NOP
+$2e61          00       NOP
+$2e62          00       NOP
+$2e63          00       NOP
+$2e64          00       NOP
+$2e65          00       NOP
+$2e66          00       NOP
+$2e67          00       NOP
+$2e68          00       NOP
+$2e69          00       NOP
+$2e6a          00       NOP
+$2e6b          00       NOP
+$2e6c          00       NOP
+$2e6d          00       NOP
+$2e6e          00       NOP
+$2e6f          00       NOP
+$2e70          00       NOP
+$2e71          00       NOP
+$2e72          00       NOP
+$2e73          00       NOP
+$2e74          00       NOP
+$2e75          00       NOP
+$2e76          00       NOP
+$2e77          00       NOP
+$2e78          00       NOP
+$2e79          00       NOP
+$2e7a          00       NOP
+$2e7b          00       NOP
+$2e7c          00       NOP
+$2e7d          00       NOP
+$2e7e          00       NOP
+$2e7f          00       NOP
+$2e80          00       NOP
+$2e81          00       NOP
+$2e82          00       NOP
+$2e83          00       NOP
+$2e84          00       NOP
+$2e85          00       NOP
+$2e86          00       NOP
+$2e87          00       NOP
+$2e88          00       NOP
+$2e89          00       NOP
+$2e8a          00       NOP
+$2e8b          00       NOP
+$2e8c          00       NOP
+$2e8d          00       NOP
+$2e8e          00       NOP
+$2e8f          00       NOP
+$2e90          00       NOP
+$2e91          00       NOP
+$2e92          00       NOP
+$2e93          00       NOP
+$2e94          00       NOP
+$2e95          00       NOP
+$2e96          00       NOP
+$2e97          00       NOP
+$2e98          00       NOP
+$2e99          00       NOP
+$2e9a          00       NOP
+$2e9b          00       NOP
+$2e9c          00       NOP
+$2e9d          00       NOP
+$2e9e          00       NOP
+$2e9f          00       NOP
+$2ea0          00       NOP
+$2ea1          00       NOP
+$2ea2          00       NOP
+$2ea3          00       NOP
+$2ea4          00       NOP
+$2ea5          00       NOP
+$2ea6          00       NOP
+$2ea7          00       NOP
+$2ea8          00       NOP
+$2ea9          00       NOP
+$2eaa          00       NOP
+$2eab          00       NOP
+$2eac          00       NOP
+$2ead          00       NOP
+$2eae          00       NOP
+$2eaf          00       NOP
+$2eb0          00       NOP
+$2eb1          00       NOP
+$2eb2          00       NOP
+$2eb3          00       NOP
+$2eb4          00       NOP
+$2eb5          00       NOP
+$2eb6          00       NOP
+$2eb7          00       NOP
+$2eb8          00       NOP
+$2eb9          00       NOP
+$2eba          00       NOP
+$2ebb          00       NOP
+$2ebc          00       NOP
+$2ebd          00       NOP
+$2ebe          00       NOP
+$2ebf          00       NOP
+$2ec0          00       NOP
+$2ec1          00       NOP
+$2ec2          00       NOP
+$2ec3          00       NOP
+$2ec4          00       NOP
+$2ec5          00       NOP
+$2ec6          00       NOP
+$2ec7          00       NOP
+$2ec8          00       NOP
+$2ec9          00       NOP
+$2eca          00       NOP
+$2ecb          00       NOP
+$2ecc          00       NOP
+$2ecd          00       NOP
+$2ece          00       NOP
+$2ecf          00       NOP
+$2ed0          00       NOP
+$2ed1          00       NOP
+$2ed2          00       NOP
+$2ed3          00       NOP
+$2ed4          00       NOP
+$2ed5          00       NOP
+$2ed6          00       NOP
+$2ed7          00       NOP
+$2ed8          00       NOP
+$2ed9          00       NOP
+$2eda          00       NOP
+$2edb          00       NOP
+$2edc          00       NOP
+$2edd          00       NOP
+$2ede          00       NOP
+$2edf          00       NOP
+$2ee0          00       NOP
+$2ee1          00       NOP
+$2ee2          00       NOP
+$2ee3          00       NOP
+$2ee4          00       NOP
+$2ee5          00       NOP
+$2ee6          00       NOP
+$2ee7          00       NOP
+$2ee8          00       NOP
+$2ee9          00       NOP
+$2eea          00       NOP
+$2eeb          00       NOP
+$2eec          00       NOP
+$2eed          00       NOP
+$2eee          00       NOP
+$2eef          00       NOP
+$2ef0          00       NOP
+$2ef1          00       NOP
+$2ef2          00       NOP
+$2ef3          00       NOP
+$2ef4          00       NOP
+$2ef5          00       NOP
+$2ef6          00       NOP
+$2ef7          00       NOP
+$2ef8          00       NOP
+$2ef9          00       NOP
+$2efa          00       NOP
+$2efb          00       NOP
+$2efc          00       NOP
+$2efd          00       NOP
+$2efe          00       NOP
+$2eff          00       NOP
+$2f00          00       NOP
+$2f01          00       NOP
+$2f02          00       NOP
+$2f03          00       NOP
+$2f04          00       NOP
+$2f05          00       NOP
+$2f06          00       NOP
+$2f07          00       NOP
+$2f08          00       NOP
+$2f09          00       NOP
+$2f0a          00       NOP
+$2f0b          00       NOP
+$2f0c          00       NOP
+$2f0d          00       NOP
+$2f0e          00       NOP
+$2f0f          00       NOP
+$2f10          00       NOP
+$2f11          00       NOP
+$2f12          00       NOP
+$2f13          00       NOP
+$2f14          00       NOP
+$2f15          00       NOP
+$2f16          00       NOP
+$2f17          00       NOP
+$2f18          00       NOP
+$2f19          00       NOP
+$2f1a          00       NOP
+$2f1b          00       NOP
+$2f1c          00       NOP
+$2f1d          00       NOP
+$2f1e          00       NOP
+$2f1f          00       NOP
+$2f20          00       NOP
+$2f21          00       NOP
+$2f22          00       NOP
+$2f23          00       NOP
+$2f24          00       NOP
+$2f25          00       NOP
+$2f26          00       NOP
+$2f27          00       NOP
+$2f28          00       NOP
+$2f29          00       NOP
+$2f2a          00       NOP
+$2f2b          00       NOP
+$2f2c          00       NOP
+$2f2d          00       NOP
+$2f2e          00       NOP
+$2f2f          00       NOP
+$2f30          00       NOP
+$2f31          00       NOP
+$2f32          00       NOP
+$2f33          00       NOP
+$2f34          00       NOP
+$2f35          00       NOP
+$2f36          00       NOP
+$2f37          00       NOP
+$2f38          00       NOP
+$2f39          00       NOP
+$2f3a          00       NOP
+$2f3b          00       NOP
+$2f3c          00       NOP
+$2f3d          00       NOP
+$2f3e          00       NOP
+$2f3f          00       NOP
+$2f40          00       NOP
+$2f41          00       NOP
+$2f42          00       NOP
+$2f43          00       NOP
+$2f44          00       NOP
+$2f45          00       NOP
+$2f46          00       NOP
+$2f47          00       NOP
+$2f48          00       NOP
+$2f49          00       NOP
+$2f4a          00       NOP
+$2f4b          00       NOP
+$2f4c          00       NOP
+$2f4d          00       NOP
+$2f4e          00       NOP
+$2f4f          00       NOP
+$2f50          00       NOP
+$2f51          00       NOP
+$2f52          00       NOP
+$2f53          00       NOP
+$2f54          00       NOP
+$2f55          00       NOP
+$2f56          00       NOP
+$2f57          00       NOP
+$2f58          00       NOP
+$2f59          00       NOP
+$2f5a          00       NOP
+$2f5b          00       NOP
+$2f5c          00       NOP
+$2f5d          00       NOP
+$2f5e          00       NOP
+$2f5f          00       NOP
+$2f60          00       NOP
+$2f61          00       NOP
+$2f62          00       NOP
+$2f63          00       NOP
+$2f64          00       NOP
+$2f65          00       NOP
+$2f66          00       NOP
+$2f67          00       NOP
+$2f68          00       NOP
+$2f69          00       NOP
+$2f6a          00       NOP
+$2f6b          00       NOP
+$2f6c          00       NOP
+$2f6d          00       NOP
+$2f6e          00       NOP
+$2f6f          00       NOP
+$2f70          00       NOP
+$2f71          00       NOP
+$2f72          00       NOP
+$2f73          00       NOP
+$2f74          00       NOP
+$2f75          00       NOP
+$2f76          00       NOP
+$2f77          00       NOP
+$2f78          00       NOP
+$2f79          00       NOP
+$2f7a          00       NOP
+$2f7b          00       NOP
+$2f7c          00       NOP
+$2f7d          00       NOP
+$2f7e          00       NOP
+$2f7f          00       NOP
+$2f80          00       NOP
+$2f81          00       NOP
+$2f82          00       NOP
+$2f83          00       NOP
+$2f84          00       NOP
+$2f85          00       NOP
+$2f86          00       NOP
+$2f87          00       NOP
+$2f88          00       NOP
+$2f89          00       NOP
+$2f8a          00       NOP
+$2f8b          00       NOP
+$2f8c          00       NOP
+$2f8d          00       NOP
+$2f8e          00       NOP
+$2f8f          00       NOP
+$2f90          00       NOP
+$2f91          00       NOP
+$2f92          00       NOP
+$2f93          00       NOP
+$2f94          00       NOP
+$2f95          00       NOP
+$2f96          00       NOP
+$2f97          00       NOP
+$2f98          00       NOP
+$2f99          00       NOP
+$2f9a          00       NOP
+$2f9b          00       NOP
+$2f9c          00       NOP
+$2f9d          00       NOP
+$2f9e          00       NOP
+$2f9f          00       NOP
+$2fa0          00       NOP
+$2fa1          00       NOP
+$2fa2          00       NOP
+$2fa3          00       NOP
+$2fa4          00       NOP
+$2fa5          00       NOP
+$2fa6          00       NOP
+$2fa7          00       NOP
+$2fa8          00       NOP
+$2fa9          00       NOP
+$2faa          00       NOP
+$2fab          00       NOP
+$2fac          00       NOP
+$2fad          00       NOP
+$2fae          00       NOP
+$2faf          00       NOP
+$2fb0          00       NOP
+$2fb1          00       NOP
+$2fb2          00       NOP
+$2fb3          00       NOP
+$2fb4          00       NOP
+$2fb5          00       NOP
+$2fb6          00       NOP
+$2fb7          00       NOP
+$2fb8          00       NOP
+$2fb9          00       NOP
+$2fba          00       NOP
+$2fbb          00       NOP
+$2fbc          00       NOP
+$2fbd          00       NOP
+$2fbe          00       NOP
+$2fbf          00       NOP
+$2fc0          00       NOP
+$2fc1          00       NOP
+$2fc2          00       NOP
+$2fc3          00       NOP
+$2fc4          00       NOP
+$2fc5          00       NOP
+$2fc6          00       NOP
+$2fc7          00       NOP
+$2fc8          00       NOP
+$2fc9          00       NOP
+$2fca          00       NOP
+$2fcb          00       NOP
+$2fcc          00       NOP
+$2fcd          00       NOP
+$2fce          00       NOP
+$2fcf          00       NOP
+$2fd0          00       NOP
+$2fd1          00       NOP
+$2fd2          00       NOP
+$2fd3          00       NOP
+$2fd4          00       NOP
+$2fd5          00       NOP
+$2fd6          00       NOP
+$2fd7          00       NOP
+$2fd8          00       NOP
+$2fd9          00       NOP
+$2fda          00       NOP
+$2fdb          00       NOP
+$2fdc          00       NOP
+$2fdd          00       NOP
+$2fde          00       NOP
+$2fdf          00       NOP
+$2fe0          00       NOP
+$2fe1          00       NOP
+$2fe2          00       NOP
+$2fe3          00       NOP
+$2fe4          00       NOP
+$2fe5          00       NOP
+$2fe6          00       NOP
+$2fe7          00       NOP
+$2fe8          00       NOP
+$2fe9          00       NOP
+$2fea          00       NOP
+$2feb          00       NOP
+$2fec          00       NOP
+$2fed          00       NOP
+$2fee          00       NOP
+$2fef          00       NOP
+$2ff0          00       NOP
+$2ff1          00       NOP
+$2ff2          00       NOP
+$2ff3          00       NOP
+$2ff4          00       NOP
+$2ff5          00       NOP
+$2ff6          00       NOP
+$2ff7          00       NOP
+$2ff8          00       NOP
+$2ff9          00       NOP
+$2ffa          00       NOP
+$2ffb          00       NOP
+$2ffc          00       NOP
+$2ffd          00       NOP
+$2ffe          00       NOP
+$2fff          00       NOP
