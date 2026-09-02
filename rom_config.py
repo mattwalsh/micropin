@@ -16,6 +16,7 @@ MAME_TARGETS = {
 # $3000-$31ff Pico-facing aperture, which is not present on pencup2c.
 MAME_VARIANT_TARGETS = {
     "bridge": ("pencupx", "x"),
+    "arb": ("pencupx", "x"),
 }
 
 
