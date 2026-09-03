@@ -233,6 +233,10 @@ MANIFEST_DISPLAY:
 ; Manifest logical pitch and duration through the original active-low sound
 ; ports.  Logical duration zero is the protocol's explicit silence command.
         LXI H, LOCAL_SNAPSHOT+TONE_PITCH_OFFSET
+; Match the physical tone circuit's stock-ROM note-start sequence: reset/arm
+; the duration circuit before supplying the new pitch and duration.
+        MVI A, #ff
+        OUT TONE_ENABLE_DUR
         MOV A,M
         CMA
         OUT TONE_PITCH

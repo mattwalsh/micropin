@@ -1,7 +1,7 @@
 ; Standalone four-ROM Micropin arbiter hardware exerciser.
 ; No game ROM, host, or ROMulator is required.
 ;
-; A is moved into ordinary motherboard RAM at $2300-$233f.  RST 5.5 acts as
+; A is moved into ordinary motherboard RAM at $2300-$233f.  RST 6.5 clocks
 ; the test producer; the normal arbiter loop copies A to L and manifests it.
 
 HOST_APERTURE EQU #2300
@@ -24,6 +24,16 @@ COIL_COMMAND_BYTE EQU #228f
 COIL_CANCEL_POLICY_BYTE EQU #2290
 COIL_RENEW_POLICY_BYTE EQU #2291
 TEST_COIL_DIVIDER EQU #2292
+TEST_MODE EQU #2293
+CONTROL_PREVIOUS EQU #2294
+CONTROL_CURRENT EQU #2295
+CONTROL_EDGES EQU #2296
+CONTROL_CHANGED EQU #2297
+ACTIVE_LAMP_NUMBER EQU #2298
+ACTIVE_COIL_NUMBER EQU #2299
+NEXT_LAMP_NUMBER EQU #229a
+NEXT_COIL_NUMBER EQU #229b
+FRAME_REQUEST EQU #229c
 STACK_TOP EQU #23c0
 
 COIL_ADVANCE_FRAMES EQU #08
@@ -40,11 +50,30 @@ TONE_PITCH EQU #0a
         ORG #0000
         JMP ARB_START
 
-; RST 6.5 is both the coil-expiration clock and, through a divide-by-32
-; prescaler, the producer of autonomous test frames.  RST 5.5 stays masked so
-; the test does not depend on the auxiliary-switch interrupt path.
+; Make every restart/vector entry deterministic.  On the real motherboard
+; these lines come from external logic, so unused vectors must not consist of
+; zero-byte NOPs that can fall through into a neighboring vector or startup.
+        ORG #0008
+        JMP UNEXPECTED_INTERRUPT
+        ORG #0010
+        JMP UNEXPECTED_INTERRUPT
+        ORG #0018
+        JMP UNEXPECTED_INTERRUPT
+        ORG #0020
+        JMP UNEXPECTED_INTERRUPT
+        ORG #0024
+        JMP UNEXPECTED_INTERRUPT
+        ORG #002c
+        JMP UNEXPECTED_INTERRUPT
+
+; Keep a valid RST 6.5 entry for defensive purposes.  The standalone tester
+; does not depend on the motherboard interrupt cadence; its main loop supplies
+; its own counted-delay clock.
         ORG #0034
         JMP COIL_TIMER_ISR
+
+        ORG #003c
+        JMP UNEXPECTED_INTERRUPT
 
         ORG #0040
 ARB_START:
@@ -64,7 +93,7 @@ CLEAR_HOST_APERTURE:
         JNZ CLEAR_HOST_APERTURE
 
 ; Initialize the first one-hot lamp/coil positions and test tone.  Divider one
-; deliberately publishes the first frame on the first RST 5.5 interrupt.
+; deliberately publishes the first frame on the first software clock tick.
         INR A
         STA TEST_DIVIDER
         STA TEST_LAMP_BIT
@@ -76,6 +105,19 @@ CLEAR_HOST_APERTURE:
         STA TEST_PITCH
         MVI A, COIL_ADVANCE_FRAMES
         STA TEST_COIL_DIVIDER
+        SUB A
+        STA TEST_MODE
+        STA CONTROL_EDGES
+        STA CONTROL_CHANGED
+        STA ACTIVE_LAMP_NUMBER
+        STA ACTIVE_COIL_NUMBER
+        STA NEXT_LAMP_NUMBER
+        STA NEXT_COIL_NUMBER
+; Seed edge detection from the controls' actual boot state.  A button held
+; during reset therefore needs to be released and pressed before taking action.
+        CALL READ_TEST_CONTROLS
+        STA CONTROL_PREVIOUS
+        STA CONTROL_CURRENT
 
 ; Coils are always off before interrupts or host traffic are enabled.
         SUB A
@@ -115,15 +157,17 @@ COPY_DEFAULT_POLICY:
         DCR B
         JNZ COPY_DEFAULT_POLICY
 
-; Apply interrupt masks: mask RST 7.5 and 5.5, enable RST 6.5.
-        MVI A, #0d
-        SIM
-        EI
+; Do not depend on the external restart circuitry in this standalone hardware
+; exerciser.  The stock game treats a port-0 event as its periodic housekeeping
+; tick, while MAME currently synthesizes a fixed RST cadence.  A local counted
+; delay behaves consistently in both environments.
+        DI
 
 ARB_LOOP:
+        CALL SOFTWARE_CLOCK_TICK
 ; Equality means the A mailbox is empty.  Wait until the host publishes a new
 ; sequence value, making HOST_SEQUENCE differ from CPU_SEQUENCE.  In this ROM
-; the "host" is SELF_TEST_ISR rather than the Pico/Python side.
+; the "host" is SELF_TEST_TICK rather than the Pico/Python side.
         LDA HOST_SEQUENCE
         LXI H, CPU_SEQUENCE
         CMP M
@@ -220,11 +264,18 @@ MANIFEST_DISPLAY:
         LDA LOCAL_SNAPSHOT+COIL_OFFSET+#03
         CALL APPLY_COIL_BANK
         CALL WRITE_COIL_PORTS
-        EI
+; The standalone tester is deliberately self-clocked; do not enable the
+; motherboard's externally generated restart inputs after applying coils.
+        DI
 
 ; Manifest logical pitch and duration through the original active-low sound
 ; ports.  Logical duration zero is the protocol's explicit silence command.
         LXI H, LOCAL_SNAPSHOT+TONE_PITCH_OFFSET
+; The physical tone circuit expects the stock ROM's complete note-start
+; sequence: $ff to reset/arm the duration circuit, then pitch, then duration.
+; MAME's simplified tone model did not expose the missing first write.
+        MVI A, #ff
+        OUT TONE_ENABLE_DUR
         MOV A,M
         CMA
         OUT TONE_PITCH
@@ -246,21 +297,96 @@ ACK_HOST_INPUT:
         STA CPU_ACK_APERTURE
         JMP ARB_LOOP
 
-; Every 32nd RST 6.5 interrupt, populate A with one lamp, one coil pulse, and
-; a changing pitch.  The enclosing ISR has already saved every register.
-; Publish HOST_SEQUENCE last, exactly like the real host.
+; Populate A from either the automatic chase or the cabinet-button manual
+; controls.  Publish HOST_SEQUENCE last, exactly like the real host.
 SELF_TEST_TICK:
-        LXI H, TEST_DIVIDER
-        DCR M
-        JNZ SELF_TEST_DONE
-        MVI M, #20
-
 ; Do not overwrite A until the arbiter has completely consumed its last frame.
         LDA HOST_SEQUENCE
         LXI H, CPU_SEQUENCE
         CMP M
         JNZ SELF_TEST_DONE
 
+        SUB A
+        STA FRAME_REQUEST
+; Coil commands and sound are pulses.  A newly published status-only frame
+; therefore clears them, while the timer array safely finishes live coils.
+        LXI H, HOST_APERTURE+COIL_OFFSET
+        MVI B, #04
+CLEAR_TEST_COILS:
+        MOV M,A
+        INX H
+        DCR B
+        JNZ CLEAR_TEST_COILS
+        STA HOST_APERTURE+TONE_DURATION_OFFSET
+
+        LDA TEST_MODE
+        ORA A
+        JNZ MANUAL_TEST_TICK
+
+; Automatic mode advances one lamp every 32 software ticks.  Any cabinet
+; switch transition also requests a frame so its live state reaches displays.
+        LDA CONTROL_CHANGED
+        ORA A
+        CZ NO_FRAME_REQUEST
+        CNZ REQUEST_TEST_FRAME
+        LXI H, TEST_DIVIDER
+        DCR M
+        JNZ PUBLISH_TEST_IF_REQUESTED
+        MVI M, #20
+        CALL ADVANCE_TEST_LAMP
+
+; Fire/advance a coil only once every COIL_ADVANCE_FRAMES visible lamp frames.
+        LXI H, TEST_COIL_DIVIDER
+        DCR M
+        JNZ AUTO_TEST_TONE
+        MVI M, COIL_ADVANCE_FRAMES
+        CALL FIRE_TEST_COIL
+AUTO_TEST_TONE:
+        CALL PREPARE_TEST_TONE
+        CALL REQUEST_TEST_FRAME
+        JMP PUBLISH_TEST_IF_REQUESTED
+
+; In manual mode, left advances the lamp and right advances/fires the coil.
+; Start's rising edge has already toggled TEST_MODE in POLL_CONTROLS.
+MANUAL_TEST_TICK:
+        LDA CONTROL_CHANGED
+        ORA A
+        CNZ REQUEST_TEST_FRAME
+        LDA CONTROL_EDGES
+        ANI #40
+        JZ MANUAL_TEST_COIL
+        CALL ADVANCE_TEST_LAMP
+        CALL PREPARE_TEST_TONE
+        CALL REQUEST_TEST_FRAME
+MANUAL_TEST_COIL:
+        LDA CONTROL_EDGES
+        ANI #20
+        JZ PUBLISH_TEST_IF_REQUESTED
+        CALL FIRE_TEST_COIL
+        CALL PREPARE_TEST_TONE
+        CALL REQUEST_TEST_FRAME
+
+PUBLISH_TEST_IF_REQUESTED:
+        LDA FRAME_REQUEST
+        ORA A
+        JZ SELF_TEST_DONE
+        CALL UPDATE_DIAGNOSTIC_DISPLAYS
+; Publish last.  Sequence wrap is harmless because only inequality matters.
+        LDA HOST_SEQUENCE
+        INR A
+        STA HOST_SEQUENCE
+SELF_TEST_DONE:
+        RET
+
+; Carries a convenient conditional-call target for the zero case above.
+NO_FRAME_REQUEST:
+        RET
+REQUEST_TEST_FRAME:
+        MVI A, #01
+        STA FRAME_REQUEST
+        RET
+
+ADVANCE_TEST_LAMP:
         SUB A
         LXI H, HOST_APERTURE+LAMP_OFFSET
         MVI B, #08
@@ -269,15 +395,12 @@ CLEAR_TEST_LAMPS:
         INX H
         DCR B
         JNZ CLEAR_TEST_LAMPS
-        LXI H, HOST_APERTURE+COIL_OFFSET
-        MVI B, #04
-CLEAR_TEST_COILS:
-        MOV M,A
-        INX H
-        DCR B
-        JNZ CLEAR_TEST_COILS
-
-; Set the current one-hot lamp and advance its byte/bit cursor.
+; Set the current one-hot lamp and advance both its cursor and numeric ID.
+        LDA NEXT_LAMP_NUMBER
+        STA ACTIVE_LAMP_NUMBER
+        INR A
+        ANI #3f
+        STA NEXT_LAMP_NUMBER
         LDA TEST_LAMP_BYTE
         MOV E,A
         MVI D, #00
@@ -288,20 +411,19 @@ CLEAR_TEST_COILS:
         RLC
         STA TEST_LAMP_BIT
         CPI #01
-        JNZ TEST_COIL_FRAME
+        RNZ
         LDA TEST_LAMP_BYTE
         INR A
         ANI #07
         STA TEST_LAMP_BYTE
+        RET
 
-; Fire/advance a coil only once every COIL_ADVANCE_FRAMES visible lamp frames.
-; The coil command bytes remain zero on intermediate frames, preventing the
-; current coil from being retriggered while its cursor waits to advance.
-TEST_COIL_FRAME:
-        LXI H, TEST_COIL_DIVIDER
-        DCR M
-        JNZ TEST_TONE_FRAME
-        MVI M, COIL_ADVANCE_FRAMES
+FIRE_TEST_COIL:
+        LDA NEXT_COIL_NUMBER
+        STA ACTIVE_COIL_NUMBER
+        INR A
+        ANI #1f
+        STA NEXT_COIL_NUMBER
         LDA TEST_COIL_BYTE
         MOV E,A
         MVI D, #00
@@ -312,27 +434,100 @@ TEST_COIL_FRAME:
         RLC
         STA TEST_COIL_BIT
         CPI #01
-        JNZ TEST_TONE_FRAME
+        RNZ
         LDA TEST_COIL_BYTE
         INR A
         ANI #03
         STA TEST_COIL_BYTE
+        RET
 
-; A short tone is restarted with a new pitch for every visible test frame.
-TEST_TONE_FRAME:
+; A short tone accompanies every automatic frame and manual lamp/coil step.
+PREPARE_TEST_TONE:
         LDA TEST_PITCH
         STA HOST_APERTURE+TONE_PITCH_OFFSET
         ADI #07
         STA TEST_PITCH
         MVI A, #04
         STA HOST_APERTURE+TONE_DURATION_OFFSET
+        RET
 
-; Publish last.  Sequence wrap is harmless because only inequality matters.
-        LDA HOST_SEQUENCE
-        INR A
-        STA HOST_SEQUENCE
+; Diagnostic display convention:
+;   Player 1 = active lamp number (00-63)
+;   Player 2 = active coil number (00-31)
+;   Player 3 = 000SLR, live Start/Left/Right states
+;   Player 4 = mode, 0 automatic / 1 manual
+;   High Score = ABCDEF nibble/7448 decoder experiment
+UPDATE_DIAGNOSTIC_DISPLAYS:
+        SUB A
+        STA HOST_APERTURE+DISPLAY_OFFSET+#08
+        STA HOST_APERTURE+DISPLAY_OFFSET+#07
+        STA HOST_APERTURE+DISPLAY_OFFSET+#0f
+        STA HOST_APERTURE+DISPLAY_OFFSET+#0e
+        STA HOST_APERTURE+DISPLAY_OFFSET+#05
+        STA HOST_APERTURE+DISPLAY_OFFSET+#04
+        STA HOST_APERTURE+DISPLAY_OFFSET+#03
+        STA HOST_APERTURE+DISPLAY_OFFSET+#12
+        STA HOST_APERTURE+DISPLAY_OFFSET+#11
+; Display RAM is ordered least-significant pair first: $23d3 receives EF,
+; $23d4 receives CD, and $23d5 receives AB to read ABCDEF left-to-right.
+        MVI A, #ef
+        STA HOST_APERTURE+DISPLAY_OFFSET+#13
+        MVI A, #cd
+        STA HOST_APERTURE+DISPLAY_OFFSET+#14
+        MVI A, #ab
+        STA HOST_APERTURE+DISPLAY_OFFSET+#15
+        LDA ACTIVE_LAMP_NUMBER
+        CALL NUMBER_TO_BCD
+        STA HOST_APERTURE+DISPLAY_OFFSET+#06
+        LDA ACTIVE_COIL_NUMBER
+        CALL NUMBER_TO_BCD
+        STA HOST_APERTURE+DISPLAY_OFFSET+#0d
 
-SELF_TEST_DONE:
+; Start occupies the low digit of Player 3's middle byte.
+        LDA CONTROL_CURRENT
+        ANI #80
+        JZ DISPLAY_NO_START
+        MVI A, #01
+DISPLAY_NO_START:
+        STA HOST_APERTURE+DISPLAY_OFFSET+#04
+; Left/right occupy the final two Player 3 digits and remain independently
+; visible when both contacts are held.
+        MVI B, #00
+        LDA CONTROL_CURRENT
+        ANI #40
+        JZ DISPLAY_NO_LEFT
+        MVI B, #10
+DISPLAY_NO_LEFT:
+        LDA CONTROL_CURRENT
+        ANI #20
+        JZ DISPLAY_NO_RIGHT
+        MOV A,B
+        ORI #01
+        MOV B,A
+DISPLAY_NO_RIGHT:
+        MOV A,B
+        STA HOST_APERTURE+DISPLAY_OFFSET+#03
+        LDA TEST_MODE
+        STA HOST_APERTURE+DISPLAY_OFFSET+#10
+        RET
+
+; Convert A=0..99 binary to packed BCD for the two rightmost score digits.
+NUMBER_TO_BCD:
+        MVI B, #00
+NUMBER_TO_BCD_TENS:
+        CPI #0a
+        JC NUMBER_TO_BCD_DONE
+        SUI #0a
+        INR B
+        JMP NUMBER_TO_BCD_TENS
+NUMBER_TO_BCD_DONE:
+        MOV C,A
+        MOV A,B
+        RLC
+        RLC
+        RLC
+        RLC
+        ORA C
         RET
 
 ; A=command byte, C=cancel-on-clear policy, HL=duration table, DE=timers.
@@ -414,13 +609,76 @@ BUILD_COIL_NEXT:
         MOV A,C
         RET
 
-; RST 6.5 automatically pushes the interrupted PC.  Maskable interrupts stay
-; disabled until EI;RET, so this fixed-depth stack cannot nest recursively.
+; The unused RST 6.5 path acknowledges its hardware source and preserves all
+; registers.  Normal tester timing comes from SOFTWARE_CLOCK_TICK below.
 COIL_TIMER_ISR:
         PUSH PSW
+; RST 6.5 is the motherboard's SWITCH_PORT service interrupt.  Reading port 0
+; acknowledges the external source.  MAME clears its synthetic line on a
+; timer phase, but omitting this read can leave real hardware in an immediate
+; interrupt/re-entry storm.
+        IN #00
         PUSH B
         PUSH D
         PUSH H
+        CALL COIL_TIMER_TICK
+        POP H
+        POP D
+        POP B
+        POP PSW
+        RET
+
+; Roughly 4.8 ms at the board's believed 1.5 MHz CPU clock.  Exact timing is
+; unimportant here; it merely gives the physical outputs human-visible pacing
+; without relying on undocumented interrupt-generation hardware.
+SOFTWARE_CLOCK_TICK:
+        MVI B, #02
+SOFTWARE_DELAY_OUTER:
+        MVI C, #ff
+SOFTWARE_DELAY_INNER:
+        DCR C
+        JNZ SOFTWARE_DELAY_INNER
+        DCR B
+        JNZ SOFTWARE_DELAY_OUTER
+        CALL POLL_CONTROLS
+        CALL COIL_TIMER_TICK
+        RET
+
+; Normalize the cabinet controls into right=$20, left=$40, start=$80.
+; The flipper hold contacts are on port 4, but Enter Players is auxiliary
+; switch 6 on port 0 ($40).  Port 4's physical $80 is not the start button.
+READ_TEST_CONTROLS:
+        IN #04
+        ANI #60
+        MOV B,A
+        IN #00
+        ANI #40
+        RLC
+        ORA B
+        RET
+
+; Preserve both live control state and rising edges.  Start toggles
+; automatic/manual mode on its rising edge.
+POLL_CONTROLS:
+        CALL READ_TEST_CONTROLS
+        MOV B,A
+        STA CONTROL_CURRENT
+        LDA CONTROL_PREVIOUS
+        XRA B
+        STA CONTROL_CHANGED
+        ANA B
+        STA CONTROL_EDGES
+        MOV A,B
+        STA CONTROL_PREVIOUS
+        LDA CONTROL_EDGES
+        ANI #80
+        RZ
+        LDA TEST_MODE
+        XRI #01
+        STA TEST_MODE
+        RET
+
+COIL_TIMER_TICK:
         LXI H, COIL_TIMERS
         MVI B, #20
 DECREMENT_COIL_TIMERS:
@@ -434,11 +692,19 @@ NEXT_COIL_TIMER:
         JNZ DECREMENT_COIL_TIMERS
         CALL WRITE_COIL_PORTS
         CALL SELF_TEST_TICK
-        POP H
-        POP D
-        POP B
+        RET
+
+; Defensive handler for every interrupt/restart the tester does not use.
+; Read both hardware input banks to acknowledge a potentially pending source,
+; reset the RST 7.5 latch, and return with maskable interrupts still disabled.
+UNEXPECTED_INTERRUPT:
+        PUSH PSW
+        IN #00
+        IN #01
+        MVI A, #1d
+        SIM
         POP PSW
-        EI
+        DI
         RET
 
 ; Five ticks is deliberately boring and conservative.  At the currently

@@ -193,16 +193,84 @@ outPorts:
    LAMP_E : $0E
    LAMP_F : $0F
 
+# LAMPS:
+# Lamp outputs use the same active-low convention as coils.  The A values are
+# the literal byte sent by OUT when that lamp alone is active.
+#
+#  Output  Mechanism                    Port   A if alone
+#  ------  ---------------------------  -----  ----------
+#     0    back panel                   $00       $FE
+#     1    unused                       $00       $FD
+#     2    rollover NW                  $00       $FB
+#     3    unused                       $00       $F7
+#     4    unused                       $00       $EF
+#     5    unused                       $00       $DF
+#     6    same player again            $00       $BF
+#     7    side cup triple bonus        $00       $7F
+#     8    rollover NE                  $01       $FE
+#     9    EB / 10000 rollover          $01       $FD
+#    10    side cup double bonus        $01       $FB
+#    11    rollover E                   $01       $F7
+#    12    rollover SE                  $01       $EF
+#    13    cup #5                       $01       $DF
+#    14    side cup extra ball          $01       $BF
+#    15    side cup collect bonus       $01       $7F
+#    16    rollover SW                  $02       $FE
+#    17    rollover S                   $02       $FD
+#    18    lit cups add 8000            $02       $FB
+#    19    rollover N                   $02       $F7
+#    20    unused                       $02       $EF
+#    21    rollover W                   $02       $DF
+
 # COILS:
 # game code writes bits to these, then they get inverted and sent out
 #$21c2 → port $05
 #$21c3 → port $06
 #$21c4 → port $07
 #$21c5 → port $08
-# COIN_COUNTER : Port $08, bit $08 active-low (raw OUT value $F7 if it is the only asserted coil)
-# LAUNCHER_OR_OUTHOLE_EJECT : Port $05, bit $20 active-low (sidebar coil 5; raw OUT value $DF if alone; asserted at $1d1a)
-# LEFT_FLIPPER : Port $06, bit $10 active-low (sidebar coil 12; asserted by auxiliary switch 4 at $0837)
-# RIGHT_FLIPPER : Port $06, bit $20 active-low (sidebar coil 13; likely auxiliary switch 5 path at $0909)
+# Coil outputs are numbered exactly as four consecutive eight-bit banks:
+# output N -> port $05+(N/8), bit N%8.  The drivers are active-low, so the A
+# values below are the literal byte sent by OUT when that coil alone is active.
+#
+#  Output  Mechanism                    Port   A if alone
+#  ------  ---------------------------  -----  ----------
+#     0    cup 4                        $05       $FE
+#     1    cup 5                        $05       $FD
+#     2    cup 3                        $05       $FB
+#     3    cup 1                        $05       $F7
+#     4    unused                       $05       $EF
+#     5    launcher                     $05       $DF
+#     6    unused                       $05       $BF
+#     7    unused                       $05       $7F
+#     8    unused                       $06       $FE
+#     9    unused                       $06       $FD
+#    10    lower right bumper           $06       $FB
+#    11    lower left bumper            $06       $F7
+#    12    right flipper                $06       $EF
+#    13    left flipper                 $06       $DF
+#    14    unused                       $06       $BF
+#    15    unused                       $06       $7F
+#    16    upper left bumper            $07       $FE
+#    17    middle of rollover button    $07       $FD
+#    18    bar behind standup           $07       $FB
+#    19    right slingshot              $07       $F7
+#    20    left slingshot               $07       $EF
+#    21    cup 2                        $07       $DF
+#    22    unused                       $07       $BF
+#    23    unused                       $07       $7F
+#    24    unused                       $08       $FE
+#    25    side cup                     $08       $FD
+#    26    unused                       $08       $FB
+#    27    coin counter                 $08       $F7
+#    28    unused                       $08       $EF
+#    29    unused                       $08       $DF
+#    30    unused                       $08       $BF
+#    31    unused                       $08       $7F
+#
+# Output 18 is corroborated by ROM $0DA2-$0DB0: after testing CONTROL_FLAGS
+# bit $20 (armed by the shared standup-bar input), it ORs $04 into $21C4.
+# The common output loop complements $21C4 and writes it to port $07, yielding
+# A=$FB when output 18 is the only active coil.
 
 notes:
   $002f:  "TRAP"
