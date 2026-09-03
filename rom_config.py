@@ -17,6 +17,7 @@ MAME_TARGETS = {
 MAME_VARIANT_TARGETS = {
     "bridge": ("pencupx", "x"),
     "arb": ("pencupx", "x"),
+    "arb_tester": ("pencuptst", "test"),
 }
 
 

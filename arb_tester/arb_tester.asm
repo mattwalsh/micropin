@@ -1,41 +1,32 @@
-; Minimal experimental 8085 arbiter.  No game ROM code is used.
-; The MAME/Pico host aperture is readable at $3000-$31ff.
+; Standalone four-ROM Micropin arbiter hardware exerciser.
+; No game ROM, host, or ROMulator is required.
 ;
-; A ($3000-$303f) is the 64-byte host-owned output transaction.
-; B ($3040-$307f) is the 64-byte 8085-owned switch transaction.
-; C ($3080-$30bf) is the 64-byte host-owned coil configuration.
+; A is moved into ordinary motherboard RAM at $2300-$233f.  RST 5.5 acts as
+; the test producer; the normal arbiter loop copies A to L and manifests it.
 
-HOST_APERTURE EQU #3000
+HOST_APERTURE EQU #2300
 HOST_SEQUENCE EQU HOST_APERTURE
-CPU_ACK_APERTURE EQU #3001
-SWITCH_APERTURE EQU #3040
-SWITCH_HOST_ACK EQU #3041
-CONFIG_APERTURE EQU #3080
-CONFIG_HOST_SEQUENCE EQU CONFIG_APERTURE
-CONFIG_CPU_ACK_APERTURE EQU #3081
-CONFIG_DURATION_SOURCE EQU CONFIG_APERTURE+#02
-CONFIG_CANCEL_POLICY_SOURCE EQU CONFIG_APERTURE+#22
-CONFIG_RENEW_POLICY_SOURCE EQU CONFIG_APERTURE+#26
+CPU_ACK_APERTURE EQU HOST_APERTURE+#01
 
 LOCAL_SNAPSHOT EQU #2200
 CPU_SEQUENCE EQU #2240
-SWITCH_CPU_SEQUENCE EQU #2241
+TEST_DIVIDER EQU #2241
 COIL_TIMERS EQU #2242
 COIL_DURATIONS EQU #2262
 COIL_CANCEL_POLICY EQU #2282
 COIL_RENEW_POLICY EQU #2286
-CONFIG_CPU_SEQUENCE EQU #228a
-COIL_COMMAND_BYTE EQU #228b
-COIL_CANCEL_POLICY_BYTE EQU #228c
-COIL_RENEW_POLICY_BYTE EQU #228d
-STACK_TOP EQU #2300
+TEST_LAMP_BYTE EQU #228a
+TEST_LAMP_BIT EQU #228b
+TEST_COIL_BYTE EQU #228c
+TEST_COIL_BIT EQU #228d
+TEST_PITCH EQU #228e
+COIL_COMMAND_BYTE EQU #228f
+COIL_CANCEL_POLICY_BYTE EQU #2290
+COIL_RENEW_POLICY_BYTE EQU #2291
+TEST_COIL_DIVIDER EQU #2292
+STACK_TOP EQU #23c0
 
-SWITCH_DMA_SOURCE EQU #23e0
-SWITCH_DMA_DEST EQU SWITCH_APERTURE+#02
-SWITCH_PORT_0_DEST EQU SWITCH_APERTURE+#22
-SWITCH_PORT_1_DEST EQU SWITCH_APERTURE+#23
-SWITCH_PORT_4_DEST EQU SWITCH_APERTURE+#24
-SWITCH_PORT_5_DEST EQU SWITCH_APERTURE+#25
+COIL_ADVANCE_FRAMES EQU #08
 
 LAMP_OFFSET EQU #02
 DISPLAY_OFFSET EQU #0a
@@ -49,8 +40,9 @@ TONE_PITCH EQU #0a
         ORG #0000
         JMP ARB_START
 
-; RST 6.5 is the independent coil-expiration clock.  RST 5.5 and 7.5 remain
-; masked; the main loop polls and publishes switch state independently.
+; RST 6.5 is both the coil-expiration clock and, through a divide-by-32
+; prescaler, the producer of autonomous test frames.  RST 5.5 stays masked so
+; the test does not depend on the auxiliary-switch interrupt path.
         ORG #0034
         JMP COIL_TIMER_ISR
 
@@ -61,12 +53,32 @@ ARB_START:
         SUB A
         STA CPU_SEQUENCE
         STA CPU_ACK_APERTURE
-        STA SWITCH_CPU_SEQUENCE
-        STA SWITCH_APERTURE
-        STA CONFIG_CPU_SEQUENCE
-        STA CONFIG_CPU_ACK_APERTURE
+
+; Clear A before either interrupt may publish or consume a frame.
+        LXI H, HOST_APERTURE
+        MVI B, #40
+CLEAR_HOST_APERTURE:
+        MOV M,A
+        INX H
+        DCR B
+        JNZ CLEAR_HOST_APERTURE
+
+; Initialize the first one-hot lamp/coil positions and test tone.  Divider one
+; deliberately publishes the first frame on the first RST 5.5 interrupt.
+        INR A
+        STA TEST_DIVIDER
+        STA TEST_LAMP_BIT
+        STA TEST_COIL_BIT
+        DCR A
+        STA TEST_LAMP_BYTE
+        STA TEST_COIL_BYTE
+        MVI A, #20
+        STA TEST_PITCH
+        MVI A, COIL_ADVANCE_FRAMES
+        STA TEST_COIL_DIVIDER
 
 ; Coils are always off before interrupts or host traffic are enabled.
+        SUB A
         LXI H, COIL_TIMERS
         MVI B, #20
 CLEAR_COIL_TIMERS:
@@ -80,8 +92,8 @@ CLEAR_COIL_TIMERS:
         OUT #07
         OUT #08
 
-; Install conservative ROM defaults.  The host may replace these later by
-; publishing C, but the closed 8085 self-test never requires a host.
+; Install conservative ROM defaults.  All coils are finite, non-renewing
+; one-shots; each new test frame selects a different coil.
         LXI H, DEFAULT_COIL_DURATIONS
         LXI D, COIL_DURATIONS
         MVI B, #20
@@ -103,39 +115,19 @@ COPY_DEFAULT_POLICY:
         DCR B
         JNZ COPY_DEFAULT_POLICY
 
-; Apply interrupt masks: mask RST 7.5 and 5.5, leave RST 6.5 unmasked.
+; Apply interrupt masks: mask RST 7.5 and 5.5, enable RST 6.5.
         MVI A, #0d
         SIM
         EI
 
 ARB_LOOP:
-; C is an independent one-slot mailbox.  Its table changes rarely and is
-; copied directly into 8085-local configuration before acknowledgement.
-        LDA CONFIG_HOST_SEQUENCE
-        LXI H, CONFIG_CPU_SEQUENCE
-        CMP M
-        JZ CHECK_HOST_INPUT
-        LXI H, CONFIG_DURATION_SOURCE
-        LXI D, COIL_DURATIONS
-        MVI B, #28
-COPY_COIL_CONFIGURATION:
-        MOV A,M
-        STAX D
-        INX H
-        INX D
-        DCR B
-        JNZ COPY_COIL_CONFIGURATION
-        LDA CONFIG_HOST_SEQUENCE
-        STA CONFIG_CPU_SEQUENCE
-        STA CONFIG_CPU_ACK_APERTURE
-
-CHECK_HOST_INPUT:
 ; Equality means the A mailbox is empty.  Wait until the host publishes a new
-; sequence value, making HOST_SEQUENCE differ from CPU_SEQUENCE.
+; sequence value, making HOST_SEQUENCE differ from CPU_SEQUENCE.  In this ROM
+; the "host" is SELF_TEST_ISR rather than the Pico/Python side.
         LDA HOST_SEQUENCE
         LXI H, CPU_SEQUENCE
         CMP M
-        JZ CHECK_SWITCH_OUTPUT
+        JZ ARB_LOOP
 
 ; Copy A -> L while the sequence protocol forbids the host from modifying A.
         LXI H, HOST_APERTURE
@@ -252,42 +244,96 @@ ACK_HOST_INPUT:
         LDA LOCAL_SNAPSHOT
         STA CPU_SEQUENCE
         STA CPU_ACK_APERTURE
-
-CHECK_SWITCH_OUTPUT:
-; The 8085 is producer in this direction.  If the host has not acknowledged
-; the previous switch snapshot, leave it untouched and keep servicing A/C.
-        LDA SWITCH_HOST_ACK
-        LXI H, SWITCH_CPU_SEQUENCE
-        CMP M
-        JNZ ARB_LOOP
-
-; Port 0 advances the Micropin/MAME switch scan.  Preserve all four external
-; input bytes plus all 32 inductive DMA samples verbatim.
-        IN #00
-        STA SWITCH_PORT_0_DEST
-        IN #01
-        STA SWITCH_PORT_1_DEST
-        IN #04
-        STA SWITCH_PORT_4_DEST
-        IN #05
-        STA SWITCH_PORT_5_DEST
-        LXI H, SWITCH_DMA_SOURCE
-        LXI D, SWITCH_DMA_DEST
-        MVI B, #20
-COPY_SWITCH_DMA:
-        MOV A,M
-        STAX D
-        INX H
-        INX D
-        DCR B
-        JNZ COPY_SWITCH_DMA
-
-; Publish last, after the complete outbound payload is stable.
-        LDA SWITCH_CPU_SEQUENCE
-        INR A
-        STA SWITCH_CPU_SEQUENCE
-        STA SWITCH_APERTURE
         JMP ARB_LOOP
+
+; Every 32nd RST 6.5 interrupt, populate A with one lamp, one coil pulse, and
+; a changing pitch.  The enclosing ISR has already saved every register.
+; Publish HOST_SEQUENCE last, exactly like the real host.
+SELF_TEST_TICK:
+        LXI H, TEST_DIVIDER
+        DCR M
+        JNZ SELF_TEST_DONE
+        MVI M, #20
+
+; Do not overwrite A until the arbiter has completely consumed its last frame.
+        LDA HOST_SEQUENCE
+        LXI H, CPU_SEQUENCE
+        CMP M
+        JNZ SELF_TEST_DONE
+
+        SUB A
+        LXI H, HOST_APERTURE+LAMP_OFFSET
+        MVI B, #08
+CLEAR_TEST_LAMPS:
+        MOV M,A
+        INX H
+        DCR B
+        JNZ CLEAR_TEST_LAMPS
+        LXI H, HOST_APERTURE+COIL_OFFSET
+        MVI B, #04
+CLEAR_TEST_COILS:
+        MOV M,A
+        INX H
+        DCR B
+        JNZ CLEAR_TEST_COILS
+
+; Set the current one-hot lamp and advance its byte/bit cursor.
+        LDA TEST_LAMP_BYTE
+        MOV E,A
+        MVI D, #00
+        LXI H, HOST_APERTURE+LAMP_OFFSET
+        DAD D
+        LDA TEST_LAMP_BIT
+        MOV M,A
+        RLC
+        STA TEST_LAMP_BIT
+        CPI #01
+        JNZ TEST_COIL_FRAME
+        LDA TEST_LAMP_BYTE
+        INR A
+        ANI #07
+        STA TEST_LAMP_BYTE
+
+; Fire/advance a coil only once every COIL_ADVANCE_FRAMES visible lamp frames.
+; The coil command bytes remain zero on intermediate frames, preventing the
+; current coil from being retriggered while its cursor waits to advance.
+TEST_COIL_FRAME:
+        LXI H, TEST_COIL_DIVIDER
+        DCR M
+        JNZ TEST_TONE_FRAME
+        MVI M, COIL_ADVANCE_FRAMES
+        LDA TEST_COIL_BYTE
+        MOV E,A
+        MVI D, #00
+        LXI H, HOST_APERTURE+COIL_OFFSET
+        DAD D
+        LDA TEST_COIL_BIT
+        MOV M,A
+        RLC
+        STA TEST_COIL_BIT
+        CPI #01
+        JNZ TEST_TONE_FRAME
+        LDA TEST_COIL_BYTE
+        INR A
+        ANI #03
+        STA TEST_COIL_BYTE
+
+; A short tone is restarted with a new pitch for every visible test frame.
+TEST_TONE_FRAME:
+        LDA TEST_PITCH
+        STA HOST_APERTURE+TONE_PITCH_OFFSET
+        ADI #07
+        STA TEST_PITCH
+        MVI A, #04
+        STA HOST_APERTURE+TONE_DURATION_OFFSET
+
+; Publish last.  Sequence wrap is harmless because only inequality matters.
+        LDA HOST_SEQUENCE
+        INR A
+        STA HOST_SEQUENCE
+
+SELF_TEST_DONE:
+        RET
 
 ; A=command byte, C=cancel-on-clear policy, HL=duration table, DE=timers.
 ; Both pointers advance eight entries so four consecutive calls cover all 32.
@@ -387,6 +433,7 @@ NEXT_COIL_TIMER:
         DCR B
         JNZ DECREMENT_COIL_TIMERS
         CALL WRITE_COIL_PORTS
+        CALL SELF_TEST_TICK
         POP H
         POP D
         POP B
@@ -407,6 +454,6 @@ DEFAULT_COIL_POLICY:
 ; explicitly opted into renewal by the host configuration.
         DB #00,#00,#00,#00
 
-; Materialize the whole 5-ROM CPU address image.  Build verifies that the
-; physical-ROM-5 gap at $2000-$27ff is zero-filled.
-        ORG #3000
+; Materialize exactly four 2 KiB ROM images.  All executable code fits in ROM 1;
+; ROMs 2-4 are padding so this can run on an unmodified motherboard.
+        ORG #2000
