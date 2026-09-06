@@ -1,0 +1,36 @@
+{
+    // Points the Raspberry Pi Pico extension at your manually-cloned SDK
+    // instead of one of its own auto-downloaded copies.
+    "raspberry-pi-pico.picoSdkPath": "C:\\development\\pico\\pico-sdk",
+
+    // Belt-and-suspenders: this is the actual environment variable
+    // pico_sdk_import.cmake reads at configure time, so setting it here
+    // guarantees CMake sees it regardless of what the extension does.
+    "cmake.environment": {
+        "PICO_SDK_PATH": "C:\\development\\pico\\pico-sdk"
+    },
+
+    // Ninja is faster and more reliable than MinGW Makefiles on Windows,
+    // and is what the Pico extension's own toolchain download expects.
+    "cmake.generator": "Ninja",
+
+    // Force this specific toolchain (bundled with the Pico SDK v1.5.1
+    // installer) rather than letting CMake Tools auto-detect a kit, which
+    // was previously picking up an unrelated arm-none-eabi-gcc from
+    // C:\VSARM instead.
+    "cmake.configureSettings": {
+        "CMAKE_C_COMPILER": "C:\\Program Files\\Raspberry Pi\\Pico SDK v1.5.1\\gcc-arm-none-eabi\\bin\\arm-none-eabi-gcc.exe",
+        "CMAKE_CXX_COMPILER": "C:\\Program Files\\Raspberry Pi\\Pico SDK v1.5.1\\gcc-arm-none-eabi\\bin\\arm-none-eabi-g++.exe"
+    },
+
+    // Use this installer's own bundled CMake too, for consistency.
+    "cmake.cmakePath": "C:\\Program Files\\Raspberry Pi\\Pico SDK v1.5.1\\cmake\\bin\\cmake.exe",
+
+    "cmake.configureOnOpen": true,
+
+    // Board/SDK version selection used by the Pico extension's own
+    // Compile/Run buttons. Adjust picoSdkVersion if you're on a different
+    // checked-out SDK version.
+    "raspberry-pi-pico.board": "pico",
+    "raspberry-pi-pico.picoSdkVersion": "1.5.1"
+}
