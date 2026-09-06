@@ -17,17 +17,21 @@ extern "C" {
 #define CFG_TUSB_MEM_ALIGN          __attribute__((aligned(4)))
 #endif
 
-// Device: only Mass Storage Class is enabled. No CDC console, so it never
-// competes with the emulator for USB bandwidth/latency.
+// The device exposes the ROM drive plus one small CDC ACM control port. The
+// control port accepts the "bootsel" command to enter the RP2040 boot ROM,
+// avoiding a physical press of the BOOTSEL button for later firmware updates.
 #define CFG_TUD_ENDPOINT0_SIZE      64
 
-#define CFG_TUD_CDC                 0
+#define CFG_TUD_CDC                 1
 #define CFG_TUD_MSC                 1
 #define CFG_TUD_HID                 0
 #define CFG_TUD_MIDI                0
 #define CFG_TUD_VENDOR              0
 
 // MSC buffer: one 512-byte sector at a time is plenty for our tiny disk.
+#define CFG_TUD_CDC_RX_BUFSIZE       64
+#define CFG_TUD_CDC_TX_BUFSIZE       64
+#define CFG_TUD_CDC_EP_BUFSIZE       64
 #define CFG_TUD_MSC_EP_BUFSIZE      512
 
 #ifdef __cplusplus

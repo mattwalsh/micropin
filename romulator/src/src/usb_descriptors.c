@@ -29,15 +29,25 @@ uint8_t const *tud_descriptor_device_cb(void)
     return (uint8_t const *) &desc_device;
 }
 
-enum { ITF_NUM_MSC = 0, ITF_NUM_TOTAL };
+enum {
+    ITF_NUM_CDC = 0,
+    ITF_NUM_CDC_DATA,
+    ITF_NUM_MSC,
+    ITF_NUM_TOTAL,
+};
 
-#define EPNUM_MSC_OUT   0x01
-#define EPNUM_MSC_IN    0x81
+#define EPNUM_CDC_NOTIF 0x81
+#define EPNUM_CDC_OUT   0x02
+#define EPNUM_CDC_IN    0x82
+#define EPNUM_MSC_OUT   0x03
+#define EPNUM_MSC_IN    0x83
 
-#define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_MSC_DESC_LEN)
+#define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_MSC_DESC_LEN)
 
 uint8_t const desc_configuration[] = {
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 4, EPNUM_CDC_NOTIF, 8,
+                       EPNUM_CDC_OUT, EPNUM_CDC_IN, 64),
     TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 0, EPNUM_MSC_OUT, EPNUM_MSC_IN, 64),
 };
 
@@ -52,6 +62,7 @@ char const *string_desc_arr[] = {
     "Pico EPROM Emulator",               // 1: Manufacturer
     "5x 2716 Emulator Drive",            // 2: Product
     "EPROM5-0001",                       // 3: Serial (swap for pico_get_unique_id if you want per-board serials)
+    "Romulator Control",                 // 4: CDC ACM control port
 };
 
 static uint16_t _desc_str[32];

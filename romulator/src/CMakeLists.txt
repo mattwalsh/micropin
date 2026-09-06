@@ -18,6 +18,7 @@ add_executable(pico_eprom_emulator
     src/core1_emulator.c
     src/reset_control.c
     src/msc_disk.c
+    src/usb_control.c
     src/usb_descriptors.c
 )
 
@@ -38,6 +39,7 @@ target_compile_definitions(pico_eprom_emulator PRIVATE
 target_link_libraries(pico_eprom_emulator PRIVATE
     pico_stdlib
     pico_multicore
+    pico_bootrom
     pico_unique_id
     hardware_flash
     hardware_sync

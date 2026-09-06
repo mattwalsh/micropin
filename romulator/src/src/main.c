@@ -6,6 +6,7 @@
 #include "reset_control.h"
 #include "core1_emulator.h"
 #include "msc_disk.h"
+#include "usb_control.h"
 
 static void init_bus_gpio(void)
 {
@@ -76,6 +77,7 @@ int main(void)
 
     while (true) {
         tud_task();
+        usb_control_task();
         msc_disk_task();
         reset_control_task();
 
