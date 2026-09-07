@@ -1,0 +1,19 @@
+labels:
+   TEST_START : $0040
+   PWM_LOOP : $0061
+   PWM_ON_BLOCK : $0069
+   PWM_ON_DELAY : $006b
+   PWM_OFF_BLOCK : $007e
+   PWM_OFF_DELAY : $0080
+   READ_FLIPPERS : $008b
+   UPDATE_FLIPPERS : $00a3
+
+addresses:
+   BUTTON_PREVIOUS : $2200
+   DESIRED_COILS : $2201
+   PULL_COILS : $2202
+   LEFT_PULL_COUNT : $2203
+   RIGHT_PULL_COUNT : $2204
+
+notes:
+  $0000 : "Standalone flipper PWM tester; no game code"

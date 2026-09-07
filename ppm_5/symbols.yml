@@ -1,0 +1,8 @@
+#addresses:
+#   POPCORN_MUSIC : $2800
+
+not_code:
+   MUSIC2 : [$2800, $2900]
+
+notes:
+  $2800:  "extra 2k start"

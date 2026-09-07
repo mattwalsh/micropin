@@ -143,6 +143,8 @@ labels:
    FLASH_ROUTINE : $0636
    TEST_ROUTINE_1 : $029e
    TEST_ROUTINE_2 : $02c8
+   BUMPER_SLING_HANDLER : $0330
+
 
 not_code:
    SWITCH_HANDLER_TABLE: [$141f, $145e]
@@ -166,8 +168,8 @@ not_code:
    MYSTERY_PORT_1_VECTORS : [$03b6, $03c5]
 
 inPorts:
-   SWITCH_PORT: $00
-   MYSTERY_PORT_1 : $01
+   CABINET_TILT_FLIPPERS_TIMER_PORT : $00
+   BUMPER_SLINGS_SWITCHES_PORT : $01
    PRICE_CENTS_07_PORT : $02
    PRICE_TENS_07_PORT : $03
    PRICE_89_CAB : $04
@@ -273,10 +275,12 @@ outPorts:
 # A=$FB when output 18 is the only active coil.
 
 notes:
-  $002f:  "TRAP"
-  $003C:  "RST7.5"
-  $0034:  "RST6.5"
-  $002C:  "RST5.5"
+
+
+  $002f : "TRAP"
+  $003C : "RST7.5"
+  $0034 : "RST6.5"
+  $002C : "RST5.5"
   $005D : "hard reset routine"
   $01D6 : "read in the ones place"
   $020e : "load dip switches, set # balls per game"
@@ -288,6 +292,13 @@ notes:
   $0624 : "push A, SP, B, D, H"
   $0630 : "restore A, SP, B, D, H"
   $06a4 : "check credit button"
+  $0760 : "Lower-left bumper, coil 11"
+  $0766 : "Upper-left bumper, coil 16"
+  $076c : "Middle rollover bumper, coil 17"
+  $0772 : "Lower-right bumper, coil 10"
+  $0778 : "Right slingshot, coil 19"
+  $077e : "Left slingshot, coil 20"
+  $0784 : "Standup-bar/control flag"
   $07bc : "computed sound?"
   $0837 : "left flipper fire"
   $0891 : "right flipper"
