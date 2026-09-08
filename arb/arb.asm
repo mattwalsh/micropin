@@ -1,16 +1,18 @@
 ; Minimal experimental 8085 arbiter.  No game ROM code is used.
-; The MAME/Pico host aperture is readable at $3000-$31ff.
+; The MAME/Pico host aperture is readable at $2800-$28ff when no fifth ROM
+; is installed.
 ;
-; A ($3000-$303f) is the 64-byte host-owned output transaction.
-; B ($3040-$307f) is the 64-byte 8085-owned switch transaction.
-; C ($3080-$30bf) is the 64-byte host-owned coil configuration.
+; A ($2800-$283f) is the 64-byte host-owned output transaction.
+; B ($2840-$287f) is the 64-byte 8085-owned switch transaction.
+; C ($2880-$28bf) is the 64-byte host-owned coil configuration.
+; D ($28c0-$28ff) is reserved for a cooperative monitor mailbox.
 
-HOST_APERTURE EQU #3000
+HOST_APERTURE EQU #2800
 HOST_SEQUENCE EQU HOST_APERTURE
-CPU_ACK_APERTURE EQU #3001
-SWITCH_APERTURE EQU #3040
-SWITCH_HOST_ACK EQU #3041
-CONFIG_APERTURE EQU #3080
+CPU_ACK_APERTURE EQU HOST_APERTURE+#01
+SWITCH_APERTURE EQU HOST_APERTURE+#40
+SWITCH_HOST_ACK EQU SWITCH_APERTURE+#01
+CONFIG_APERTURE EQU HOST_APERTURE+#80
 CONFIG_HOST_SEQUENCE EQU CONFIG_APERTURE
 CONFIG_CPU_ACK_APERTURE EQU #3081
 CONFIG_DURATION_SOURCE EQU CONFIG_APERTURE+#02
@@ -411,6 +413,6 @@ DEFAULT_COIL_POLICY:
 ; explicitly opted into renewal by the host configuration.
         DB #00,#00,#00,#00
 
-; Materialize the whole 5-ROM CPU address image.  Build verifies that the
-; physical-ROM-5 gap at $2000-$27ff is zero-filled.
-        ORG #3000
+; Materialize the four-ROM CPU image.  In aperture mode the Pico, rather than
+; a fifth ROM, responds to accesses at $2800-$28ff.
+        ORG #2000

@@ -22,4 +22,9 @@ static inline uint32_t flash_offset_for_chip(unsigned chip)
     return FLASH_TARGET_OFFSET + (chip * IMAGE_SECTOR_SIZE);
 }
 
+// One additional sector records facts which cannot be inferred from the raw
+// ROM images.  In particular, deleting coin_5.bin selects aperture mode and
+// must survive the synthetic FAT volume being rebuilt on the next boot.
+#define FLASH_METADATA_OFFSET (FLASH_TARGET_OFFSET + (NUM_CHIPS * IMAGE_SECTOR_SIZE))
+
 #endif // FLASH_LAYOUT_H

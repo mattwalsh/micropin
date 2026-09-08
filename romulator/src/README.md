@@ -72,9 +72,10 @@ first.
 
 ## Flash layout
 
-Five 4KB flash sectors are reserved in the top 64KB of the Pico's 2MB
+Five 4KB flash sectors plus one metadata sector are reserved in the top 64KB of the Pico's 2MB
 flash (`src/flash_layout.h`), one per chip, even though each image is only
-2KB — this keeps erase/program operations one-sector-per-image simple.
+2KB. The metadata remembers whether `coin_5.bin` exists; deleting it selects
+the experimental aperture mode and remains effective after a reboot.
 
 ## USB drive limitations (important)
 
@@ -98,9 +99,28 @@ Concretely:
 - After copying files, either use "Eject"/"Safely Remove" or just wait
   about a second before power-cycling the target — that's the window for
   the flash commit to happen and for `/TARGET_RESET` to release.
-- The filesystem view itself is **not persisted** — only the five ROM
-  images are. Every boot regenerates a clean boot sector/FAT/root directory
-  from scratch, so there's nothing to get corrupted there long-term.
+- The general filesystem view is **not persisted**. ROM images and the
+  presence/absence of `coin_5.bin` are persisted; every boot regenerates a
+  clean boot sector/FAT/root directory from that state.
+
+The CDC ACM control port accepts `status` followed by a newline and replies
+with either `mode rom5` or `mode aperture`. It also accepts `bootsel` to enter
+the Pico USB bootloader. In aperture mode, `rx` drains up to 16 bytes received
+from the experimental address-strobe channel. The 8085 sends one byte by
+reading `$28c0 + high_nibble`, then `$28d0 + low_nibble`; the data bus never
+reverses direction. `state` reports the current host transaction and Pico
+acknowledgement counters for diagnosing a stalled exchange.
+Every framed response carries CRC-8/ATM (polynomial `$07`). The Pico does not
+acknowledge a damaged frame, causing the 8085 to retransmit it automatically;
+host transactions carry the same CRC immediately after their payload, which
+the 8085 checks before accepting their sequence. `stats` reports detected
+return-channel CRC failures and receive-ring drops.
+
+For the round-trip test, `tx HEXBYTES` publishes up to 64 payload bytes at
+`$2802`, writes the length at `$2801`, and advances the sequence at `$2800`
+last. A valid framed 8085 response acknowledges that sequence. `rx` returns
+the response bytes as `sequence, length, payload`; for example, after
+`tx deadbeef`, `rx` should return `rx 0104deadbeef` on the first transaction.
 
 ## Notes on the core1 loop's two glitch fixes
 

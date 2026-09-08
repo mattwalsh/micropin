@@ -60,6 +60,7 @@ int main(void)
     // 3. Build the fake FAT12 system area and load all five images from
     //    flash into RAM *before* core1 starts touching those buffers.
     msc_disk_init();
+    core1_emulator_set_rom5_present(msc_disk_rom5_present());
 
     // 4. Start the timing-critical emulation loop on core1.
     core1_emulator_launch();

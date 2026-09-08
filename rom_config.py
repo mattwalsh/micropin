@@ -12,11 +12,13 @@ MAME_TARGETS = {
 }
 
 # Named experiments can select a deliberately isolated MAME target even when
-# they have an otherwise ordinary ROM count.  In particular, bridge needs the
-# $3000-$31ff Pico-facing aperture, which is not present on pencup2c.
+# they have an otherwise ordinary ROM count.  In particular, arb needs the
+# $2800-$28ff Pico-facing aperture, which is not present on pencup2d/pencup2c.
 MAME_VARIANT_TARGETS = {
     "bridge": ("pencupx", "x"),
     "arb": ("pencupx", "x"),
+    "aperture_test": ("pencupx", "x"),
+    "aperture_roundtrip": ("pencupx", "x"),
     "arb_tester": ("pencuptst", "test"),
     "flipper_tester": ("pencuptst", "test"),
 }

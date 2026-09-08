@@ -32,12 +32,19 @@
 #define LAST_DATA_CLUSTER (FIRST_HOME_CLUSTER + TOTAL_CLUSTERS - 1u)
 #define COMMIT_IDLE_US (150 * 1000)
 
+#define MODE_METADATA_VERSION 1u
+#define MODE_FLAG_ROM5_PRESENT 0x01u
+
+static const uint8_t s_metadata_magic[8] = { 'M', 'P', 'R', 'O', 'M', 'M', 'O', 'D' };
+
 static uint8_t s_disk[TOTAL_SECTORS][SECTOR_SIZE];
 static uint8_t s_staging[NUM_CHIPS][IMAGE_SIZE_BYTES];
+static uint8_t s_metadata_page[FLASH_PAGE_SIZE] __attribute__((aligned(4)));
 static volatile bool s_dirty[NUM_CHIPS];
 static absolute_time_t s_last_write_time;
 static bool s_write_pending;
 static bool s_ejected;
+static bool s_rom5_present;
 
 static const char s_file_names[NUM_CHIPS][8] = {
     "COIN_1  ", "COIN_2  ", "COIN_3  ", "COIN_4  ", "COIN_5  "
@@ -47,6 +54,34 @@ static void put16(uint8_t *p, uint16_t v) { p[0] = v & 0xffu; p[1] = v >> 8; }
 static void put32(uint8_t *p, uint32_t v) { p[0] = v & 0xffu; p[1] = v >> 8; p[2] = v >> 16; p[3] = v >> 24; }
 static uint16_t get16(const uint8_t *p) { return (uint16_t)(p[0] | ((uint16_t)p[1] << 8)); }
 static uint32_t get32(const uint8_t *p) { return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24); }
+
+static void load_mode_metadata(void)
+{
+    const uint8_t *metadata = (const uint8_t *)(XIP_BASE + FLASH_METADATA_OFFSET);
+    if (memcmp(metadata, s_metadata_magic, sizeof s_metadata_magic) == 0 &&
+        metadata[8] == MODE_METADATA_VERSION &&
+        metadata[10] == (uint8_t)~metadata[9]) {
+        s_rom5_present = (metadata[9] & MODE_FLAG_ROM5_PRESENT) != 0;
+    } else {
+        // Firmware predating mode metadata always exposed five ROMs.  Preserve
+        // that behavior on the first boot after upgrading.
+        s_rom5_present = true;
+    }
+}
+
+static void persist_mode_metadata(void)
+{
+    memset(s_metadata_page, 0xff, sizeof s_metadata_page);
+    memcpy(s_metadata_page, s_metadata_magic, sizeof s_metadata_magic);
+    s_metadata_page[8] = MODE_METADATA_VERSION;
+    s_metadata_page[9] = s_rom5_present ? MODE_FLAG_ROM5_PRESENT : 0;
+    s_metadata_page[10] = (uint8_t)~s_metadata_page[9];
+
+    uint32_t ints = save_and_disable_interrupts();
+    flash_range_erase(FLASH_METADATA_OFFSET, FLASH_SECTOR_SIZE);
+    flash_range_program(FLASH_METADATA_OFFSET, s_metadata_page, sizeof s_metadata_page);
+    restore_interrupts(ints);
+}
 
 static void fat12_set_entry(uint8_t *fat, unsigned cluster, uint16_t value)
 {
@@ -76,12 +111,15 @@ static void build_disk(void)
     for (unsigned fat_num = FAT1_LBA; fat_num <= FAT2_LBA; fat_num++) {
         uint8_t *fat = s_disk[fat_num];
         fat12_set_entry(fat, 0, 0xff8); fat12_set_entry(fat, 1, 0xfff);
-        for (unsigned chip = 0; chip < NUM_CHIPS; chip++) fat12_set_entry(fat, FIRST_HOME_CLUSTER + chip, 0xfff);
+        for (unsigned chip = 0; chip < NUM_CHIPS; chip++) {
+            if (chip != 4u || s_rom5_present) fat12_set_entry(fat, FIRST_HOME_CLUSTER + chip, 0xfff);
+        }
     }
 
     uint8_t *dir = s_disk[ROOT_DIR_LBA];
     memcpy(dir, "EPROMEMU   ", 11); dir[11] = 0x08;
     for (unsigned chip = 0; chip < NUM_CHIPS; chip++) {
+        if (chip == 4u && !s_rom5_present) continue;
         uint8_t *e = &dir[(chip + 1u) * 32u];
         memcpy(e, s_file_names[chip], 8); memcpy(e + 8, "BIN", 3); e[11] = 0x20;
         // FAT's NT-reserved case bits make Finder display the 8.3 name as
@@ -159,14 +197,32 @@ static void commit_all_dirty(void)
         core1_emulator_publish(chip, staging_buf);
         s_dirty[chip] = false; any = true;
     }
+
+    int rom5_slot = find_rom_dir_slot(4u);
+    bool rom5_present_now = false;
+    if (rom5_slot >= 0) {
+        uint8_t *entry = &s_disk[ROOT_DIR_LBA][(unsigned)rom5_slot * 32u];
+        rom5_present_now = get32(entry + 0x1c) == IMAGE_SIZE_BYTES;
+    }
+    if (rom5_present_now != s_rom5_present) {
+        s_rom5_present = rom5_present_now;
+        persist_mode_metadata();
+        core1_emulator_set_rom5_present(s_rom5_present);
+        any = true;
+    }
     if (any) reset_control_release();
 }
 
 void msc_disk_init(void)
 {
-    build_disk(); load_all_images_from_flash();
+    load_mode_metadata(); build_disk(); load_all_images_from_flash();
     for (unsigned i = 0; i < NUM_CHIPS; i++) s_dirty[i] = false;
     s_last_write_time = get_absolute_time(); s_write_pending = false; s_ejected = false;
+}
+
+bool msc_disk_rom5_present(void)
+{
+    return s_rom5_present;
 }
 
 void msc_disk_task(void)

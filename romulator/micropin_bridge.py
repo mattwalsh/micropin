@@ -1,9 +1,9 @@
 """Client for the experimental MAME ROMulator bridge.
 
 Protocol v1 sends a complete 64-byte host snapshot with ``MPX1 A <hex>``.
-The 8085 sees it at $3000-$303f.  Lamps, displays, coils, tone pitch, and
+The 8085 sees it at $2800-$283f.  Lamps, displays, coils, tone pitch, and
 tone duration occupy offsets $02-$2f.  A separate 64-byte coil configuration
-mailbox C is at $3080-$30bf.  The real Pico implementation can retain this
+mailbox C is at $2880-$28bf.  The real Pico implementation can retain this
 public API and swap TCP for USB CDC.
 """
 
@@ -247,7 +247,7 @@ class MicropinBridge:
         self.snapshot[COIL_OFFSET:COIL_OFFSET + COIL_SIZE] = b"\x00" * COIL_SIZE
 
     def set_snapshot(self, snapshot: bytes | bytearray) -> None:
-        """Publish one complete 64-byte A snapshot at ``$3000-$303f``."""
+        """Publish one complete 64-byte A snapshot at ``$2800-$283f``."""
         if len(snapshot) != SNAPSHOT_SIZE:
             raise ValueError(f"snapshot must be exactly {SNAPSHOT_SIZE} bytes")
         self._wait_until_ready()

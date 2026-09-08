@@ -48,7 +48,7 @@ done
 
 for i in $(seq 1 "$ROM_COUNT"); do
     # ROM 5 is decoded at $2800, not immediately after ROM 4.  Materialize
-    # the $2000-$27ff RAM hole as NOPs so the disassembly's offsets are the
+    # the $2000-$27ff gap as NOPs so the disassembly's offsets are the
     # actual CPU addresses.
     if [ "$ROM_COUNT" -eq 5 ] && [ "$i" -eq 5 ]; then
         dd if=/dev/zero bs="$ROM_SIZE" count=1 status=none
