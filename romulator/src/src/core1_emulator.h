@@ -15,6 +15,7 @@
 extern uint8_t emu_rom_image[NUM_CHIPS][2][IMAGE_SIZE_BYTES];
 extern volatile uint8_t emu_active_buffer[NUM_CHIPS];
 extern volatile bool emu_rom5_present;
+extern volatile bool emu_aperture_enabled;
 
 // Called once from core0 at boot, after emu_rom_image[*][0] has been loaded
 // from flash, and before core1 is launched.
@@ -24,9 +25,9 @@ void core1_emulator_launch(void);
 // emu_rom_image[chip][staging_buffer] to make it live.
 void core1_emulator_publish(unsigned chip, unsigned staging_buffer);
 
-// Disable CE4 ROM driving when coin_5.bin is absent. Aperture bus service is
-// added separately once the target R/WR signal has a defined GPIO.
-void core1_emulator_set_rom5_present(bool present);
+// Configure CE4 independently: a fifth ROM drives it in ROM mode, an explicit
+// aperture marker enables the mailbox, and otherwise it remains tristated.
+void core1_emulator_set_ce4_mode(bool rom5_present, bool aperture_enabled);
 
 // Drain bytes received through the aperture-mode address-strobe channel.
 // The 8085 transmits a byte by reading $2900+byte between $2a00/$2a01 frame

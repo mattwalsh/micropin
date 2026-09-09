@@ -32,8 +32,9 @@
 #define LAST_DATA_CLUSTER (FIRST_HOME_CLUSTER + TOTAL_CLUSTERS - 1u)
 #define COMMIT_IDLE_US (150 * 1000)
 
-#define MODE_METADATA_VERSION 1u
+#define MODE_METADATA_VERSION 2u
 #define MODE_FLAG_ROM5_PRESENT 0x01u
+#define MODE_FLAG_APERTURE_ENABLED 0x02u
 
 static const uint8_t s_metadata_magic[8] = { 'M', 'P', 'R', 'O', 'M', 'M', 'O', 'D' };
 
@@ -45,10 +46,12 @@ static absolute_time_t s_last_write_time;
 static bool s_write_pending;
 static bool s_ejected;
 static bool s_rom5_present;
+static bool s_aperture_enabled;
 
 static const char s_file_names[NUM_CHIPS][8] = {
     "COIN_1  ", "COIN_2  ", "COIN_3  ", "COIN_4  ", "COIN_5  "
 };
+static const char s_aperture_file_name[11] = "APERTURECFG";
 
 static void put16(uint8_t *p, uint16_t v) { p[0] = v & 0xffu; p[1] = v >> 8; }
 static void put32(uint8_t *p, uint32_t v) { p[0] = v & 0xffu; p[1] = v >> 8; p[2] = v >> 16; p[3] = v >> 24; }
@@ -59,13 +62,19 @@ static void load_mode_metadata(void)
 {
     const uint8_t *metadata = (const uint8_t *)(XIP_BASE + FLASH_METADATA_OFFSET);
     if (memcmp(metadata, s_metadata_magic, sizeof s_metadata_magic) == 0 &&
-        metadata[8] == MODE_METADATA_VERSION &&
+        (metadata[8] == 1u || metadata[8] == MODE_METADATA_VERSION) &&
         metadata[10] == (uint8_t)~metadata[9]) {
         s_rom5_present = (metadata[9] & MODE_FLAG_ROM5_PRESENT) != 0;
+        // Version 1 inferred aperture mode from a missing fifth ROM. Do not
+        // preserve that unsafe inference across the upgrade: the marker file
+        // must explicitly opt in.
+        s_aperture_enabled = metadata[8] == MODE_METADATA_VERSION &&
+            (metadata[9] & MODE_FLAG_APERTURE_ENABLED) != 0;
     } else {
         // Firmware predating mode metadata always exposed five ROMs.  Preserve
         // that behavior on the first boot after upgrading.
         s_rom5_present = true;
+        s_aperture_enabled = false;
     }
 }
 
@@ -74,7 +83,8 @@ static void persist_mode_metadata(void)
     memset(s_metadata_page, 0xff, sizeof s_metadata_page);
     memcpy(s_metadata_page, s_metadata_magic, sizeof s_metadata_magic);
     s_metadata_page[8] = MODE_METADATA_VERSION;
-    s_metadata_page[9] = s_rom5_present ? MODE_FLAG_ROM5_PRESENT : 0;
+    s_metadata_page[9] = (s_rom5_present ? MODE_FLAG_ROM5_PRESENT : 0) |
+        (s_aperture_enabled ? MODE_FLAG_APERTURE_ENABLED : 0);
     s_metadata_page[10] = (uint8_t)~s_metadata_page[9];
 
     uint32_t ints = save_and_disable_interrupts();
@@ -127,6 +137,28 @@ static void build_disk(void)
         e[12] = 0x18;
         put16(e + 0x1a, FIRST_HOME_CLUSTER + chip); put32(e + 0x1c, IMAGE_SIZE_BYTES);
     }
+    if (s_aperture_enabled && !s_rom5_present) {
+        // Slot zero is the volume label and slots one through four are ROMs
+        // 1-4. Keep this in the very next slot: FAT directory scans stop at
+        // the first zero entry.
+        uint8_t *e = &dir[NUM_CHIPS * 32u];
+        memcpy(e, s_aperture_file_name, sizeof s_aperture_file_name);
+        e[11] = 0x20;
+        e[12] = 0x18;
+        put32(e + 0x1c, 0);
+    }
+}
+
+static bool aperture_marker_present(void)
+{
+    uint8_t *dir = s_disk[ROOT_DIR_LBA];
+    for (unsigned i = 0; i < ROOT_DIR_ENTRIES; i++) {
+        uint8_t *e = &dir[i * 32u];
+        if (e[0] == 0x00) break;
+        if (e[0] == 0xe5 || (e[11] & 0x08)) continue;
+        if (memcmp(e, s_aperture_file_name, sizeof s_aperture_file_name) == 0) return true;
+    }
+    return false;
 }
 
 static int find_rom_dir_slot(unsigned chip)
@@ -192,12 +224,14 @@ static void commit_all_dirty(void)
         flash_range_erase(flash_offset_for_chip(chip), IMAGE_SECTOR_SIZE);
         flash_range_program(flash_offset_for_chip(chip), s_staging[chip], IMAGE_SIZE_BYTES);
         restore_interrupts(ints);
-        unsigned staging_buf = emu_active_buffer[chip] ^ 1u;
+        unsigned active_buf = emu_active_buffer[chip];
+        unsigned staging_buf = active_buf < 2u ? active_buf ^ 1u : 0u;
         memcpy(emu_rom_image[chip][staging_buf], s_staging[chip], IMAGE_SIZE_BYTES);
         core1_emulator_publish(chip, staging_buf);
         s_dirty[chip] = false; any = true;
     }
 
+    bool mode_changed = false;
     int rom5_slot = find_rom_dir_slot(4u);
     bool rom5_present_now = false;
     if (rom5_slot >= 0) {
@@ -206,9 +240,18 @@ static void commit_all_dirty(void)
     }
     if (rom5_present_now != s_rom5_present) {
         s_rom5_present = rom5_present_now;
-        persist_mode_metadata();
-        core1_emulator_set_rom5_present(s_rom5_present);
         any = true;
+        mode_changed = true;
+    }
+    bool aperture_enabled_now = !rom5_present_now && aperture_marker_present();
+    if (aperture_enabled_now != s_aperture_enabled) {
+        s_aperture_enabled = aperture_enabled_now;
+        any = true;
+        mode_changed = true;
+    }
+    if (mode_changed) {
+        persist_mode_metadata();
+        core1_emulator_set_ce4_mode(s_rom5_present, s_aperture_enabled);
     }
     if (any) reset_control_release();
 }
@@ -223,6 +266,11 @@ void msc_disk_init(void)
 bool msc_disk_rom5_present(void)
 {
     return s_rom5_present;
+}
+
+bool msc_disk_aperture_enabled(void)
+{
+    return s_aperture_enabled;
 }
 
 void msc_disk_task(void)

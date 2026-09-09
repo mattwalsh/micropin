@@ -131,7 +131,9 @@ static void process_command(void)
         reset_control_notify_write();
         reset_usb_boot(0, 0);
     } else if (strcmp(s_command, "status") == 0) {
-        reply(msc_disk_rom5_present() ? "mode rom5\r\n" : "mode aperture\r\n");
+        if (msc_disk_rom5_present()) reply("mode rom5\r\n");
+        else if (msc_disk_aperture_enabled()) reply("mode aperture\r\n");
+        else reply("mode four-rom\r\n");
     } else if (strcmp(s_command, "rx") == 0) {
         reply_strobes();
     } else if (strncmp(s_command, "tx ", 3) == 0) {

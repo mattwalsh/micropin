@@ -8,6 +8,7 @@
 uint8_t emu_rom_image[NUM_CHIPS][2][IMAGE_SIZE_BYTES];
 volatile uint8_t emu_active_buffer[NUM_CHIPS];
 volatile bool emu_rom5_present = true;
+volatile bool emu_aperture_enabled = false;
 
 #define STROBE_RING_SIZE 256u
 #define STROBE_DATA_BASE 0x100u
@@ -21,6 +22,8 @@ volatile bool emu_rom5_present = true;
 #define APERTURE_MAX_PAYLOAD (APERTURE_INPUT_SIZE - APERTURE_PAYLOAD_OFFSET - 1u)
 #define STROBE_FRAME_MAX (APERTURE_MAX_PAYLOAD + 3u)
 #define STROBE_SETTLED_SAMPLES 4u
+#define CE4_BUFFER_APERTURE 0xfeu
+#define CE4_BUFFER_DISABLED 0xffu
 
 static volatile uint8_t s_strobe_ring[STROBE_RING_SIZE];
 static volatile uint8_t s_strobe_head;
@@ -143,8 +146,30 @@ static void __not_in_flash_func(core1_main)(void)
         else if (!(gpio_in & (1u << PIN_CE4)))  chip = 4;
 
         const uint32_t addr = gpio_in & ADDR_MASK;
-        const bool aperture_cycle = chip == 4 && !emu_rom5_present;
-        const bool aperture_strobe = aperture_cycle && addr >= APERTURE_INPUT_SIZE;
+
+        // Keep ordinary EPROM fetches on the original minimal path. The 8085
+        // must see the byte within the 2716 access window; none of the aperture
+        // framing work belongs ahead of that deadline. For CE4, the active-
+        // buffer byte doubles as its mode so this path needs no second global
+        // lookup: 0/1 select a ROM buffer, fe is aperture, and ff is disabled.
+        uint8_t buf = CE4_BUFFER_DISABLED;
+        if (chip >= 0) buf = emu_active_buffer[chip];
+        if (chip >= 0 && (chip != 4 || buf < 2u)) {
+            uint8_t data = emu_rom_image[chip][buf][addr];
+
+            uint32_t data_bits = ((uint32_t)data) << PIN_DATA_BASE;
+            uint32_t diff = (data_bits ^ current_data_bits) & DATA_MASK;
+            if (diff) {
+                sio_hw->gpio_togl = diff;
+                current_data_bits = data_bits;
+            }
+            sio_hw->gpio_oe_set = DATA_MASK;
+            sio_hw->gpio_clr = (1u << PIN_BUS_DRIVEN);
+            // Do nonessential aperture bookkeeping only after the ROM byte is
+            // safely present on the bus.
+            if (chip != 4) aperture_ce_cycle_seen = false;
+            continue;
+        }
 
         // A complete /CE4 assertion is one aperture access. Address lines can
         // pass through intermediate values while settling, especially now
@@ -152,20 +177,13 @@ static void __not_in_flash_func(core1_main)(void)
         // as additional bytes within the same physical read cycle.
         if (gpio_in & (1u << PIN_CE4)) aperture_ce_cycle_seen = false;
 
-        // Service the target's data bus first. This is the timing-critical
-        // path: on an aperture read the 8085 was otherwise sampling the $28
-        // operand byte from its preceding LDA before we reached the GPIO
-        // update. Protocol parsing can safely happen after D0..D7 are valid.
-        if (chip >= 0 && !aperture_strobe) {
-            uint8_t data;
-            if (aperture_cycle) {
-                if (addr == APERTURE_CPU_ACK_OFFSET) data = s_cpu_ack;
-                else data = s_aperture_input[addr];
-            } else {
-                uint8_t buf = emu_active_buffer[chip];
-                data = emu_rom_image[chip][buf][addr];
-            }
+        const bool aperture_cycle = chip == 4 && buf == CE4_BUFFER_APERTURE;
+        const bool aperture_strobe = aperture_cycle && addr >= APERTURE_INPUT_SIZE;
 
+        // Mailbox reads are also timing-critical. Parse address-strobe frames
+        // only after the data bus has either been driven or explicitly freed.
+        if (aperture_cycle && !aperture_strobe) {
+            uint8_t data = addr == APERTURE_CPU_ACK_OFFSET ? s_cpu_ack : s_aperture_input[addr];
             uint32_t data_bits = ((uint32_t)data) << PIN_DATA_BASE;
             uint32_t diff = (data_bits ^ current_data_bits) & DATA_MASK;
             if (diff) {
@@ -251,9 +269,15 @@ void core1_emulator_publish(unsigned chip, unsigned staging_buffer)
     emu_active_buffer[chip] = (uint8_t)staging_buffer;
 }
 
-void core1_emulator_set_rom5_present(bool present)
+void core1_emulator_set_ce4_mode(bool rom5_present, bool aperture_enabled)
 {
-    emu_rom5_present = present;
+    emu_rom5_present = rom5_present;
+    emu_aperture_enabled = aperture_enabled && !rom5_present;
+    if (!rom5_present) {
+        emu_active_buffer[4] = emu_aperture_enabled ? CE4_BUFFER_APERTURE : CE4_BUFFER_DISABLED;
+    } else if (emu_active_buffer[4] > 1u) {
+        emu_active_buffer[4] = 0;
+    }
 }
 
 size_t core1_emulator_read_strobes(uint8_t *destination, size_t capacity)
@@ -279,7 +303,7 @@ uint32_t core1_emulator_strobe_crc_errors(void)
 
 bool core1_emulator_publish_aperture(const uint8_t *payload, size_t length, uint8_t *sequence)
 {
-    if (emu_rom5_present || length > APERTURE_MAX_PAYLOAD ||
+    if (!emu_aperture_enabled || length > APERTURE_MAX_PAYLOAD ||
         s_aperture_input[0] != s_cpu_ack) return false;
 
     uint8_t next = (uint8_t)(s_aperture_input[0] + 1u);

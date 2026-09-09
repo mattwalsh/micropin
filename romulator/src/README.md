@@ -74,8 +74,11 @@ first.
 
 Five 4KB flash sectors plus one metadata sector are reserved in the top 64KB of the Pico's 2MB
 flash (`src/flash_layout.h`), one per chip, even though each image is only
-2KB. The metadata remembers whether `coin_5.bin` exists; deleting it selects
-the experimental aperture mode and remains effective after a reboot.
+2KB. The metadata independently remembers whether `coin_5.bin` and the
+zero-length `aperture.cfg` marker exist. With five ROMs, CE4 serves ROM5. With
+four ROMs and no marker, CE4 is tristated like an empty socket. With four ROMs
+and `aperture.cfg`, CE4 serves the experimental aperture. ROM5 takes precedence
+if both files are supplied.
 
 ## USB drive limitations (important)
 
@@ -104,7 +107,7 @@ Concretely:
   clean boot sector/FAT/root directory from that state.
 
 The CDC ACM control port accepts `status` followed by a newline and replies
-with either `mode rom5` or `mode aperture`. It also accepts `bootsel` to enter
+with `mode rom5`, `mode four-rom`, or `mode aperture`. It also accepts `bootsel` to enter
 the Pico USB bootloader. In aperture mode, `rx` drains up to 16 bytes received
 from the experimental address-strobe channel. The 8085 sends one byte by
 reading `$2900 + byte` between `$2a00`/`$2a01` frame markers; the data bus never
