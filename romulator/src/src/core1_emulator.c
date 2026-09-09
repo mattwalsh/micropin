@@ -10,17 +10,17 @@ volatile uint8_t emu_active_buffer[NUM_CHIPS];
 volatile bool emu_rom5_present = true;
 
 #define STROBE_RING_SIZE 256u
-#define STROBE_HIGH_BASE 0x0c0u
-#define STROBE_LOW_BASE  0x0d0u
-#define STROBE_FRAME_START 0x0e0u
-#define STROBE_FRAME_END   0x0e1u
-#define STROBE_NIBBLE_MASK 0x0fu
+#define STROBE_DATA_BASE 0x100u
+#define STROBE_DATA_END  0x1ffu
+#define STROBE_FRAME_START 0x200u
+#define STROBE_FRAME_END   0x201u
 #define APERTURE_INPUT_SIZE 0x0c0u
 #define APERTURE_CPU_ACK_OFFSET 1u
 #define APERTURE_LENGTH_OFFSET 2u
 #define APERTURE_PAYLOAD_OFFSET 3u
 #define APERTURE_MAX_PAYLOAD (APERTURE_INPUT_SIZE - APERTURE_PAYLOAD_OFFSET - 1u)
 #define STROBE_FRAME_MAX (APERTURE_MAX_PAYLOAD + 3u)
+#define STROBE_SETTLED_SAMPLES 4u
 
 static volatile uint8_t s_strobe_ring[STROBE_RING_SIZE];
 static volatile uint8_t s_strobe_head;
@@ -63,6 +63,26 @@ static inline uint8_t __not_in_flash_func(crc8_update)(uint8_t crc, uint8_t valu
     return crc;
 }
 
+// Unlike a normal ROM read, an outbound strobe does not need data returned
+// within the 8085 access window. Once /CE4 is active, wait for A0..A10 to
+// repeat a few times before interpreting the address. This rejects skewed
+// intermediate values without adding latency to instruction or mailbox reads.
+static inline uint32_t __not_in_flash_func(sample_settled_strobe_address)(void)
+{
+    uint32_t candidate = sio_hw->gpio_in & ADDR_MASK;
+    unsigned stable = 0;
+    while (!(sio_hw->gpio_in & (1u << PIN_CE4))) {
+        uint32_t next = sio_hw->gpio_in & ADDR_MASK;
+        if (next == candidate) {
+            if (++stable >= STROBE_SETTLED_SAMPLES) return candidate;
+        } else {
+            candidate = next;
+            stable = 0;
+        }
+    }
+    return 0xffffffffu;
+}
+
 // Precomputed per-chip CE bit position within sio_hw->gpio_in, in priority
 // order. If more than one CE is asserted at once (shouldn't happen on real
 // hardware, but wiring glitches happen), the lowest-numbered chip wins.
@@ -97,9 +117,7 @@ static void __not_in_flash_func(core1_main)(void)
     // the same raw reading twice in a row filters that out at negligible
     // cost against the 450ns budget.
     uint32_t prev_sample = 0xFFFFFFFFu; // sentinel, guaranteed to mismatch first pass
-    uint32_t previous_strobe_addr = 0xffffffffu;
-    uint8_t strobe_high_nibble = 0;
-    bool strobe_high_valid = false;
+    bool aperture_ce_cycle_seen = false;
     uint8_t strobe_frame[STROBE_FRAME_MAX];
     size_t strobe_frame_length = 0;
     bool strobe_frame_active = false;
@@ -127,6 +145,12 @@ static void __not_in_flash_func(core1_main)(void)
         const uint32_t addr = gpio_in & ADDR_MASK;
         const bool aperture_cycle = chip == 4 && !emu_rom5_present;
         const bool aperture_strobe = aperture_cycle && addr >= APERTURE_INPUT_SIZE;
+
+        // A complete /CE4 assertion is one aperture access. Address lines can
+        // pass through intermediate values while settling, especially now
+        // that a full byte changes A0..A7. Never interpret those transitions
+        // as additional bytes within the same physical read cycle.
+        if (gpio_in & (1u << PIN_CE4)) aperture_ce_cycle_seen = false;
 
         // Service the target's data bus first. This is the timing-critical
         // path: on an aperture read the 8085 was otherwise sampling the $28
@@ -157,62 +181,57 @@ static void __not_in_flash_func(core1_main)(void)
             sio_hw->gpio_set = (1u << PIN_BUS_DRIVEN);
         }
 
-        if (aperture_cycle) {
-            if (!aperture_strobe) {
-                previous_strobe_addr = 0xffffffffu;
-            } else if (addr != previous_strobe_addr) {
-                previous_strobe_addr = addr;
-                if (addr == STROBE_FRAME_START) {
+        if (aperture_cycle && !aperture_ce_cycle_seen) {
+            aperture_ce_cycle_seen = true;
+            if (aperture_strobe) {
+                const uint32_t strobe_addr = sample_settled_strobe_address();
+                if (strobe_addr == STROBE_FRAME_START) {
                     strobe_frame_active = true;
                     strobe_frame_length = 0;
-                    strobe_high_valid = false;
-                } else if (addr == STROBE_FRAME_END) {
+                } else if (strobe_addr == STROBE_FRAME_END) {
                     if (strobe_frame_active) s_strobe_frames++;
                     if (strobe_frame_active && strobe_frame_length >= 3u &&
                         strobe_frame_length == (size_t)strobe_frame[1] + 3u) {
                         size_t delivered_length = strobe_frame_length - 1u;
-                        uint8_t crc = 0;
-                        for (size_t i = 0; i < delivered_length; i++) crc = crc8_update(crc, strobe_frame[i]);
                         s_strobe_last_sequence = strobe_frame[0];
                         s_strobe_last_length = strobe_frame[1];
-                        s_strobe_last_calculated_crc = crc;
                         s_strobe_last_received_crc = strobe_frame[delivered_length];
-                        if (crc != strobe_frame[delivered_length]) {
-                            s_strobe_crc_errors++;
-                        } else if (strobe_frame[0] == s_cpu_ack) {
+                        if (strobe_frame[0] == s_cpu_ack) {
                             // A retry of an already accepted transaction is
-                            // acknowledged but never delivered twice.
-                        } else if (strobe_frame[0] != s_aperture_input[0]) {
-                            // Only the currently pending host sequence is a
-                            // legal response. A stale but internally valid
-                            // frame must never rewind the acknowledgement.
-                            s_strobe_stale++;
-                        } else if (strobe_ring_free() >= delivered_length) {
-                            for (size_t i = 0; i < delivered_length; i++) strobe_push(strobe_frame[i]);
-                            __compiler_memory_barrier();
-                            s_cpu_ack = strobe_frame[0];
+                            // acknowledged but never delivered twice. Its
+                            // contents are irrelevant, so avoid spending the
+                            // timing-critical bus core on another CRC pass.
                         } else {
-                            s_strobe_drops += (uint32_t)delivered_length;
+                            uint8_t crc = 0;
+                            for (size_t i = 0; i < delivered_length; i++) crc = crc8_update(crc, strobe_frame[i]);
+                            s_strobe_last_calculated_crc = crc;
+                            if (crc != strobe_frame[delivered_length]) {
+                                s_strobe_crc_errors++;
+                            } else if (strobe_frame[0] != s_aperture_input[0]) {
+                                // Only the currently pending host sequence is
+                                // a legal response. A stale but internally
+                                // valid frame must never rewind the ack.
+                                s_strobe_stale++;
+                            } else if (strobe_ring_free() >= delivered_length) {
+                                for (size_t i = 0; i < delivered_length; i++) strobe_push(strobe_frame[i]);
+                                __compiler_memory_barrier();
+                                s_cpu_ack = strobe_frame[0];
+                            } else {
+                                s_strobe_drops += (uint32_t)delivered_length;
+                            }
                         }
                     } else if (strobe_frame_active) {
                         s_strobe_malformed++;
                     }
                     strobe_frame_active = false;
-                    strobe_high_valid = false;
-                } else if ((addr & ~STROBE_NIBBLE_MASK) == STROBE_HIGH_BASE) {
-                    strobe_high_nibble = (uint8_t)(addr & STROBE_NIBBLE_MASK);
-                    strobe_high_valid = true;
-                } else if ((addr & ~STROBE_NIBBLE_MASK) == STROBE_LOW_BASE && strobe_high_valid) {
-                    uint8_t value = (uint8_t)((strobe_high_nibble << 4) | (addr & STROBE_NIBBLE_MASK));
+                } else if (strobe_addr >= STROBE_DATA_BASE && strobe_addr <= STROBE_DATA_END) {
+                    uint8_t value = (uint8_t)strobe_addr;
                     if (strobe_frame_active) {
                         if (strobe_frame_length < sizeof strobe_frame) strobe_frame[strobe_frame_length++] = value;
                         else strobe_frame_active = false;
                     }
-                    strobe_high_valid = false;
                 }
             }
-        } else {
-            previous_strobe_addr = 0xffffffffu;
         }
     }
 }

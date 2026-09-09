@@ -107,7 +107,7 @@ The CDC ACM control port accepts `status` followed by a newline and replies
 with either `mode rom5` or `mode aperture`. It also accepts `bootsel` to enter
 the Pico USB bootloader. In aperture mode, `rx` drains up to 16 bytes received
 from the experimental address-strobe channel. The 8085 sends one byte by
-reading `$28c0 + high_nibble`, then `$28d0 + low_nibble`; the data bus never
+reading `$2900 + byte` between `$2a00`/`$2a01` frame markers; the data bus never
 reverses direction. `state` reports the current host transaction and Pico
 acknowledgement counters for diagnosing a stalled exchange.
 Every framed response carries CRC-8/ATM (polynomial `$07`). The Pico does not
@@ -117,10 +117,11 @@ the 8085 checks before accepting their sequence. `stats` reports detected
 return-channel CRC failures and receive-ring drops.
 
 For the round-trip test, `tx HEXBYTES` publishes up to 64 payload bytes at
-`$2802`, writes the length at `$2801`, and advances the sequence at `$2800`
+`$2803`, writes the length at `$2802`, and advances the sequence at `$2800`
 last. A valid framed 8085 response acknowledges that sequence. `rx` returns
-the response bytes as `sequence, length, payload`; for example, after
-`tx deadbeef`, `rx` should return `rx 0104deadbeef` on the first transaction.
+the response bytes as `sequence, length, echoed payload, port 0, port 1,
+port 4`; for example, the three final bytes after the echo are the switch-port
+snapshot captured by the test ROM.
 
 ## Notes on the core1 loop's two glitch fixes
 

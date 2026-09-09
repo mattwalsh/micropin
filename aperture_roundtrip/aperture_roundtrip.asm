@@ -8,9 +8,10 @@
 ;   immediately following payload: CRC-8 over sequence, length, and payload
 ;
 ; Response frame uses address strobes:
-;   read $28e0 to start
-;   transmit sequence, length, payload, and CRC-8 as $28cH/$28dL reads
-;   read $28e1 to finish and acknowledge the host sequence
+;   read $2a00 to start
+;   transmit sequence, length, echoed payload, port 0, port 1, port 4, and
+;   CRC-8 as one read from $2900+byte
+;   read $2a01 to finish and acknowledge the host sequence
 
 HOST_SEQUENCE EQU #2800
 CPU_ACK EQU #2801
@@ -21,6 +22,10 @@ LOCAL_LENGTH EQU #2202
 LOCAL_PAYLOAD EQU #2203
 LOCAL_PENDING_SEQUENCE EQU #2223
 LOCAL_CRC EQU #2224
+LOCAL_LAMP_BYTES EQU #2225
+LOCAL_SWITCH_0 EQU #222a
+LOCAL_SWITCH_1 EQU #222b
+LOCAL_SWITCH_4 EQU #222c
 MAX_PAYLOAD EQU #20
 STACK_TOP EQU #23c0
 
@@ -37,6 +42,17 @@ STACK_TOP EQU #23c0
 START:
         DI
         LXI SP, STACK_TOP
+; All eight lamp banks are active-low. Start with every output dark, including
+; the three banks beyond today's 0-37 lamp test range.
+        MVI A,#ff
+        OUT #00
+        OUT #01
+        OUT #02
+        OUT #03
+        OUT #04
+        OUT #0d
+        OUT #0e
+        OUT #0f
 READ_INITIAL_ACK:
         LDA CPU_ACK
         MOV B,A
@@ -112,20 +128,30 @@ COMPARE_HOST_CRC:
         CMP M
         JNZ POLL_HOST
 
+        CALL MANIFEST_LAMP_COMMAND
+; Capture one coherent input snapshot for this transaction. Retransmissions
+; reuse these bytes rather than changing the response underneath its sequence.
+        IN #00
+        STA LOCAL_SWITCH_0
+        IN #01
+        STA LOCAL_SWITCH_1
+        IN #04
+        STA LOCAL_SWITCH_4
         LDA LOCAL_PENDING_SEQUENCE
         MOV C,A
 
 TRANSMIT_RESPONSE:
-        LDA #28e0
+        LDA #2a00
         MVI D,#00
         MOV A,C
         CALL SEND_BYTE
         LDA LOCAL_LENGTH
+        ADI #03
         CALL SEND_BYTE
 
         LDA LOCAL_LENGTH
         ORA A
-        JZ FINISH_RESPONSE
+        JZ SEND_SWITCH_SNAPSHOT
         MOV B,A
         LXI H, LOCAL_PAYLOAD
 SEND_PAYLOAD:
@@ -135,26 +161,38 @@ SEND_PAYLOAD:
         DCR B
         JNZ SEND_PAYLOAD
 
+SEND_SWITCH_SNAPSHOT:
+        LDA LOCAL_SWITCH_0
+        CALL SEND_BYTE
+        LDA LOCAL_SWITCH_1
+        CALL SEND_BYTE
+        LDA LOCAL_SWITCH_4
+        CALL SEND_BYTE
+
 FINISH_RESPONSE:
         MOV A,D
         CALL SEND_RAW_BYTE
-        LDA #28e1
+        LDA #2a01
 
 ; The host cannot publish another sequence until the Pico has accepted this
 ; response. Thus an advanced HOST_SEQUENCE proves acknowledgement without a
 ; timing-sensitive CPU_ACK read. While it remains unchanged, retransmit; the
 ; Pico deduplicates already accepted frames.
 WAIT_FOR_NEXT_OR_RETRY:
+        MVI E,#ff
+WAIT_FOR_NEXT_SEQUENCE:
         LDA HOST_SEQUENCE
         MOV B,A
         LDA HOST_SEQUENCE
         CMP B
-        JNZ WAIT_FOR_NEXT_OR_RETRY
+        JNZ WAIT_FOR_NEXT_SEQUENCE
         CMP C
         JNZ RECEIVE_HOST_TRANSACTION
+        DCR E
+        JNZ WAIT_FOR_NEXT_SEQUENCE
         JMP TRANSMIT_RESPONSE
 
-; Add A to CRC-8 D, then send it as two observable reads while preserving the
+; Add A to CRC-8 D, then send it as one observable read while preserving the
 ; caller's HL, B, and original A value until the raw transmitter receives it.
 SEND_BYTE:
         PUSH PSW
@@ -183,26 +221,101 @@ CRC_NO_POLY:
 
 SEND_RAW_BYTE:
         PUSH H
-        PUSH PSW
-        ANI #f0
-        RRC
-        RRC
-        RRC
-        RRC
-        ORI #c0
         MOV L,A
-        MVI H,#28
+        MVI H,#29
+; The old two-nibble encoder incidentally left substantial ROM-fetch time
+; between observable CE4 reads. Preserve a modest gap so the Pico can finish
+; parsing one address before the next strobe arrives. These fetches do not add
+; any events to the protocol and are negligible beside USB round-trip time.
+        NOP
+        NOP
+        NOP
+        NOP
+        NOP
+        NOP
+        NOP
+        NOP
+        NOP
+        NOP
+        NOP
+        NOP
         MOV A,M
-        POP PSW
         POP H
+        RET
 
+; Payload byte zero through 37 selects one lamp. Values outside that range
+; clear all lamps. Outputs are one-hot in software and active-low on the board.
+MANIFEST_LAMP_COMMAND:
+        PUSH B
+        PUSH D
         PUSH H
-        ANI #0f
-        ORI #d0
+
+        LXI H,LOCAL_LAMP_BYTES
+        MVI B,#05
+        XRA A
+CLEAR_LOCAL_LAMPS:
+        MOV M,A
+        INX H
+        DCR B
+        JNZ CLEAR_LOCAL_LAMPS
+
+        LDA LOCAL_LENGTH
+        ORA A
+        JZ OUTPUT_LOCAL_LAMPS
+        LDA LOCAL_PAYLOAD
+        CPI #26
+        JNC OUTPUT_LOCAL_LAMPS
+
+        MOV E,A
+        ANI #07
+        MOV C,A
+        ORA A
+        MVI A,#01
+        JZ LAMP_MASK_READY
+BUILD_LAMP_MASK:
+        RLC
+        DCR C
+        JNZ BUILD_LAMP_MASK
+LAMP_MASK_READY:
+        MOV D,A
+
+        MOV A,E
+        RRC
+        RRC
+        RRC
+        ANI #07
+        MOV E,A
+        LXI H,LOCAL_LAMP_BYTES
+        MOV A,L
+        ADD E
         MOV L,A
-        MVI H,#28
+        MOV M,D
+
+OUTPUT_LOCAL_LAMPS:
+        LXI H,LOCAL_LAMP_BYTES
         MOV A,M
+        CMA
+        OUT #00
+        INX H
+        MOV A,M
+        CMA
+        OUT #01
+        INX H
+        MOV A,M
+        CMA
+        OUT #02
+        INX H
+        MOV A,M
+        CMA
+        OUT #03
+        INX H
+        MOV A,M
+        CMA
+        OUT #04
+
         POP H
+        POP D
+        POP B
         RET
 
         ORG #2000

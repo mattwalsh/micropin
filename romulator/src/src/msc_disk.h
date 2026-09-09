@@ -14,7 +14,7 @@ void msc_disk_init(void);
 void msc_disk_task(void);
 
 // True when the persisted directory state contains a valid 2KB coin_5.bin.
-// False selects the experimental $2800-$28ff aperture mode.
+// False selects the experimental $2800-$2fff aperture address space.
 bool msc_disk_rom5_present(void);
 
 #endif // MSC_DISK_H
