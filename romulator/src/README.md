@@ -115,16 +115,20 @@ reverses direction. `state` reports the current host transaction and Pico
 acknowledgement counters for diagnosing a stalled exchange.
 Every framed response carries CRC-8/ATM (polynomial `$07`). The Pico does not
 acknowledge a damaged frame, causing the 8085 to retransmit it automatically;
-host transactions carry the same CRC immediately after their payload, which
-the 8085 checks before accepting their sequence. `stats` reports detected
-return-channel CRC failures and receive-ring drops.
+host transactions carry the same CRC and its inverse immediately after their
+payload, both of which the 8085 checks before accepting their sequence. The
+Pico constructs each host transaction in an inactive SRAM bank and atomically
+selects that immutable bank only after it is complete, preventing the target
+from observing a new sequence with the preceding payload. `stats` reports
+detected return-channel CRC failures and receive-ring drops.
 
 For the round-trip test, `tx HEXBYTES` publishes up to 64 payload bytes at
-`$2803`, writes the length at `$2802`, and advances the sequence at `$2800`
-last. A valid framed 8085 response acknowledges that sequence. `rx` returns
-the response bytes as `sequence, length, echoed payload, port 0, port 1,
-port 4`; for example, the three final bytes after the echo are the switch-port
-snapshot captured by the test ROM.
+`$2803`; the complete transaction includes its length at `$2802` and sequence
+at `$2800`, and is then published with one atomic bank selection. A valid
+framed 8085 response acknowledges that sequence. The round-trip ROM's `rx`
+response contains `sequence, length, echoed payload`, the RST 6.5-latched
+Port-0 events, RST 5.5-latched Port-1 events, direct ports 4/5, and the 32 raw
+playfield-DMA samples.
 
 ## Notes on the core1 loop's two glitch fixes
 

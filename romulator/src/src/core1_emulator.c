@@ -19,7 +19,7 @@ volatile bool emu_aperture_enabled = false;
 #define APERTURE_CPU_ACK_OFFSET 1u
 #define APERTURE_LENGTH_OFFSET 2u
 #define APERTURE_PAYLOAD_OFFSET 3u
-#define APERTURE_MAX_PAYLOAD (APERTURE_INPUT_SIZE - APERTURE_PAYLOAD_OFFSET - 1u)
+#define APERTURE_MAX_PAYLOAD (APERTURE_INPUT_SIZE - APERTURE_PAYLOAD_OFFSET - 2u)
 #define STROBE_FRAME_MAX (APERTURE_MAX_PAYLOAD + 3u)
 #define STROBE_SETTLED_SAMPLES 4u
 #define CE4_BUFFER_APERTURE 0xfeu
@@ -37,7 +37,11 @@ static volatile uint8_t s_strobe_last_sequence;
 static volatile uint8_t s_strobe_last_length;
 static volatile uint8_t s_strobe_last_calculated_crc;
 static volatile uint8_t s_strobe_last_received_crc;
-static volatile uint8_t s_aperture_input[APERTURE_INPUT_SIZE];
+// Core0 constructs a complete transaction in the inactive bank, then flips
+// this single-byte selector. Core1 therefore never serves a mailbox while it
+// is being rewritten in place.
+static volatile uint8_t s_aperture_input[2][APERTURE_INPUT_SIZE];
+static volatile uint8_t s_aperture_active_bank;
 static volatile uint8_t s_cpu_ack;
 
 static inline void __not_in_flash_func(strobe_push)(uint8_t value)
@@ -183,7 +187,8 @@ static void __not_in_flash_func(core1_main)(void)
         // Mailbox reads are also timing-critical. Parse address-strobe frames
         // only after the data bus has either been driven or explicitly freed.
         if (aperture_cycle && !aperture_strobe) {
-            uint8_t data = addr == APERTURE_CPU_ACK_OFFSET ? s_cpu_ack : s_aperture_input[addr];
+            uint8_t bank = s_aperture_active_bank;
+            uint8_t data = addr == APERTURE_CPU_ACK_OFFSET ? s_cpu_ack : s_aperture_input[bank][addr];
             uint32_t data_bits = ((uint32_t)data) << PIN_DATA_BASE;
             uint32_t diff = (data_bits ^ current_data_bits) & DATA_MASK;
             if (diff) {
@@ -225,7 +230,8 @@ static void __not_in_flash_func(core1_main)(void)
                             s_strobe_last_calculated_crc = crc;
                             if (crc != strobe_frame[delivered_length]) {
                                 s_strobe_crc_errors++;
-                            } else if (strobe_frame[0] != s_aperture_input[0]) {
+                            } else if (strobe_frame[0] !=
+                                s_aperture_input[s_aperture_active_bank][0]) {
                                 // Only the currently pending host sequence is
                                 // a legal response. A stale but internally
                                 // valid frame must never rewind the ack.
@@ -303,27 +309,34 @@ uint32_t core1_emulator_strobe_crc_errors(void)
 
 bool core1_emulator_publish_aperture(const uint8_t *payload, size_t length, uint8_t *sequence)
 {
+    uint8_t active_bank = s_aperture_active_bank;
     if (!emu_aperture_enabled || length > APERTURE_MAX_PAYLOAD ||
-        s_aperture_input[0] != s_cpu_ack) return false;
+        s_aperture_input[active_bank][0] != s_cpu_ack) return false;
 
-    uint8_t next = (uint8_t)(s_aperture_input[0] + 1u);
+    uint8_t next = (uint8_t)(s_aperture_input[active_bank][0] + 1u);
+    uint8_t next_bank = active_bank ^ 1u;
     uint8_t crc = crc8_update(0, next);
     crc = crc8_update(crc, (uint8_t)length);
     for (size_t i = 0; i < length; i++) {
-        s_aperture_input[APERTURE_PAYLOAD_OFFSET + i] = payload[i];
+        s_aperture_input[next_bank][APERTURE_PAYLOAD_OFFSET + i] = payload[i];
         crc = crc8_update(crc, payload[i]);
     }
-    s_aperture_input[APERTURE_PAYLOAD_OFFSET + length] = crc;
-    s_aperture_input[APERTURE_LENGTH_OFFSET] = (uint8_t)length;
-    __compiler_memory_barrier();
-    s_aperture_input[0] = next;
+    s_aperture_input[next_bank][APERTURE_PAYLOAD_OFFSET + length] = crc;
+    s_aperture_input[next_bank][APERTURE_PAYLOAD_OFFSET + length + 1u] = (uint8_t)~crc;
+    s_aperture_input[next_bank][APERTURE_LENGTH_OFFSET] = (uint8_t)length;
+    s_aperture_input[next_bank][0] = next;
+    // Make the entire immutable transaction visible before atomically
+    // selecting its bank for core1 and the target CPU.
+    __mem_fence_release();
+    s_aperture_active_bank = next_bank;
     if (sequence) *sequence = next;
     return true;
 }
 
 void core1_emulator_aperture_sequences(uint8_t *host_sequence, uint8_t *cpu_ack)
 {
-    if (host_sequence) *host_sequence = s_aperture_input[0];
+    uint8_t bank = s_aperture_active_bank;
+    if (host_sequence) *host_sequence = s_aperture_input[bank][0];
     if (cpu_ack) *cpu_ack = s_cpu_ack;
 }
 
