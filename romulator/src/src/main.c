@@ -85,6 +85,7 @@ int main(void)
 
     while (true) {
         tud_task();
+        core1_emulator_task();
         usb_control_task();
 #ifndef APERTURE_ONLY
         msc_disk_task();

@@ -11,6 +11,8 @@ volatile bool emu_rom5_present = true;
 volatile bool emu_aperture_enabled = false;
 
 #define STROBE_RING_SIZE 256u
+#define STROBE_EVENT_START 0x100u
+#define STROBE_EVENT_END   0x101u
 #define STROBE_HIGH_BASE 0x0c0u
 #define STROBE_LOW_BASE  0x0d0u
 #define STROBE_FRAME_START 0x0e0u
@@ -28,7 +30,11 @@ volatile bool emu_aperture_enabled = false;
 static volatile uint8_t s_strobe_ring[STROBE_RING_SIZE];
 static volatile uint8_t s_strobe_head;
 static volatile uint8_t s_strobe_tail;
+static volatile uint16_t s_strobe_event_ring[STROBE_RING_SIZE];
+static volatile uint8_t s_strobe_event_head;
+static volatile uint8_t s_strobe_event_tail;
 static volatile uint32_t s_strobe_drops;
+static volatile uint32_t s_strobe_event_drops;
 static volatile uint32_t s_strobe_crc_errors;
 static volatile uint32_t s_strobe_frames;
 static volatile uint32_t s_strobe_malformed;
@@ -51,8 +57,11 @@ static volatile uint8_t __scratch_y("aperture_mailbox")
     s_aperture_input[2][APERTURE_INPUT_SIZE];
 static volatile uint8_t s_aperture_active_bank;
 static volatile uint8_t s_cpu_ack;
+static uint8_t s_strobe_frame[STROBE_FRAME_MAX];
+static size_t s_strobe_frame_length;
+static bool s_strobe_frame_active;
 
-static inline void __not_in_flash_func(strobe_push)(uint8_t value)
+static inline void strobe_push(uint8_t value)
 {
     uint8_t next = (uint8_t)(s_strobe_head + 1u);
     if (next == s_strobe_tail) {
@@ -64,18 +73,32 @@ static inline void __not_in_flash_func(strobe_push)(uint8_t value)
     s_strobe_head = next;
 }
 
-static inline size_t __not_in_flash_func(strobe_ring_free)(void)
+static inline size_t strobe_ring_free(void)
 {
     return (uint8_t)(s_strobe_tail - s_strobe_head - 1u);
 }
 
-static inline uint8_t __not_in_flash_func(crc8_update)(uint8_t crc, uint8_t value)
+static inline uint8_t crc8_update(uint8_t crc, uint8_t value)
 {
     crc ^= value;
     for (unsigned bit = 0; bit < 8u; bit++) {
         crc = (uint8_t)((crc << 1) ^ ((crc & 0x80u) ? 0x07u : 0u));
     }
     return crc;
+}
+
+// Core1 records only compact address-strobe events. It must never assemble a
+// frame or calculate CRC while the 8085 is waiting for its next ROM fetch.
+static inline void __not_in_flash_func(strobe_event_push)(uint16_t event)
+{
+    uint8_t next = (uint8_t)(s_strobe_event_head + 1u);
+    if (next == s_strobe_event_tail) {
+        s_strobe_event_drops++;
+        return;
+    }
+    s_strobe_event_ring[s_strobe_event_head] = event;
+    __compiler_memory_barrier();
+    s_strobe_event_head = next;
 }
 
 // Precomputed per-chip CE bit position within sio_hw->gpio_in, in priority
@@ -111,9 +134,6 @@ static void __scratch_x("core1_bus_loop") core1_main(void)
     uint32_t previous_strobe_addr = 0xffffffffu;
     uint8_t strobe_high_nibble = 0;
     bool strobe_high_valid = false;
-    uint8_t strobe_frame[STROBE_FRAME_MAX];
-    size_t strobe_frame_length = 0;
-    bool strobe_frame_active = false;
 
     while (true) {
         uint32_t gpio_in = sio_hw->gpio_in;
@@ -177,60 +197,20 @@ static void __scratch_x("core1_bus_loop") core1_main(void)
 
         if (aperture_cycle && aperture_strobe && addr != previous_strobe_addr) {
             previous_strobe_addr = addr;
-                if (addr == STROBE_FRAME_START) {
-                    strobe_frame_active = true;
-                    strobe_frame_length = 0;
-                    strobe_high_valid = false;
-                } else if (addr == STROBE_FRAME_END) {
-                    if (strobe_frame_active) s_strobe_frames++;
-                    if (strobe_frame_active && strobe_frame_length >= 3u &&
-                        strobe_frame_length == (size_t)strobe_frame[1] + 3u) {
-                        size_t delivered_length = strobe_frame_length - 1u;
-                        s_strobe_last_sequence = strobe_frame[0];
-                        s_strobe_last_length = strobe_frame[1];
-                        s_strobe_last_received_crc = strobe_frame[delivered_length];
-                        if (strobe_frame[0] == s_cpu_ack) {
-                            // A retry of an already accepted transaction is
-                            // acknowledged but never delivered twice. Its
-                            // contents are irrelevant, so avoid spending the
-                            // timing-critical bus core on another CRC pass.
-                        } else {
-                            uint8_t crc = 0;
-                            for (size_t i = 0; i < delivered_length; i++) crc = crc8_update(crc, strobe_frame[i]);
-                            s_strobe_last_calculated_crc = crc;
-                            if (crc != strobe_frame[delivered_length]) {
-                                s_strobe_crc_errors++;
-                            } else if (strobe_frame[0] !=
-                                s_aperture_input[s_aperture_active_bank][0]) {
-                                // Only the currently pending host sequence is
-                                // a legal response. A stale but internally
-                                // valid frame must never rewind the ack.
-                                s_strobe_stale++;
-                            } else if (strobe_ring_free() >= delivered_length) {
-                                for (size_t i = 0; i < delivered_length; i++) strobe_push(strobe_frame[i]);
-                                __compiler_memory_barrier();
-                                s_cpu_ack = strobe_frame[0];
-                            } else {
-                                s_strobe_drops += (uint32_t)delivered_length;
-                            }
-                        }
-                    } else if (strobe_frame_active) {
-                        s_strobe_malformed++;
-                    }
-                    strobe_frame_active = false;
-                    strobe_high_valid = false;
-                } else if ((addr & ~STROBE_NIBBLE_MASK) == STROBE_HIGH_BASE) {
-                    strobe_high_nibble = (uint8_t)(addr & STROBE_NIBBLE_MASK);
-                    strobe_high_valid = true;
-                } else if ((addr & ~STROBE_NIBBLE_MASK) == STROBE_LOW_BASE && strobe_high_valid) {
-                    uint8_t value = (uint8_t)((strobe_high_nibble << 4) |
-                        (addr & STROBE_NIBBLE_MASK));
-                    if (strobe_frame_active) {
-                        if (strobe_frame_length < sizeof strobe_frame) strobe_frame[strobe_frame_length++] = value;
-                        else strobe_frame_active = false;
-                    }
-                    strobe_high_valid = false;
-                }
+            if (addr == STROBE_FRAME_START) {
+                strobe_event_push(STROBE_EVENT_START);
+                strobe_high_valid = false;
+            } else if (addr == STROBE_FRAME_END) {
+                strobe_event_push(STROBE_EVENT_END);
+                strobe_high_valid = false;
+            } else if ((addr & ~STROBE_NIBBLE_MASK) == STROBE_HIGH_BASE) {
+                strobe_high_nibble = (uint8_t)(addr & STROBE_NIBBLE_MASK);
+                strobe_high_valid = true;
+            } else if ((addr & ~STROBE_NIBBLE_MASK) == STROBE_LOW_BASE && strobe_high_valid) {
+                strobe_event_push((uint8_t)((strobe_high_nibble << 4) |
+                    (addr & STROBE_NIBBLE_MASK)));
+                strobe_high_valid = false;
+            }
         } else if (!aperture_cycle) {
             previous_strobe_addr = 0xffffffffu;
         }
@@ -240,6 +220,67 @@ static void __scratch_x("core1_bus_loop") core1_main(void)
 void core1_emulator_launch(void)
 {
     multicore_launch_core1(core1_main);
+}
+
+void core1_emulator_task(void)
+{
+    while (s_strobe_event_tail != s_strobe_event_head) {
+        uint16_t event = s_strobe_event_ring[s_strobe_event_tail];
+        __compiler_memory_barrier();
+        s_strobe_event_tail = (uint8_t)(s_strobe_event_tail + 1u);
+
+        if (event == STROBE_EVENT_START) {
+            s_strobe_frame_active = true;
+            s_strobe_frame_length = 0;
+            continue;
+        }
+        if (event != STROBE_EVENT_END) {
+            if (s_strobe_frame_active) {
+                if (s_strobe_frame_length < sizeof s_strobe_frame) {
+                    s_strobe_frame[s_strobe_frame_length++] = (uint8_t)event;
+                } else {
+                    s_strobe_frame_active = false;
+                }
+            }
+            continue;
+        }
+
+        if (!s_strobe_frame_active) continue;
+        s_strobe_frames++;
+        if (s_strobe_frame_length < 3u ||
+            s_strobe_frame_length != (size_t)s_strobe_frame[1] + 3u) {
+            s_strobe_malformed++;
+            s_strobe_frame_active = false;
+            continue;
+        }
+
+        size_t delivered_length = s_strobe_frame_length - 1u;
+        s_strobe_last_sequence = s_strobe_frame[0];
+        s_strobe_last_length = s_strobe_frame[1];
+        s_strobe_last_received_crc = s_strobe_frame[delivered_length];
+        if (s_strobe_frame[0] != s_cpu_ack) {
+            uint8_t crc = 0;
+            for (size_t i = 0; i < delivered_length; i++) {
+                crc = crc8_update(crc, s_strobe_frame[i]);
+            }
+            s_strobe_last_calculated_crc = crc;
+            if (crc != s_strobe_frame[delivered_length]) {
+                s_strobe_crc_errors++;
+            } else if (s_strobe_frame[0] !=
+                s_aperture_input[s_aperture_active_bank][0]) {
+                s_strobe_stale++;
+            } else if (strobe_ring_free() >= delivered_length) {
+                for (size_t i = 0; i < delivered_length; i++) {
+                    strobe_push(s_strobe_frame[i]);
+                }
+                __compiler_memory_barrier();
+                s_cpu_ack = s_strobe_frame[0];
+            } else {
+                s_strobe_drops += (uint32_t)delivered_length;
+            }
+        }
+        s_strobe_frame_active = false;
+    }
 }
 
 void core1_emulator_publish(unsigned chip, unsigned staging_buffer)
@@ -276,7 +317,7 @@ size_t core1_emulator_read_strobes(uint8_t *destination, size_t capacity)
 
 uint32_t core1_emulator_strobe_drops(void)
 {
-    return s_strobe_drops;
+    return s_strobe_drops + s_strobe_event_drops;
 }
 
 uint32_t core1_emulator_strobe_crc_errors(void)

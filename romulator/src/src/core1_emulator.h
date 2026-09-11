@@ -21,6 +21,10 @@ extern volatile bool emu_aperture_enabled;
 // from flash, and before core1 is launched.
 void core1_emulator_launch(void);
 
+// Drain and validate raw address-strobe events captured by core1. This runs
+// on core0 so framing and CRC work can never delay an 8085 ROM access.
+void core1_emulator_task(void);
+
 // Core0 calls this after committing a new image for `chip` into
 // emu_rom_image[chip][staging_buffer] to make it live.
 void core1_emulator_publish(unsigned chip, unsigned staging_buffer);

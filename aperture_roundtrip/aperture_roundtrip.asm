@@ -378,12 +378,13 @@ VERIFY_HOST_CRC_AGAIN:
         CMP M
         JNZ POLL_HOST
 
-; One-way ablation test: manifest only byte zero as a lamp selector. Do not
-; capture switches, acknowledge the sequence, or execute outbound strobes.
+; Echo de-ablation test: manifest byte zero as a lamp selector, then return
+; only the validated sequence, length and payload. Switch capture and the
+; 8085-side acknowledgement/retry handshake remain out of the active path.
         CALL MANIFEST_LAMP_COMMAND
         LDA LOCAL_PENDING_SEQUENCE
         MOV C,A
-        JMP POLL_HOST
+        JMP TRANSMIT_RESPONSE
 
 ; Retained temporarily for comparison, but unreachable in this build.
 CAPTURE_HOST_RESPONSE:
@@ -429,12 +430,11 @@ TRANSMIT_RESPONSE:
         MOV A,C
         CALL SEND_BYTE
         LDA LOCAL_LENGTH
-        ADI #24
         CALL SEND_BYTE
 
         LDA LOCAL_LENGTH
         ORA A
-        JZ SEND_SWITCH_SNAPSHOT
+        JZ FINISH_RESPONSE
         MOV B,A
         LXI H, LOCAL_PAYLOAD
 SEND_PAYLOAD:
@@ -443,7 +443,9 @@ SEND_PAYLOAD:
         INX H
         DCR B
         JNZ SEND_PAYLOAD
+        JMP FINISH_RESPONSE
 
+; Retained temporarily for comparison, but unreachable in the echo-only test.
 SEND_SWITCH_SNAPSHOT:
         LDA LOCAL_SWITCH_0
         CALL SEND_BYTE
@@ -466,11 +468,9 @@ FINISH_RESPONSE:
         MOV A,D
         CALL SEND_RAW_BYTE
         LDA #28e1
+        JMP POLL_HOST
 
-; The host cannot publish another sequence until the Pico has accepted this
-; response. Thus an advanced HOST_SEQUENCE proves acknowledgement without a
-; timing-sensitive CPU_ACK read. While it remains unchanged, retransmit; the
-; Pico deduplicates already accepted frames.
+; Retained temporarily for comparison, but unreachable in the echo-only test.
 WAIT_FOR_NEXT_OR_RETRY:
         MVI E,#ff
 WAIT_FOR_NEXT_SEQUENCE:
