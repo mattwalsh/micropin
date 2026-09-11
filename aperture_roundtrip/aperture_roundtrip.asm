@@ -9,11 +9,13 @@
 ;   followed by its inverse
 ;
 ; Response frame uses address strobes:
-;   read $2a00 to start
+;   read $28e0 to start
 ;   transmit sequence, length, echoed payload, port 0, the RST 5.5-latched
-;   Port-1 reflex events, ports 4/5, the 32 raw playfield DMA samples at
-;   $23e0-$23ff, and CRC-8 as one read from $2900+byte
-;   read $2a01 to finish and acknowledge the host sequence
+;   Port-1 reflex events, cabinet Port 4, one reserved byte, the 32 raw
+;   playfield DMA samples at
+;   $23e0-$23ff, and CRC-8 as paired high/low-nibble reads from
+;   $28c0+nibble and $28d0+nibble
+;   read $28e1 to finish and acknowledge the host sequence
 
 HOST_SEQUENCE EQU #2800
 CPU_ACK EQU #2801
@@ -46,6 +48,7 @@ CUP_COMMAND_BYTE EQU #227d
 PREVIOUS_CUP_COMMAND EQU #227f
 DISCARD_BOOT_COMMAND EQU #2280
 TRAP_COUNT EQU #2281
+RESET_COUNT EQU #2282
 SWITCH_DMA_SOURCE EQU #23e0
 SWITCH_CHANGE_DISPLAY EQU #23d3
 MAX_PAYLOAD EQU #20
@@ -74,6 +77,13 @@ STACK_TOP EQU #23c0
 RESET_ENTRY:
         DI
         LXI SP,STACK_TOP
+; Preserve one retained byte across our deliberate full-RAM clear. Its absolute
+; value after the very first installation is unimportant; every subsequent
+; genuine RESET entry increments it, while TRAP does not.
+        LDA RESET_COUNT
+        ADI #01
+        DAA
+        MOV C,A
 ; Visible cold-entry witness, deliberately confined to the reset vector so a
 ; TRAP cannot restart the delay. De-energize every coil first, light lamp output
 ; 13 (cup #5) for roughly 0.26 s at 1.5 MHz, then proceed to normal START.
@@ -97,20 +107,15 @@ RESET_WITNESS_DELAY:
         JNZ RESET_WITNESS_DELAY
         MVI A,#ff
         OUT #01
-        MVI C,#00
-        MVI E,#01
         JMP START
 
 TRAP_ENTRY:
         PUSH PSW
         LDA TRAP_COUNT
-        INR A
+        ADI #01
+        DAA
         STA TRAP_COUNT
-        STA SWITCH_CHANGE_DISPLAY+#02
-        XRA A
         STA SWITCH_CHANGE_DISPLAY+#01
-        MVI A,#02
-        STA SWITCH_CHANGE_DISPLAY
         POP PSW
         RET
 
@@ -159,15 +164,17 @@ CLEAR_RAM_PAGE:
         DCR B
         JNZ CLEAR_RAM_PAGE
 
-; The full clear deliberately erases the old diagnostic with all retained RAM.
-; Restore the count carried in C and show the latest entry as RR 00 NN, where
-; RR=01 means RESET, RR=02 means TRAP, and NN is the trap count in hex.
+; The full clear deliberately erases the old diagnostic and RESET_COUNT. Restore
+; the count carried in C. In RAM-byte order this is 01 TT RR; the physical
+; display presents those bytes as RR TT 01: retained genuine-reset count,
+; TRAP count since this reset, and a fixed marker.
         MOV A,C
-        STA TRAP_COUNT
         STA SWITCH_CHANGE_DISPLAY+#02
+        STA RESET_COUNT
         XRA A
+        STA TRAP_COUNT
         STA SWITCH_CHANGE_DISPLAY+#01
-        MOV A,E
+        MVI A,#01
         STA SWITCH_CHANGE_DISPLAY
         XRA A
 
@@ -208,29 +215,17 @@ INITIALIZE_SWITCH_BASELINE:
         IN #00
         MVI A,#0c
         SIM
-READ_INITIAL_ACK:
-        LDA CPU_ACK
-        MOV B,A
-        LDA CPU_ACK
-        CMP B
-        JNZ READ_INITIAL_ACK
-        MOV C,A
-
-; The Pico survives an 8085 reset. If it still holds an unacknowledged command
-; (especially a client's final reflex-inhibit), consume and echo that command
-; to repair the sequence handshake, but do not let pre-reset output state alter
-; this boot's safe defaults. A live host's following heartbeat applies normally.
+; One-way host-to-8085 diagnostic mode. Adopt the current sequence as the
+; baseline so retained pre-reset data is ignored. Only a later host update is
+; acted upon; there is deliberately no CPU acknowledgement or response.
 READ_INITIAL_HOST_SEQUENCE:
         LDA HOST_SEQUENCE
         MOV B,A
         LDA HOST_SEQUENCE
         CMP B
         JNZ READ_INITIAL_HOST_SEQUENCE
-        CMP C
-        JZ POLL_HOST
-        MVI A,#01
-        STA DISCARD_BOOT_COMMAND
-        JMP RECEIVE_HOST_TRANSACTION
+        MOV C,A
+        JMP POLL_HOST
 
 POLL_HOST:
 ; Do not hammer the physical CE4 aperture at the maximum 8085 bus rate while
@@ -383,17 +378,14 @@ VERIFY_HOST_CRC_AGAIN:
         CMP M
         JNZ POLL_HOST
 
-        LDA DISCARD_BOOT_COMMAND
-        ORA A
-        JZ MANIFEST_HOST_COMMAND
-        XRA A
-        STA DISCARD_BOOT_COMMAND
-        JMP CAPTURE_HOST_RESPONSE
-MANIFEST_HOST_COMMAND:
-; Resolve control state first so the lamp image can incorporate the inhibit
-; indicator before its one and only physical port write.
-        CALL MANIFEST_CONTROL_COMMANDS
+; One-way ablation test: manifest only byte zero as a lamp selector. Do not
+; capture switches, acknowledge the sequence, or execute outbound strobes.
         CALL MANIFEST_LAMP_COMMAND
+        LDA LOCAL_PENDING_SEQUENCE
+        MOV C,A
+        JMP POLL_HOST
+
+; Retained temporarily for comparison, but unreachable in this build.
 CAPTURE_HOST_RESPONSE:
 ; Capture one coherent input snapshot for this transaction. Retransmissions
 ; reuse these bytes rather than changing the response underneath its sequence.
@@ -407,12 +399,17 @@ CAPTURE_HOST_RESPONSE:
         STA LOCAL_SWITCH_1
         XRA A
         STA REFLEX_EVENT_LATCH
-; Temporary CRC-protected diagnostics replace ports 4/5 in this response:
-; pre-command REFLEX_ENABLED, followed by the post-command 8085 RIM value.
-        LDA REFLEX_PRECOMMAND
+; Cabinet controls do not need interrupt latency; sample Port 4 once per host
+; transaction. Port 5 contains DIP switches and is intentionally omitted in
+; aperture mode. Keep one reserved zero byte so the established 36-byte switch
+; trailer and its host parsers remain stable.
+        IN #04
         STA LOCAL_SWITCH_4
-        RIM
+        XRA A
         STA LOCAL_SWITCH_5
+; Keep the timing-sensitive response transmitter at its previously tested ROM
+; addresses. Replacing LDA+RIM with IN+XRA made this block one byte shorter.
+        NOP
         LXI H,SWITCH_DMA_SOURCE
         LXI D,LOCAL_SWITCH_DMA
         MVI B,#20
@@ -427,7 +424,7 @@ CAPTURE_SWITCH_DMA:
         MOV C,A
 
 TRANSMIT_RESPONSE:
-        LDA #2a00
+        LDA #28e0
         MVI D,#00
         MOV A,C
         CALL SEND_BYTE
@@ -468,7 +465,7 @@ SEND_SWITCH_DMA:
 FINISH_RESPONSE:
         MOV A,D
         CALL SEND_RAW_BYTE
-        LDA #2a01
+        LDA #28e1
 
 ; The host cannot publish another sequence until the Pico has accepted this
 ; response. Thus an advanced HOST_SEQUENCE proves acknowledgement without a
@@ -776,7 +773,7 @@ LOCAL_COILS_READY:
         POP B
         RET
 
-; Add A to CRC-8 D, then send it as one observable read while preserving the
+; Add A to CRC-8 D, then send it as two observable reads while preserving the
 ; caller's HL, B, and original A value until the raw transmitter receives it.
 SEND_BYTE:
         PUSH PSW
@@ -805,24 +802,24 @@ CRC_NO_POLY:
 
 SEND_RAW_BYTE:
         PUSH H
+        PUSH PSW
+        ANI #f0
+        RRC
+        RRC
+        RRC
+        RRC
+        ORI #c0
         MOV L,A
-        MVI H,#29
-; The old two-nibble encoder incidentally left substantial ROM-fetch time
-; between observable CE4 reads. Preserve a modest gap so the Pico can finish
-; parsing one address before the next strobe arrives. These fetches do not add
-; any events to the protocol and are negligible beside USB round-trip time.
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
+        MVI H,#28
+        MOV A,M
+        POP PSW
+        POP H
+
+        PUSH H
+        ANI #0f
+        ORI #d0
+        MOV L,A
+        MVI H,#28
         MOV A,M
         POP H
         RET

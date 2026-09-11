@@ -23,7 +23,11 @@ extern "C" {
 #define CFG_TUD_ENDPOINT0_SIZE      64
 
 #define CFG_TUD_CDC                 1
+#ifdef APERTURE_ONLY
+#define CFG_TUD_MSC                 0
+#else
 #define CFG_TUD_MSC                 1
+#endif
 #define CFG_TUD_HID                 0
 #define CFG_TUD_MIDI                0
 #define CFG_TUD_VENDOR              0

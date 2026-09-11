@@ -274,6 +274,20 @@ bool msc_disk_aperture_enabled(void)
     return s_aperture_enabled;
 }
 
+void msc_disk_set_ejected(bool ejected)
+{
+    if (ejected && !s_ejected) {
+        commit_all_dirty();
+        s_write_pending = false;
+    }
+    s_ejected = ejected;
+}
+
+bool msc_disk_is_ejected(void)
+{
+    return s_ejected;
+}
+
 void msc_disk_task(void)
 {
     if (s_write_pending && absolute_time_diff_us(s_last_write_time, get_absolute_time()) > COMMIT_IDLE_US) {
@@ -281,6 +295,7 @@ void msc_disk_task(void)
     }
 }
 
+#ifndef APERTURE_ONLY
 void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4])
 { (void)lun; memcpy(vendor_id, "PICOEMU ", 8); memcpy(product_id, "EPROM5 EMULATOR ", 16); memcpy(product_rev, "1.0 ", 4); }
 
@@ -289,8 +304,11 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun)
 
 bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, bool load_eject)
 {
-    (void)lun; (void)power_condition;
-    if (load_eject && !start) { commit_all_dirty(); s_write_pending = false; s_ejected = true; }
+    (void)lun; (void)power_condition; (void)load_eject;
+    // macOS does not consistently set LOEJ when Finder ejects this virtual
+    // disk. Treat any STOP as an eject and do not honor a subsequent automatic
+    // START; otherwise the volume immediately remounts itself.
+    if (!start) msc_disk_set_ejected(true);
     return true;
 }
 
@@ -301,7 +319,7 @@ bool tud_msc_is_writable_cb(uint8_t lun) { (void)lun; return !s_ejected; }
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void *buffer, uint32_t bufsize)
 {
     (void)lun;
-    if (lba >= TOTAL_SECTORS || offset > SECTOR_SIZE || bufsize > SECTOR_SIZE - offset) return -1;
+    if (s_ejected || lba >= TOTAL_SECTORS || offset > SECTOR_SIZE || bufsize > SECTOR_SIZE - offset) return -1;
     memcpy(buffer, s_disk[lba] + offset, bufsize); return (int32_t)bufsize;
 }
 
@@ -319,3 +337,4 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void *buffer, u
     if (scsi_cmd[0] == 0x35) { commit_all_dirty(); s_write_pending = false; return 0; }
     tud_msc_set_sense(lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00); return -1;
 }
+#endif

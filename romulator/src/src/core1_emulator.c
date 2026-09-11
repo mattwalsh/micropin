@@ -11,22 +11,17 @@ volatile bool emu_rom5_present = true;
 volatile bool emu_aperture_enabled = false;
 
 #define STROBE_RING_SIZE 256u
-#define STROBE_DATA_BASE 0x100u
-#define STROBE_DATA_END  0x1ffu
-#define STROBE_FRAME_START 0x200u
-#define STROBE_FRAME_END   0x201u
-// Keep diagnostic markers far from the heavily used $200/$201 frame strobes
-// and from each other. Adjacent $202/$203 values proved vulnerable to address
-// transitions being mistaken for CPU entry events on the real bus.
-#define STROBE_CPU_RESET   0x555u
-#define STROBE_CPU_TRAP    0x6aau
+#define STROBE_HIGH_BASE 0x0c0u
+#define STROBE_LOW_BASE  0x0d0u
+#define STROBE_FRAME_START 0x0e0u
+#define STROBE_FRAME_END   0x0e1u
+#define STROBE_NIBBLE_MASK 0x0fu
 #define APERTURE_INPUT_SIZE 0x0c0u
 #define APERTURE_CPU_ACK_OFFSET 1u
 #define APERTURE_LENGTH_OFFSET 2u
 #define APERTURE_PAYLOAD_OFFSET 3u
 #define APERTURE_MAX_PAYLOAD (APERTURE_INPUT_SIZE - APERTURE_PAYLOAD_OFFSET - 2u)
 #define STROBE_FRAME_MAX (APERTURE_MAX_PAYLOAD + 3u)
-#define STROBE_SETTLED_SAMPLES 4u
 #define CE4_BUFFER_APERTURE 0xfeu
 #define CE4_BUFFER_DISABLED 0xffu
 
@@ -42,12 +37,18 @@ static volatile uint8_t s_strobe_last_sequence;
 static volatile uint8_t s_strobe_last_length;
 static volatile uint8_t s_strobe_last_calculated_crc;
 static volatile uint8_t s_strobe_last_received_crc;
+// Retained in the diagnostic reply for compatibility. The nibble transport
+// deliberately has no out-of-band reset/TRAP marker addresses.
 static volatile uint32_t s_cpu_reset_count;
 static volatile uint32_t s_cpu_trap_count;
 // Core0 constructs a complete transaction in the inactive bank, then flips
 // this single-byte selector. Core1 therefore never serves a mailbox while it
 // is being rewritten in place.
-static volatile uint8_t s_aperture_input[2][APERTURE_INPUT_SIZE];
+// Keep the shared mailbox out of the striped main SRAM banks used by the ROM
+// images. Core0 writes only the inactive bank; core1 reads only the active
+// bank, and the selector flip publishes a complete transaction atomically.
+static volatile uint8_t __scratch_y("aperture_mailbox")
+    s_aperture_input[2][APERTURE_INPUT_SIZE];
 static volatile uint8_t s_aperture_active_bank;
 static volatile uint8_t s_cpu_ack;
 
@@ -77,26 +78,6 @@ static inline uint8_t __not_in_flash_func(crc8_update)(uint8_t crc, uint8_t valu
     return crc;
 }
 
-// Unlike a normal ROM read, an outbound strobe does not need data returned
-// within the 8085 access window. Once /CE4 is active, wait for A0..A10 to
-// repeat a few times before interpreting the address. This rejects skewed
-// intermediate values without adding latency to instruction or mailbox reads.
-static inline uint32_t __not_in_flash_func(sample_settled_strobe_address)(void)
-{
-    uint32_t candidate = sio_hw->gpio_in & ADDR_MASK;
-    unsigned stable = 0;
-    while (!(sio_hw->gpio_in & (1u << PIN_CE4))) {
-        uint32_t next = sio_hw->gpio_in & ADDR_MASK;
-        if (next == candidate) {
-            if (++stable >= STROBE_SETTLED_SAMPLES) return candidate;
-        } else {
-            candidate = next;
-            stable = 0;
-        }
-    }
-    return 0xffffffffu;
-}
-
 // Precomputed per-chip CE bit position within sio_hw->gpio_in, in priority
 // order. If more than one CE is asserted at once (shouldn't happen on real
 // hardware, but wiring glitches happen), the lowest-numbered chip wins.
@@ -112,7 +93,10 @@ static const uint8_t ce_pin[NUM_CHIPS] = { PIN_CE0, PIN_CE1, PIN_CE2, PIN_CE3, P
 // correctness during that window is handled separately by holding
 // /TARGET_RESET, not by stopping this loop.
 // -----------------------------------------------------------------------
-static void __not_in_flash_func(core1_main)(void)
+// Scratch X is a private 4 KiB SRAM bank. Keeping the complete hot loop here
+// prevents USB activity on core0 from stalling core1 instruction fetches in
+// striped main SRAM while the 8085 is waiting for an EPROM byte.
+static void __scratch_x("core1_bus_loop") core1_main(void)
 {
     // Data bus starts tristated, bus-driven flag starts deasserted (idle high).
     sio_hw->gpio_oe_clr = DATA_MASK;
@@ -124,30 +108,15 @@ static void __not_in_flash_func(core1_main)(void)
     // clear-then-set sequence.
     uint32_t current_data_bits = 0;
 
-    // Simple 2-sample debounce on the address+CE bus: a raw async loop
-    // this fast can catch a genuinely transient value while the driving
-    // system's address lines are still settling/ringing mid-transition --
-    // something a real (much slower) 2716 physically can't do. Requiring
-    // the same raw reading twice in a row filters that out at negligible
-    // cost against the 450ns budget.
-    uint32_t prev_sample = 0xFFFFFFFFu; // sentinel, guaranteed to mismatch first pass
-    bool aperture_ce_cycle_seen = false;
+    uint32_t previous_strobe_addr = 0xffffffffu;
+    uint8_t strobe_high_nibble = 0;
+    bool strobe_high_valid = false;
     uint8_t strobe_frame[STROBE_FRAME_MAX];
     size_t strobe_frame_length = 0;
     bool strobe_frame_active = false;
 
-    const uint32_t ce_mask = (1u << PIN_CE0) | (1u << PIN_CE1) |
-        (1u << PIN_CE2) | (1u << PIN_CE3) | (1u << PIN_CE4);
-    const uint32_t sampled_bus_mask = ADDR_MASK | ce_mask;
-
     while (true) {
         uint32_t gpio_in = sio_hw->gpio_in;
-        uint32_t bus_sample = gpio_in & sampled_bus_mask;
-
-        if (bus_sample != prev_sample) {
-            prev_sample = bus_sample;
-            continue; // not yet confirmed stable -- leave the bus exactly as it was
-        }
 
         int chip = -1;
         if (!(gpio_in & (1u << PIN_CE0)))      chip = 0;
@@ -178,15 +147,9 @@ static void __not_in_flash_func(core1_main)(void)
             sio_hw->gpio_clr = (1u << PIN_BUS_DRIVEN);
             // Do nonessential aperture bookkeeping only after the ROM byte is
             // safely present on the bus.
-            if (chip != 4) aperture_ce_cycle_seen = false;
+            if (chip != 4) previous_strobe_addr = 0xffffffffu;
             continue;
         }
-
-        // A complete /CE4 assertion is one aperture access. Address lines can
-        // pass through intermediate values while settling, especially now
-        // that a full byte changes A0..A7. Never interpret those transitions
-        // as additional bytes within the same physical read cycle.
-        if (gpio_in & (1u << PIN_CE4)) aperture_ce_cycle_seen = false;
 
         const bool aperture_cycle = chip == 4 && buf == CE4_BUFFER_APERTURE;
         const bool aperture_strobe = aperture_cycle && addr >= APERTURE_INPUT_SIZE;
@@ -194,6 +157,7 @@ static void __not_in_flash_func(core1_main)(void)
         // Mailbox reads are also timing-critical. Parse address-strobe frames
         // only after the data bus has either been driven or explicitly freed.
         if (aperture_cycle && !aperture_strobe) {
+            previous_strobe_addr = 0xffffffffu;
             uint8_t bank = s_aperture_active_bank;
             uint8_t data = addr == APERTURE_CPU_ACK_OFFSET ? s_cpu_ack : s_aperture_input[bank][addr];
             uint32_t data_bits = ((uint32_t)data) << PIN_DATA_BASE;
@@ -211,14 +175,13 @@ static void __not_in_flash_func(core1_main)(void)
             sio_hw->gpio_set = (1u << PIN_BUS_DRIVEN);
         }
 
-        if (aperture_cycle && !aperture_ce_cycle_seen) {
-            aperture_ce_cycle_seen = true;
-            if (aperture_strobe) {
-                const uint32_t strobe_addr = sample_settled_strobe_address();
-                if (strobe_addr == STROBE_FRAME_START) {
+        if (aperture_cycle && aperture_strobe && addr != previous_strobe_addr) {
+            previous_strobe_addr = addr;
+                if (addr == STROBE_FRAME_START) {
                     strobe_frame_active = true;
                     strobe_frame_length = 0;
-                } else if (strobe_addr == STROBE_FRAME_END) {
+                    strobe_high_valid = false;
+                } else if (addr == STROBE_FRAME_END) {
                     if (strobe_frame_active) s_strobe_frames++;
                     if (strobe_frame_active && strobe_frame_length >= 3u &&
                         strobe_frame_length == (size_t)strobe_frame[1] + 3u) {
@@ -255,22 +218,21 @@ static void __not_in_flash_func(core1_main)(void)
                         s_strobe_malformed++;
                     }
                     strobe_frame_active = false;
-                } else if (strobe_addr == STROBE_CPU_RESET) {
-                    // Independent of motherboard RAM: the diagnostic ROM reads
-                    // $2d55 after entering through the reset vector.
-                    s_cpu_reset_count++;
-                } else if (strobe_addr == STROBE_CPU_TRAP) {
-                    // Reading $2eaa distinguishes the non-maskable TRAP vector
-                    // from hardware RESET at address zero.
-                    s_cpu_trap_count++;
-                } else if (strobe_addr >= STROBE_DATA_BASE && strobe_addr <= STROBE_DATA_END) {
-                    uint8_t value = (uint8_t)strobe_addr;
+                    strobe_high_valid = false;
+                } else if ((addr & ~STROBE_NIBBLE_MASK) == STROBE_HIGH_BASE) {
+                    strobe_high_nibble = (uint8_t)(addr & STROBE_NIBBLE_MASK);
+                    strobe_high_valid = true;
+                } else if ((addr & ~STROBE_NIBBLE_MASK) == STROBE_LOW_BASE && strobe_high_valid) {
+                    uint8_t value = (uint8_t)((strobe_high_nibble << 4) |
+                        (addr & STROBE_NIBBLE_MASK));
                     if (strobe_frame_active) {
                         if (strobe_frame_length < sizeof strobe_frame) strobe_frame[strobe_frame_length++] = value;
                         else strobe_frame_active = false;
                     }
+                    strobe_high_valid = false;
                 }
-            }
+        } else if (!aperture_cycle) {
+            previous_strobe_addr = 0xffffffffu;
         }
     }
 }
@@ -331,9 +293,10 @@ void core1_emulator_cpu_start_counts(uint32_t *reset_count, uint32_t *trap_count
 bool core1_emulator_publish_aperture(const uint8_t *payload, size_t length, uint8_t *sequence)
 {
     uint8_t active_bank = s_aperture_active_bank;
-    if (!emu_aperture_enabled || length > APERTURE_MAX_PAYLOAD ||
-        s_aperture_input[active_bank][0] != s_cpu_ack) return false;
+    if (!emu_aperture_enabled || length > APERTURE_MAX_PAYLOAD) return false;
 
+    // One-way diagnostic mode permits replacing an unacknowledged mailbox.
+    // The bank flip still makes each published transaction internally atomic.
     uint8_t next = (uint8_t)(s_aperture_input[active_bank][0] + 1u);
     uint8_t next_bank = active_bank ^ 1u;
     uint8_t crc = crc8_update(0, next);

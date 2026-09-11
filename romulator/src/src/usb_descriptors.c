@@ -2,10 +2,14 @@
 #include "tusb.h"
 
 #define USB_VID   0x2E8A   // Raspberry Pi Trading Ltd vendor ID
+#ifdef APERTURE_ONLY
+#define USB_PID   0x000B
+#else
 #define USB_PID   0x000A   // Placeholder PID -- change if it collides with
                            // something else on your system; this range is
                            // used by several open-source Pico projects, so
                            // treat it as a "pick your own" default.
+#endif
 
 tusb_desc_device_t const desc_device = {
     .bLength            = sizeof(tusb_desc_device_t),
@@ -32,23 +36,30 @@ uint8_t const *tud_descriptor_device_cb(void)
 enum {
     ITF_NUM_CDC = 0,
     ITF_NUM_CDC_DATA,
+#ifndef APERTURE_ONLY
     ITF_NUM_MSC,
+#endif
     ITF_NUM_TOTAL,
 };
 
 #define EPNUM_CDC_NOTIF 0x81
 #define EPNUM_CDC_OUT   0x02
 #define EPNUM_CDC_IN    0x82
+#ifdef APERTURE_ONLY
+#define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN)
+#else
 #define EPNUM_MSC_OUT   0x03
 #define EPNUM_MSC_IN    0x83
-
 #define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_MSC_DESC_LEN)
+#endif
 
 uint8_t const desc_configuration[] = {
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
     TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 4, EPNUM_CDC_NOTIF, 8,
                        EPNUM_CDC_OUT, EPNUM_CDC_IN, 64),
+#ifndef APERTURE_ONLY
     TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 0, EPNUM_MSC_OUT, EPNUM_MSC_IN, 64),
+#endif
 };
 
 uint8_t const *tud_descriptor_configuration_cb(uint8_t index)
@@ -60,7 +71,11 @@ uint8_t const *tud_descriptor_configuration_cb(uint8_t index)
 char const *string_desc_arr[] = {
     (const char[]) { 0x09, 0x04 },       // 0: English (0x0409)
     "Pico EPROM Emulator",               // 1: Manufacturer
+#ifdef APERTURE_ONLY
+    "Micropin Aperture",                 // 2: Product
+#else
     "5x 2716 Emulator Drive",            // 2: Product
+#endif
     "EPROM5-0001",                       // 3: Serial (swap for pico_get_unique_id if you want per-board serials)
     "Romulator Control",                 // 4: CDC ACM control port
 };

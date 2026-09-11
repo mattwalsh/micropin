@@ -18,4 +18,10 @@ void msc_disk_task(void);
 bool msc_disk_rom5_present(void);
 bool msc_disk_aperture_enabled(void);
 
+// Hide or restore the virtual mass-storage medium without disturbing CDC or
+// the running ROM emulator. Ejection persists until an explicit mount or a
+// Pico reboot.
+void msc_disk_set_ejected(bool ejected);
+bool msc_disk_is_ejected(void);
+
 #endif // MSC_DISK_H

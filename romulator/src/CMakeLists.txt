@@ -5,6 +5,8 @@ include(pico_sdk_import.cmake)
 
 project(pico_eprom_emulator C CXX ASM)
 
+option(APERTURE_ONLY "Build CDC-only firmware with CE4 permanently in aperture mode" OFF)
+
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
@@ -36,6 +38,13 @@ target_compile_definitions(pico_eprom_emulator PRIVATE
     PICO_FLASH_ASSUME_CORE1_SAFE=1
 )
 
+if(APERTURE_ONLY)
+    target_compile_definitions(pico_eprom_emulator PRIVATE APERTURE_ONLY=1)
+    pico_set_program_name(pico_eprom_emulator "micropin_aperture")
+else()
+    pico_set_program_name(pico_eprom_emulator "pico_eprom_emulator")
+endif()
+
 target_link_libraries(pico_eprom_emulator PRIVATE
     pico_stdlib
     pico_multicore
@@ -48,7 +57,6 @@ target_link_libraries(pico_eprom_emulator PRIVATE
 )
 
 # Give the emulator a couple of ms of stack headroom on core1 for safety
-pico_set_program_name(pico_eprom_emulator "pico_eprom_emulator")
 pico_set_program_version(pico_eprom_emulator "0.1.0")
 
 # We don't need a USB CDC/UART console competing with our own USB MSC device,

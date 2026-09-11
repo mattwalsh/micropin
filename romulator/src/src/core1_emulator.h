@@ -30,8 +30,8 @@ void core1_emulator_publish(unsigned chip, unsigned staging_buffer);
 void core1_emulator_set_ce4_mode(bool rom5_present, bool aperture_enabled);
 
 // Drain bytes received through the aperture-mode address-strobe channel.
-// The 8085 transmits a byte by reading $2900+byte between $2a00/$2a01 frame
-// markers; no reverse data-bus path is required.
+// The 8085 transmits a byte as high/low address nibbles at $28c0/$28d0 between
+// $28e0/$28e1 frame markers; no reverse data-bus path is required.
 size_t core1_emulator_read_strobes(uint8_t *destination, size_t capacity);
 uint32_t core1_emulator_strobe_drops(void);
 uint32_t core1_emulator_strobe_crc_errors(void);

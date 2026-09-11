@@ -146,10 +146,21 @@ static void process_command(void)
     } else if (strcmp(s_command, "reset") == 0) {
         reset_control_pulse();
         reply("reset ok\r\n");
+#ifndef APERTURE_ONLY
+    } else if (strcmp(s_command, "eject") == 0) {
+        msc_disk_set_ejected(true);
+        reply("eject ok\r\n");
+    } else if (strcmp(s_command, "mount") == 0) {
+        msc_disk_set_ejected(false);
+        reply("mount ok\r\n");
     } else if (strcmp(s_command, "status") == 0) {
         if (msc_disk_rom5_present()) reply("mode rom5\r\n");
         else if (msc_disk_aperture_enabled()) reply("mode aperture\r\n");
         else reply("mode four-rom\r\n");
+#else
+    } else if (strcmp(s_command, "status") == 0) {
+        reply("mode aperture-only\r\n");
+#endif
     } else if (strcmp(s_command, "rx") == 0) {
         reply_strobes();
     } else if (strncmp(s_command, "tx ", 3) == 0) {

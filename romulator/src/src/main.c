@@ -60,7 +60,14 @@ int main(void)
     // 3. Build the fake FAT12 system area and load all five images from
     //    flash into RAM *before* core1 starts touching those buffers.
     msc_disk_init();
+#ifdef APERTURE_ONLY
+    // The dedicated diagnostic firmware has no USB mass-storage interface
+    // and never changes modes at runtime. ROMs 1-4 still come from the same
+    // persisted flash slots, while CE4 is unconditionally the aperture.
+    core1_emulator_set_ce4_mode(false, true);
+#else
     core1_emulator_set_ce4_mode(msc_disk_rom5_present(), msc_disk_aperture_enabled());
+#endif
 
     // 4. Start the timing-critical emulation loop on core1.
     core1_emulator_launch();
@@ -79,7 +86,9 @@ int main(void)
     while (true) {
         tud_task();
         usb_control_task();
+#ifndef APERTURE_ONLY
         msc_disk_task();
+#endif
         reset_control_task();
 
         uint32_t now_ms = to_ms_since_boot(get_absolute_time());
