@@ -3,7 +3,7 @@
 ; Host transaction at the Pico-served aperture:
 ;   $2800 sequence (published last)
 ;   $2801 Pico acknowledgement of the last complete response frame
-;   $2802 payload length, capped here at 32
+;   $2802 payload length, capped here at 64
 ;   $2803... payload
 ;   immediately following payload: CRC-8 over sequence, length, and payload,
 ;   followed by its inverse
@@ -30,31 +30,39 @@ REFLEX_ENABLED EQU #2191
 REFLEX_PRECOMMAND EQU #2192
 LOCAL_LENGTH EQU #2202
 LOCAL_PAYLOAD EQU #2203
-LOCAL_PENDING_SEQUENCE EQU #2223
-LOCAL_CRC EQU #2224
-LOCAL_LAMP_BYTES EQU #2225
-LOCAL_SWITCH_0 EQU #222a
-LOCAL_SWITCH_1 EQU #222b
-LOCAL_SWITCH_4 EQU #222c
-LOCAL_SWITCH_DMA EQU #222d
-PREVIOUS_SWITCH_DMA EQU #224d
-LOCAL_SWITCH_5 EQU #226d
-LOCAL_CRC_COMPLEMENT EQU #226e
-REFLEX_EVENT_LATCH EQU #226f
-CABINET_EVENT_LATCH EQU #2270
-REFLEX_COIL_TIMERS EQU #2271
-CUP_COIL_TIMERS EQU #2277
-CUP_COMMAND_BYTE EQU #227d
-PREVIOUS_CUP_COMMAND EQU #227f
-DISCARD_BOOT_COMMAND EQU #2280
-TRAP_COUNT EQU #2281
-RESET_COUNT EQU #2282
-FLIPPER_COIL_TIMERS EQU #2283
-LAUNCHER_COIL_TIMER EQU #2285
-PREVIOUS_LAUNCH_COMMAND EQU #2286
+LOCAL_PENDING_SEQUENCE EQU #2243
+LOCAL_CRC EQU #2244
+LOCAL_LAMP_BYTES EQU #2245
+LOCAL_SWITCH_0 EQU #224a
+LOCAL_SWITCH_1 EQU #224b
+LOCAL_SWITCH_4 EQU #224c
+LOCAL_SWITCH_DMA EQU #224d
+PREVIOUS_SWITCH_DMA EQU #226d
+LOCAL_SWITCH_5 EQU #228d
+LOCAL_CRC_COMPLEMENT EQU #228e
+REFLEX_EVENT_LATCH EQU #228f
+CABINET_EVENT_LATCH EQU #2290
+REFLEX_COIL_TIMERS EQU #2291
+CUP_COIL_TIMERS EQU #2297
+CUP_COMMAND_BYTE EQU #229d
+PREVIOUS_CUP_COMMAND EQU #229f
+DISCARD_BOOT_COMMAND EQU #22a0
+TRAP_COUNT EQU #22a1
+RESET_COUNT EQU #22a2
+FLIPPER_COIL_TIMERS EQU #22a3
+LAUNCHER_COIL_TIMER EQU #22a5
+PREVIOUS_LAUNCH_COMMAND EQU #22a6
 SWITCH_DMA_SOURCE EQU #23e0
 SWITCH_CHANGE_DISPLAY EQU #23d3
-MAX_PAYLOAD EQU #20
+MAX_PAYLOAD EQU #40
+LEGACY_CONTROL_LENGTH EQU #06
+CONTROL_LENGTH EQU #08
+DISPLAY_BYTE_COUNT EQU #20
+LEGACY_DISPLAY_COMMAND_LENGTH EQU #26
+DISPLAY_COMMAND_LENGTH EQU #28
+DISPLAY_PAYLOAD EQU LOCAL_PAYLOAD+#06
+SHORT_SOUND_PAYLOAD EQU LOCAL_PAYLOAD+#06
+DISPLAY_SOUND_PAYLOAD EQU LOCAL_PAYLOAD+#26
 STACK_TOP EQU #23c0
 
         ORG #0000
@@ -390,6 +398,8 @@ VERIFY_HOST_CRC_AGAIN:
 ; snapshot. The 8085-side acknowledgement/retry loop remains bypassed.
         CALL MANIFEST_LAMP_COMMAND
         CALL MANIFEST_CONTROL_COMMANDS
+        CALL MANIFEST_DISPLAY_COMMANDS
+        CALL MANIFEST_SOUND_COMMANDS
         JMP CAPTURE_HOST_RESPONSE
 
 CAPTURE_HOST_RESPONSE:
@@ -970,10 +980,13 @@ OUTPUT_LOCAL_LAMPS:
         POP B
         RET
 
-; Mechanism commands use one fixed, signed six-byte payload so a generic echo
+; Mechanism commands use a signed payload so a generic echo
 ; test cannot accidentally energize coils:
 ;   byte 0 lamp, bytes 1-2 "MP", byte 3 reflex-enable bit,
 ;   byte 4 cup bits 0-5, byte 5 launcher bit 0.
+; The current basic form is eight bytes. The display form inserts a raw copy of
+; the 32-byte motherboard display window before the final pitch/duration pair.
+; Accept the older six- and 38-byte forms during this protocol transition.
 ; Cup and launcher requests are rising-edge, non-renewing bounded pulses.
 MANIFEST_CONTROL_COMMANDS:
         PUSH B
@@ -981,8 +994,15 @@ MANIFEST_CONTROL_COMMANDS:
         PUSH H
 
         LDA LOCAL_LENGTH
-        CPI #06
+        CPI LEGACY_CONTROL_LENGTH
+        JZ VALIDATE_CONTROL_SIGNATURE
+        CPI CONTROL_LENGTH
+        JZ VALIDATE_CONTROL_SIGNATURE
+        CPI LEGACY_DISPLAY_COMMAND_LENGTH
+        JZ VALIDATE_CONTROL_SIGNATURE
+        CPI DISPLAY_COMMAND_LENGTH
         JNZ NO_CONTROL_COMMAND
+VALIDATE_CONTROL_SIGNATURE:
         LDA LOCAL_PAYLOAD+#01
         CPI #4d
         JNZ NO_CONTROL_COMMAND
@@ -1080,6 +1100,93 @@ CONTROL_COILS_READY:
         CALL WRITE_LOCAL_COILS
 
 CONTROL_COMMAND_DONE:
+        POP H
+        POP D
+        POP B
+        RET
+
+; Copy the raw display payload directly into the motherboard's contiguous
+; $23c0-$23df scan window. Most nibbles are 7448 hexadecimal digits. Bytes at
+; offsets $0c, $16, and $1e also carry the ten score-panel LEDs; retaining the
+; literal layout here lets the host-side mapper be refined experimentally.
+MANIFEST_DISPLAY_COMMANDS:
+        PUSH B
+        PUSH D
+        PUSH H
+
+        LDA LOCAL_LENGTH
+        CPI LEGACY_DISPLAY_COMMAND_LENGTH
+        JZ VALIDATE_DISPLAY_SIGNATURE
+        CPI DISPLAY_COMMAND_LENGTH
+        JNZ DISPLAY_COMMAND_DONE
+VALIDATE_DISPLAY_SIGNATURE:
+        LDA LOCAL_PAYLOAD+#01
+        CPI #4d
+        JNZ DISPLAY_COMMAND_DONE
+        LDA LOCAL_PAYLOAD+#02
+        CPI #50
+        JNZ DISPLAY_COMMAND_DONE
+
+        LXI H,DISPLAY_PAYLOAD
+        LXI D,#23c0
+        MVI B,DISPLAY_BYTE_COUNT
+COPY_DISPLAY_WINDOW:
+        MOV A,M
+        STAX D
+        INX H
+        INX D
+        DCR B
+        JNZ COPY_DISPLAY_WINDOW
+
+DISPLAY_COMMAND_DONE:
+        POP H
+        POP D
+        POP B
+        RET
+
+; The final two bytes of a current command are logical pitch and duration. The
+; original board ports are active-low. Never complement a logical zero duration
+; into raw $ff: zero is our explicit silence request and raw $fe is the stock
+; ROM's safe sound-off value.
+MANIFEST_SOUND_COMMANDS:
+        PUSH B
+        PUSH D
+        PUSH H
+
+        LDA LOCAL_LENGTH
+        CPI CONTROL_LENGTH
+        JZ SHORT_SOUND_COMMAND
+        CPI DISPLAY_COMMAND_LENGTH
+        JNZ SOUND_COMMAND_DONE
+        LXI H,DISPLAY_SOUND_PAYLOAD
+        JMP VALIDATE_SOUND_SIGNATURE
+SHORT_SOUND_COMMAND:
+        LXI H,SHORT_SOUND_PAYLOAD
+VALIDATE_SOUND_SIGNATURE:
+        LDA LOCAL_PAYLOAD+#01
+        CPI #4d
+        JNZ SOUND_COMMAND_DONE
+        LDA LOCAL_PAYLOAD+#02
+        CPI #50
+        JNZ SOUND_COMMAND_DONE
+
+        MVI A,#ff
+        OUT #09
+        MOV A,M
+        CMA
+        OUT #0a
+        INX H
+        MOV A,M
+        ORA A
+        JNZ MANIFEST_SOUND_DURATION
+        MVI A,#fe
+        OUT #09
+        JMP SOUND_COMMAND_DONE
+MANIFEST_SOUND_DURATION:
+        CMA
+        OUT #09
+
+SOUND_COMMAND_DONE:
         POP H
         POP D
         POP B

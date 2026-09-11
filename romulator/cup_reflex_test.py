@@ -8,6 +8,11 @@ import random
 import time
 
 from aperture_stress import SerialLines, drain_received, find_device, wait_until_ready
+from micropin_protocol import (
+    DISPLAY_WINDOW_BYTES,
+    build_control_payload,
+    display_window_from_hex,
+)
 from random_lamp_test import (
     CABINET_NAMES,
     REFLEX_NAMES,
@@ -30,6 +35,15 @@ TILT_MASK = 0x88
 RIGHT_FLIPPER_MASK = 0x10
 START_MASK = 0x40
 OUTHOLE_DMA_INDEX = 24
+POPCORN = (
+    (0xf1, 0x04),
+    (0xd6, 0x04),
+    (0xf1, 0x04),
+    (0xb4, 0x04),
+    (0x8f, 0x04),
+    (0xb4, 0x04),
+    (0x78, 0x04),
+)
 
 
 def main() -> int:
@@ -38,6 +52,25 @@ def main() -> int:
     parser.add_argument("-n", "--commands", type=int, default=0, help="transactions; zero runs until interrupted")
     parser.add_argument("--dwell", type=float, default=0.01, help="seconds between transactions")
     parser.add_argument("--lamp-dance", action="store_true", help="also select a random playfield lamp each transaction")
+    display_group = parser.add_mutually_exclusive_group()
+    display_group.add_argument(
+        "--display-dance",
+        dest="display_dance",
+        action="store_true",
+        help="send 32 new random raw display bytes each transaction (default)",
+    )
+    display_group.add_argument(
+        "--no-display-dance",
+        dest="display_dance",
+        action="store_false",
+        help="leave the displays untouched",
+    )
+    display_group.add_argument(
+        "--display-hex",
+        metavar="HEX",
+        help="send one fixed 32-byte display window (exactly 64 hex digits)",
+    )
+    parser.set_defaults(display_dance=True)
     parser.add_argument(
         "--manual-launch",
         action="store_true",
@@ -45,11 +78,22 @@ def main() -> int:
     )
     parser.add_argument("--seed", type=int, default=0x8085)
     parser.add_argument("--timeout", type=float, default=5.0)
+    parser.add_argument(
+        "--no-popcorn",
+        action="store_true",
+        help="silence sound instead of advancing the Popcorn melody each transaction",
+    )
     args = parser.parse_args()
     if args.commands < 0:
         parser.error("--commands cannot be negative")
     if args.dwell < 0:
         parser.error("--dwell cannot be negative")
+    try:
+        fixed_display_window = (
+            display_window_from_hex(args.display_hex) if args.display_hex else None
+        )
+    except ValueError as error:
+        parser.error(str(error))
 
     device = find_device(args.device)
     generator = random.Random(args.seed)
@@ -62,6 +106,7 @@ def main() -> int:
     pending_launch = 0
     tilt_was_active = False
     transaction = 0
+    popcorn_index = 0
 
     print(f"device: {device}")
     print("reflex: enabled (hit either tilt input to toggle)")
@@ -81,7 +126,28 @@ def main() -> int:
                 command_launch = pending_launch
                 pending_launch = 0
                 requested_reflex = 1 if reflex_enabled else 0
-                payload = bytes((lamp, 0x4d, 0x50, requested_reflex, command_cups, command_launch))
+                if fixed_display_window is not None:
+                    display_window = fixed_display_window
+                elif args.display_dance:
+                    display_window = bytes(
+                        generator.randrange(256) for _ in range(DISPLAY_WINDOW_BYTES)
+                    )
+                else:
+                    display_window = None
+                if args.no_popcorn:
+                    tone_pitch, tone_duration = 0, 0
+                else:
+                    tone_pitch, tone_duration = POPCORN[popcorn_index]
+                    popcorn_index = (popcorn_index + 1) % len(POPCORN)
+                payload = build_control_payload(
+                    lamp=lamp,
+                    reflex_enabled=bool(requested_reflex),
+                    cup_mask=command_cups,
+                    launch=bool(command_launch),
+                    display_window=display_window,
+                    tone_pitch=tone_pitch,
+                    tone_duration=tone_duration,
+                )
                 try:
                     sequence, ports, dma = send_and_verify(serial, payload)
                 except ResponseMismatch as error:
@@ -138,7 +204,7 @@ def main() -> int:
             # off before returning control to the operator.
             try:
                 wait_until_ready(serial)
-                send_and_verify(serial, b"\xffMP\x00\x00\x00")
+                send_and_verify(serial, build_control_payload(reflex_enabled=False))
             except (ResponseMismatch, TimeoutError) as error:
                 print(f"warning: final inhibit response was not verified: {error}")
 
