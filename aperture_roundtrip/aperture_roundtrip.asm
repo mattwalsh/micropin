@@ -378,15 +378,13 @@ VERIFY_HOST_CRC_AGAIN:
         CMP M
         JNZ POLL_HOST
 
-; Echo de-ablation test: manifest byte zero as a lamp selector, then return
-; only the validated sequence, length and payload. Switch capture and the
-; 8085-side acknowledgement/retry handshake remain out of the active path.
+; Switch-capture de-ablation test: manifest byte zero as a lamp selector, then
+; capture and return the validated payload plus one coherent 36-byte switch
+; snapshot. The 8085-side acknowledgement/retry loop remains bypassed.
         CALL MANIFEST_LAMP_COMMAND
-        LDA LOCAL_PENDING_SEQUENCE
-        MOV C,A
-        JMP TRANSMIT_RESPONSE
+        CALL MANIFEST_CONTROL_COMMANDS
+        JMP CAPTURE_HOST_RESPONSE
 
-; Retained temporarily for comparison, but unreachable in this build.
 CAPTURE_HOST_RESPONSE:
 ; Capture one coherent input snapshot for this transaction. Retransmissions
 ; reuse these bytes rather than changing the response underneath its sequence.
@@ -430,11 +428,12 @@ TRANSMIT_RESPONSE:
         MOV A,C
         CALL SEND_BYTE
         LDA LOCAL_LENGTH
+        ADI #24
         CALL SEND_BYTE
 
         LDA LOCAL_LENGTH
         ORA A
-        JZ FINISH_RESPONSE
+        JZ SEND_SWITCH_SNAPSHOT
         MOV B,A
         LXI H, LOCAL_PAYLOAD
 SEND_PAYLOAD:
@@ -443,9 +442,7 @@ SEND_PAYLOAD:
         INX H
         DCR B
         JNZ SEND_PAYLOAD
-        JMP FINISH_RESPONSE
 
-; Retained temporarily for comparison, but unreachable in the echo-only test.
 SEND_SWITCH_SNAPSHOT:
         LDA LOCAL_SWITCH_0
         CALL SEND_BYTE
@@ -706,10 +703,6 @@ REFLEX_COIL_5:
 READ_CUP_COILS:
 ; The five main cups use outputs 3, 21, 2, 0 and 1. The separate side bonus
 ; payout cup uses output 25 (port 8 bit 1).
-; TEMPORARY DIAGNOSTIC: keep every cup output hard-off while isolating the
-; reflex-enable path on real hardware. The retained cup implementation below
-; can be restored once the inhibit indicator test explains the weak kicks.
-        JMP LOCAL_COILS_READY
         LXI H,CUP_COIL_TIMERS
         MOV A,M
         ORA A
