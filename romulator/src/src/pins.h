@@ -33,8 +33,8 @@
 // RP2040's own GPIO tri-state.
 #define PIN_BUS_DRIVEN       27
 
-// Target-CPU reset control. Driven push-pull by the RP2040; see
-// reset_control.h for the fail-safe external pull-down this pin relies on.
+// Active-low target-CPU reset control. See reset_control.h for the open-drain
+// drive and weak inactive pull-up policy.
 #define PIN_TARGET_RESET     28
 
 // Onboard LED, used as a heartbeat / USB-activity indicator.

@@ -35,6 +35,7 @@ void core1_emulator_set_ce4_mode(bool rom5_present, bool aperture_enabled);
 size_t core1_emulator_read_strobes(uint8_t *destination, size_t capacity);
 uint32_t core1_emulator_strobe_drops(void);
 uint32_t core1_emulator_strobe_crc_errors(void);
+void core1_emulator_cpu_start_counts(uint32_t *reset_count, uint32_t *trap_count);
 
 // Publish one host transaction into $2800-$28bf. Payload and length are
 // written first and the sequence byte at $2800 is changed last. Returns false

@@ -15,6 +15,11 @@ volatile bool emu_aperture_enabled = false;
 #define STROBE_DATA_END  0x1ffu
 #define STROBE_FRAME_START 0x200u
 #define STROBE_FRAME_END   0x201u
+// Keep diagnostic markers far from the heavily used $200/$201 frame strobes
+// and from each other. Adjacent $202/$203 values proved vulnerable to address
+// transitions being mistaken for CPU entry events on the real bus.
+#define STROBE_CPU_RESET   0x555u
+#define STROBE_CPU_TRAP    0x6aau
 #define APERTURE_INPUT_SIZE 0x0c0u
 #define APERTURE_CPU_ACK_OFFSET 1u
 #define APERTURE_LENGTH_OFFSET 2u
@@ -37,6 +42,8 @@ static volatile uint8_t s_strobe_last_sequence;
 static volatile uint8_t s_strobe_last_length;
 static volatile uint8_t s_strobe_last_calculated_crc;
 static volatile uint8_t s_strobe_last_received_crc;
+static volatile uint32_t s_cpu_reset_count;
+static volatile uint32_t s_cpu_trap_count;
 // Core0 constructs a complete transaction in the inactive bank, then flips
 // this single-byte selector. Core1 therefore never serves a mailbox while it
 // is being rewritten in place.
@@ -248,6 +255,14 @@ static void __not_in_flash_func(core1_main)(void)
                         s_strobe_malformed++;
                     }
                     strobe_frame_active = false;
+                } else if (strobe_addr == STROBE_CPU_RESET) {
+                    // Independent of motherboard RAM: the diagnostic ROM reads
+                    // $2d55 after entering through the reset vector.
+                    s_cpu_reset_count++;
+                } else if (strobe_addr == STROBE_CPU_TRAP) {
+                    // Reading $2eaa distinguishes the non-maskable TRAP vector
+                    // from hardware RESET at address zero.
+                    s_cpu_trap_count++;
                 } else if (strobe_addr >= STROBE_DATA_BASE && strobe_addr <= STROBE_DATA_END) {
                     uint8_t value = (uint8_t)strobe_addr;
                     if (strobe_frame_active) {
@@ -305,6 +320,12 @@ uint32_t core1_emulator_strobe_drops(void)
 uint32_t core1_emulator_strobe_crc_errors(void)
 {
     return s_strobe_crc_errors;
+}
+
+void core1_emulator_cpu_start_counts(uint32_t *reset_count, uint32_t *trap_count)
+{
+    if (reset_count) *reset_count = s_cpu_reset_count;
+    if (trap_count) *trap_count = s_cpu_trap_count;
 }
 
 bool core1_emulator_publish_aperture(const uint8_t *payload, size_t length, uint8_t *sequence)

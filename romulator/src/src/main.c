@@ -48,8 +48,8 @@ int main(void)
     // ---- Boot ordering matters here; keep this sequence intact. ----
 
     // 1. Hold the target CPU in reset before anything else runs. From
-    //    power-up until this line, PIN_TARGET_RESET was high-impedance,
-    //    which is exactly why it needs an external pull-down (see README).
+    //    power-up until this line, PIN_TARGET_RESET was high-impedance;
+    //    reset_control_init() also establishes its inactive weak pull-up.
     reset_control_init();
 
     stdio_init_all();

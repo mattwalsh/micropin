@@ -20,6 +20,12 @@ CPU_ACK EQU #2801
 HOST_LENGTH EQU #2802
 HOST_PAYLOAD EQU #2803
 
+; Diagnostic shadows placed at locations used as ordinary state by the original
+; ROM ($2191 CONTROL_FLAGS and $2192 GAME_STATE2). Real-hardware tests show that
+; even $2192 sometimes changes after a store, so neither byte is trusted as the
+; authority for reflex-coil safety; the 8085's RST 5.5 mask is authoritative.
+REFLEX_ENABLED EQU #2191
+REFLEX_PRECOMMAND EQU #2192
 LOCAL_LENGTH EQU #2202
 LOCAL_PAYLOAD EQU #2203
 LOCAL_PENDING_SEQUENCE EQU #2223
@@ -35,19 +41,24 @@ LOCAL_CRC_COMPLEMENT EQU #226e
 REFLEX_EVENT_LATCH EQU #226f
 CABINET_EVENT_LATCH EQU #2270
 REFLEX_COIL_TIMERS EQU #2271
+CUP_COIL_TIMERS EQU #2277
+CUP_COMMAND_BYTE EQU #227d
+PREVIOUS_CUP_COMMAND EQU #227f
+DISCARD_BOOT_COMMAND EQU #2280
+TRAP_COUNT EQU #2281
 SWITCH_DMA_SOURCE EQU #23e0
 SWITCH_CHANGE_DISPLAY EQU #23d3
 MAX_PAYLOAD EQU #20
 STACK_TOP EQU #23c0
 
         ORG #0000
-        JMP START
+        JMP RESET_ENTRY
 
-; 8085 TRAP is non-maskable. The original game treats it as a reinitialization
-; path, so do the same explicitly; framing and acknowledgement recover any
-; response that it interrupted.
+; 8085 TRAP is non-maskable. The real board asserts it repeatedly, so treating
+; every occurrence as cold initialization destroys the arbiter's state. Count
+; it visibly while preserving PSW, then return to the interrupted work.
         ORG #0024
-        JMP START
+        JMP TRAP_ENTRY
 
 ; Port 1 asserts RST 5.5 for the latency-sensitive bumper, sling, and shared
 ; standup-bar inputs. Preserve every bit observed between host transactions.
@@ -60,6 +71,49 @@ STACK_TOP EQU #23c0
         JMP CABINET_SWITCH_ISR
 
         ORG #0040
+RESET_ENTRY:
+        DI
+        LXI SP,STACK_TOP
+; Visible cold-entry witness, deliberately confined to the reset vector so a
+; TRAP cannot restart the delay. De-energize every coil first, light lamp output
+; 13 (cup #5) for roughly 0.26 s at 1.5 MHz, then proceed to normal START.
+        MVI A,#ff
+        OUT #05
+        OUT #06
+        OUT #07
+        OUT #08
+        OUT #00
+        OUT #01
+        OUT #02
+        OUT #03
+        OUT #04
+        MVI A,#df
+        OUT #01
+        LXI D,#4000
+RESET_WITNESS_DELAY:
+        DCX D
+        MOV A,D
+        ORA E
+        JNZ RESET_WITNESS_DELAY
+        MVI A,#ff
+        OUT #01
+        MVI C,#00
+        MVI E,#01
+        JMP START
+
+TRAP_ENTRY:
+        PUSH PSW
+        LDA TRAP_COUNT
+        INR A
+        STA TRAP_COUNT
+        STA SWITCH_CHANGE_DISPLAY+#02
+        XRA A
+        STA SWITCH_CHANGE_DISPLAY+#01
+        MVI A,#02
+        STA SWITCH_CHANGE_DISPLAY
+        POP PSW
+        RET
+
 START:
         DI
         LXI SP, STACK_TOP
@@ -80,16 +134,59 @@ START:
         OUT #06
         OUT #07
         OUT #08
+; Match the original initialization reached from both reset and TRAP ($0069).
+; Ports $0d/$0e also acknowledge the two interrupt-source encoders, so walking
+; their selector values from seven through zero may reset more than lamp state.
+        MVI A,#07
+RESET_INTERRUPT_ENCODERS:
+        OUT #0e
+        OUT #0d
+        DCR A
+        JP RESET_INTERRUPT_ENCODERS
+; The original motherboard retains the entire 1 KiB RAM image. Never trust it
+; across reset: interrupted writes and previous experimental state can leave
+; both ordinary variables and output state inconsistent. Coils are already off
+; and interrupts remain disabled, so clearing through the future stack area is
+; safe here (nothing has been pushed yet).
+        LXI H,#2000
+        MVI B,#04
         XRA A
+CLEAR_RAM_PAGE:
+        MOV M,A
+        INR L
+        JNZ CLEAR_RAM_PAGE
+        INR H
+        DCR B
+        JNZ CLEAR_RAM_PAGE
+
+; The full clear deliberately erases the old diagnostic with all retained RAM.
+; Restore the count carried in C and show the latest entry as RR 00 NN, where
+; RR=01 means RESET, RR=02 means TRAP, and NN is the trap count in hex.
+        MOV A,C
+        STA TRAP_COUNT
+        STA SWITCH_CHANGE_DISPLAY+#02
+        XRA A
+        STA SWITCH_CHANGE_DISPLAY+#01
+        MOV A,E
+        STA SWITCH_CHANGE_DISPLAY
+        XRA A
+
         STA REFLEX_EVENT_LATCH
         STA CABINET_EVENT_LATCH
+        STA PREVIOUS_CUP_COMMAND
         LXI H,REFLEX_COIL_TIMERS
-        MVI B,#06
-CLEAR_REFLEX_TIMERS:
+        MVI B,#0c
+CLEAR_LOCAL_COIL_TIMERS:
         MOV M,A
         INX H
         DCR B
-        JNZ CLEAR_REFLEX_TIMERS
+        JNZ CLEAR_LOCAL_COIL_TIMERS
+; Local reflexes are enabled by default for the present de-ablation test.
+; This lets the six bumper/slingshot paths run without a host connection while
+; cup and host-commanded coils remain disabled. A later validated host command
+; may still inhibit them.
+        MVI A,#01
+        STA REFLEX_ENABLED
 ; Establish a baseline for the raw inductive samples. Subsequent transactions
 ; ignore normal low-nibble measurement jitter and display the highest-numbered
 ; contact whose $10 state bit changed as three hex byte pairs: contact number
@@ -105,8 +202,8 @@ INITIALIZE_SWITCH_BASELINE:
         DCR B
         JNZ INITIALIZE_SWITCH_BASELINE
 ; Acknowledge stale sources, then unmask RST 5.5 and RST 6.5 while leaving
-; RST 7.5 masked. As in the original game, an interrupt leaves maskable
-; interrupts disabled until the main loop explicitly opens its next window.
+; RST 7.5 masked. RST 5.5 drives the six local reflex coils; RST 6.5 supplies
+; their bounded expiration cadence.
         IN #01
         IN #00
         MVI A,#0c
@@ -119,7 +216,31 @@ READ_INITIAL_ACK:
         JNZ READ_INITIAL_ACK
         MOV C,A
 
+; The Pico survives an 8085 reset. If it still holds an unacknowledged command
+; (especially a client's final reflex-inhibit), consume and echo that command
+; to repair the sequence handshake, but do not let pre-reset output state alter
+; this boot's safe defaults. A live host's following heartbeat applies normally.
+READ_INITIAL_HOST_SEQUENCE:
+        LDA HOST_SEQUENCE
+        MOV B,A
+        LDA HOST_SEQUENCE
+        CMP B
+        JNZ READ_INITIAL_HOST_SEQUENCE
+        CMP C
+        JZ POLL_HOST
+        MVI A,#01
+        STA DISCARD_BOOT_COMMAND
+        JMP RECEIVE_HOST_TRANSACTION
+
 POLL_HOST:
+; Do not hammer the physical CE4 aperture at the maximum 8085 bus rate while
+; idle. The Pico must also satisfy timing-critical instruction fetches from the
+; four ROM chip selects. About 128 short loop iterations gives roughly a 1 ms
+; mailbox cadence at 1.5 MHz, still far faster than the USB host round trip.
+        MVI A,#80
+IDLE_POLL_DELAY:
+        DCR A
+        JNZ IDLE_POLL_DELAY
 ; Open one bounded interrupt window per poll. EI takes effect after NOP; an ISR
 ; returns with interrupts disabled, and DI also closes the no-interrupt path.
         EI
@@ -262,7 +383,18 @@ VERIFY_HOST_CRC_AGAIN:
         CMP M
         JNZ POLL_HOST
 
+        LDA DISCARD_BOOT_COMMAND
+        ORA A
+        JZ MANIFEST_HOST_COMMAND
+        XRA A
+        STA DISCARD_BOOT_COMMAND
+        JMP CAPTURE_HOST_RESPONSE
+MANIFEST_HOST_COMMAND:
+; Resolve control state first so the lamp image can incorporate the inhibit
+; indicator before its one and only physical port write.
+        CALL MANIFEST_CONTROL_COMMANDS
         CALL MANIFEST_LAMP_COMMAND
+CAPTURE_HOST_RESPONSE:
 ; Capture one coherent input snapshot for this transaction. Retransmissions
 ; reuse these bytes rather than changing the response underneath its sequence.
 ; Atomically consume the Port-0 and Port-1 events accumulated by their ISRs.
@@ -275,9 +407,11 @@ VERIFY_HOST_CRC_AGAIN:
         STA LOCAL_SWITCH_1
         XRA A
         STA REFLEX_EVENT_LATCH
-        IN #04
+; Temporary CRC-protected diagnostics replace ports 4/5 in this response:
+; pre-command REFLEX_ENABLED, followed by the post-command 8085 RIM value.
+        LDA REFLEX_PRECOMMAND
         STA LOCAL_SWITCH_4
-        IN #05
+        RIM
         STA LOCAL_SWITCH_5
         LXI H,SWITCH_DMA_SOURCE
         LXI D,LOCAL_SWITCH_DMA
@@ -289,7 +423,6 @@ CAPTURE_SWITCH_DMA:
         INX D
         DCR B
         JNZ CAPTURE_SWITCH_DMA
-        CALL DISPLAY_SWITCH_CHANGE
         LDA LOCAL_PENDING_SEQUENCE
         MOV C,A
 
@@ -344,6 +477,18 @@ FINISH_RESPONSE:
 WAIT_FOR_NEXT_OR_RETRY:
         MVI E,#ff
 WAIT_FOR_NEXT_SEQUENCE:
+        MVI A,#80
+RESPONSE_POLL_DELAY:
+        DCR A
+        JNZ RESPONSE_POLL_DELAY
+; Host traffic must not starve the real-time switch handlers. The first version
+; reached this loop after a response with interrupts still disabled, making
+; reflexes weak while the client was active and leaving them that way after a
+; disconnected client. Open the same one-instruction interrupt window used by
+; POLL_HOST before each stable sequence probe.
+        EI
+        NOP
+        DI
         LDA HOST_SEQUENCE
         MOV B,A
         LDA HOST_SEQUENCE
@@ -362,9 +507,6 @@ CABINET_SWITCH_ISR:
         PUSH B
         PUSH D
         PUSH H
-; RST 6.5 itself is the coil-expiration cadence. Do this on every entry rather
-; than only when Port-0 bit zero happens to be the selected pending source.
-        CALL REFLEX_TIMER_TICK
         IN #00
         ORA A
         JZ CABINET_SWITCH_DONE
@@ -378,6 +520,14 @@ CABINET_BIT_FOUND:
         MOV A,B
         CMA
         OUT #0d
+; Port-0 bit zero is the board's periodic source and supplies the expiration
+; cadence. Acknowledge it before doing the timer work, and do not burden the
+; higher-priority RST 6.5 path for DMA/cabinet events with a timer scan.
+        MOV A,B
+        ORA A
+        JNZ CABINET_TIMER_DONE
+        CALL REFLEX_TIMER_TICK
+CABINET_TIMER_DONE:
 
         MVI C,#01
         MOV A,B
@@ -394,12 +544,6 @@ CABINET_MASK_READY:
         LXI H,CABINET_EVENT_LATCH
         ORA M
         MOV M,A
-; Display 65, accumulated event mask, 00 for a Port-0/RST-6.5 event.
-        STA SWITCH_CHANGE_DISPLAY+#01
-        MVI A,#65
-        STA SWITCH_CHANGE_DISPLAY
-        XRA A
-        STA SWITCH_CHANGE_DISPLAY+#02
 CABINET_SWITCH_DONE:
         POP H
         POP D
@@ -449,12 +593,6 @@ REFLEX_MASK_READY:
         LXI H,REFLEX_EVENT_LATCH
         ORA M
         MOV M,A
-; Make a reflex event visible without a host: 55, accumulated event mask, 00.
-        STA SWITCH_CHANGE_DISPLAY+#01
-        MVI A,#55
-        STA SWITCH_CHANGE_DISPLAY
-        XRA A
-        STA SWITCH_CHANGE_DISPLAY+#02
 REFLEX_SWITCH_DONE:
         POP H
         POP D
@@ -467,6 +605,11 @@ REFLEX_SWITCH_DONE:
 ; A nonzero timer is never renewed, so a stuck or bouncing input cannot extend
 ; one pulse indefinitely.
 FIRE_REFLEX_COIL:
+; RST 5.5's mask bit inside the 8085 is the authoritative reflex-enable state.
+; Do not trust motherboard RAM for this safety decision.
+        RIM
+        ANI #01
+        RNZ
         MOV A,B
         CPI #06
         RNC
@@ -478,36 +621,44 @@ FIRE_REFLEX_COIL:
         ORA A
         RNZ
         MVI M,#09
-        CALL WRITE_REFLEX_COILS
+        CALL WRITE_LOCAL_COILS
         RET
 
 REFLEX_TIMER_TICK:
         LXI H,REFLEX_COIL_TIMERS
-        MVI B,#06
-DECREMENT_REFLEX_TIMER:
+        MVI B,#0c
+DECREMENT_LOCAL_COIL_TIMER:
         MOV A,M
         ORA A
-        JZ NEXT_REFLEX_TIMER
+        JZ NEXT_LOCAL_COIL_TIMER
         DCR M
-NEXT_REFLEX_TIMER:
+NEXT_LOCAL_COIL_TIMER:
         INX H
         DCR B
-        JNZ DECREMENT_REFLEX_TIMER
-        CALL WRITE_REFLEX_COILS
+        JNZ DECREMENT_LOCAL_COIL_TIMER
+        CALL WRITE_LOCAL_COILS
         RET
 
-; Build active-high logical state from the six timers, then complement it for
-; the motherboard's active-low coil ports. Mapping from the original vectors:
+; Build active-high logical state from the local timers, then complement it for
+; the motherboard's active-low coil ports. Reflex mapping from the ROM vectors:
 ;   Port-1 bit 0 -> coil 11 -> port 6 bit 3
 ;   Port-1 bit 1 -> coil 16 -> port 7 bit 0
 ;   Port-1 bit 2 -> coil 17 -> port 7 bit 1
 ;   Port-1 bit 3 -> coil 10 -> port 6 bit 2
 ;   Port-1 bit 4 -> coil 19 -> port 7 bit 3
 ;   Port-1 bit 5 -> coil 20 -> port 7 bit 4
-WRITE_REFLEX_COILS:
+WRITE_LOCAL_COILS:
+        PUSH B
+        MVI B,#00
         MVI C,#00
         MVI D,#00
+        MVI E,#00
         LXI H,REFLEX_COIL_TIMERS
+
+; Enforce the internal RST 5.5 mask again at the final hardware-output boundary.
+        RIM
+        ANI #01
+        JNZ READ_CUP_COILS
 
         MOV A,M
         ORA A
@@ -551,47 +702,78 @@ REFLEX_COIL_5:
         INX H
         MOV A,M
         ORA A
-        JZ REFLEX_COILS_READY
+        JZ READ_CUP_COILS
         MVI A,#10
         ORA D
         MOV D,A
-REFLEX_COILS_READY:
+READ_CUP_COILS:
+; The five main cups use outputs 3, 21, 2, 0 and 1. The separate side bonus
+; payout cup uses output 25 (port 8 bit 1).
+; TEMPORARY DIAGNOSTIC: keep every cup output hard-off while isolating the
+; reflex-enable path on real hardware. The retained cup implementation below
+; can be restored once the inhibit indicator test explains the weak kicks.
+        JMP LOCAL_COILS_READY
+        LXI H,CUP_COIL_TIMERS
+        MOV A,M
+        ORA A
+        JZ CUP_COIL_2
+        MVI A,#08
+        ORA E
+        MOV E,A
+CUP_COIL_2:
+        INX H
+        MOV A,M
+        ORA A
+        JZ CUP_COIL_3
+        MVI A,#20
+        ORA D
+        MOV D,A
+CUP_COIL_3:
+        INX H
+        MOV A,M
+        ORA A
+        JZ CUP_COIL_4
+        MVI A,#04
+        ORA E
+        MOV E,A
+CUP_COIL_4:
+        INX H
+        MOV A,M
+        ORA A
+        JZ CUP_COIL_5
+        MVI A,#01
+        ORA E
+        MOV E,A
+CUP_COIL_5:
+        INX H
+        MOV A,M
+        ORA A
+        JZ SIDE_CUP_COIL
+        MVI A,#02
+        ORA E
+        MOV E,A
+SIDE_CUP_COIL:
+        INX H
+        MOV A,M
+        ORA A
+        JZ LOCAL_COILS_READY
+        MVI A,#02
+        ORA B
+        MOV B,A
+LOCAL_COILS_READY:
+        MOV A,E
+        CMA
+        OUT #05
         MOV A,C
         CMA
         OUT #06
         MOV A,D
         CMA
         OUT #07
-        RET
-
-; Mirror playfield contact transitions onto the high-score display. Real-game
-; measurements show low-nibble timing jitter while bit $10 cleanly distinguishes
-; open from ball-present. If several contacts change together, the highest one
-; remains visible.
-DISPLAY_SWITCH_CHANGE:
-        LXI H,LOCAL_SWITCH_DMA
-        LXI D,PREVIOUS_SWITCH_DMA
-        MVI B,#20
-        MVI C,#01
-CHECK_SWITCH_CHANGE:
-        LDAX D
-        XRA M
-        ANI #10
-        JZ UPDATE_PREVIOUS_SWITCH
-        LDAX D
-        STA SWITCH_CHANGE_DISPLAY+#02
-        MOV A,M
-        STA SWITCH_CHANGE_DISPLAY+#01
-        MOV A,C
-        STA SWITCH_CHANGE_DISPLAY
-UPDATE_PREVIOUS_SWITCH:
-        MOV A,M
-        STAX D
-        INX H
-        INX D
-        INR C
-        DCR B
-        JNZ CHECK_SWITCH_CHANGE
+        MOV A,B
+        CMA
+        OUT #08
+        POP B
         RET
 
 ; Add A to CRC-8 D, then send it as one observable read while preserving the
@@ -715,6 +897,95 @@ OUTPUT_LOCAL_LAMPS:
         CMA
         OUT #04
 
+        POP H
+        POP D
+        POP B
+        RET
+
+; Optional extended command bytes retain compatibility with the one-byte lamp
+; exerciser. Byte 1 bit 0 enables local reflex firing. Byte 2 bits 0-5 request
+; the five main-cup ejects plus the side bonus payout cup; only rising edges
+; start non-renewing bounded pulses.
+MANIFEST_CONTROL_COMMANDS:
+        PUSH B
+        PUSH D
+        PUSH H
+
+        LDA LOCAL_LENGTH
+        CPI #02
+        JC NO_CONTROL_COMMAND
+        LDA REFLEX_ENABLED
+        STA REFLEX_PRECOMMAND
+        LDA LOCAL_PAYLOAD+#01
+        ANI #01
+        STA REFLEX_ENABLED
+; MSE=1 and M7.5=1 in both values. Bit zero masks RST 5.5 only when local
+; reflexes are inhibited; RST 6.5 remains available for timing and controls.
+        ORA A
+        MVI A,#0d
+        JZ STORE_REFLEX_INTERRUPT_MASK
+        MVI A,#0c
+STORE_REFLEX_INTERRUPT_MASK:
+        SIM
+        RIM
+        ANI #01
+        JZ CHECK_CUP_COMMAND
+; Tilt/inhibit cancels active reflex pulses immediately, but deliberately does
+; not disturb cup ejectors or other host-owned non-reflex mechanisms.
+        LXI H,REFLEX_COIL_TIMERS
+        MVI B,#06
+        XRA A
+CANCEL_REFLEX_TIMERS:
+        MOV M,A
+        INX H
+        DCR B
+        JNZ CANCEL_REFLEX_TIMERS
+        CALL WRITE_LOCAL_COILS
+
+CHECK_CUP_COMMAND:
+        LDA LOCAL_LENGTH
+        CPI #03
+        JNC HAVE_CUP_COMMAND
+NO_CONTROL_COMMAND:
+        XRA A
+        STA PREVIOUS_CUP_COMMAND
+        JMP CONTROL_COMMAND_DONE
+
+HAVE_CUP_COMMAND:
+        LDA LOCAL_PAYLOAD+#02
+        ANI #3f
+        STA CUP_COMMAND_BYTE
+        LXI H,PREVIOUS_CUP_COMMAND
+        MOV B,M
+        MOV M,A
+        MOV A,B
+        CMA
+        MOV B,A
+        LDA CUP_COMMAND_BYTE
+        ANA B
+        STA CUP_COMMAND_BYTE
+
+        LXI H,CUP_COIL_TIMERS
+        MVI B,#06
+        MVI C,#01
+START_CUP_TIMERS:
+        LDA CUP_COMMAND_BYTE
+        ANA C
+        JZ NEXT_CUP_TIMER
+        MOV A,M
+        ORA A
+        JNZ NEXT_CUP_TIMER
+        MVI M,#09
+NEXT_CUP_TIMER:
+        INX H
+        MOV A,C
+        RLC
+        MOV C,A
+        DCR B
+        JNZ START_CUP_TIMERS
+        CALL WRITE_LOCAL_COILS
+
+CONTROL_COMMAND_DONE:
         POP H
         POP D
         POP B

@@ -103,6 +103,19 @@ static void reply_strobe_stats(void)
     reply(response);
 }
 
+static void reply_cpu_start_count(void)
+{
+    uint32_t reset_count, trap_count;
+    core1_emulator_cpu_start_counts(&reset_count, &trap_count);
+    char response[64];
+    snprintf(response, sizeof response,
+        "bootcount r=%08lx t=%08lx p=%08lx e=%08lx\r\n",
+        (unsigned long)reset_count, (unsigned long)trap_count,
+        (unsigned long)reset_control_assertions(),
+        (unsigned long)reset_control_falling_edges());
+    reply(response);
+}
+
 static void reply_strobe_diagnostics(void)
 {
     uint32_t frames, malformed, stale;
@@ -130,6 +143,9 @@ static void process_command(void)
         // while the RP2040 is changing USB personalities.
         reset_control_notify_write();
         reset_usb_boot(0, 0);
+    } else if (strcmp(s_command, "reset") == 0) {
+        reset_control_pulse();
+        reply("reset ok\r\n");
     } else if (strcmp(s_command, "status") == 0) {
         if (msc_disk_rom5_present()) reply("mode rom5\r\n");
         else if (msc_disk_aperture_enabled()) reply("mode aperture\r\n");
@@ -142,6 +158,8 @@ static void process_command(void)
         reply_aperture_state();
     } else if (strcmp(s_command, "stats") == 0) {
         reply_strobe_stats();
+    } else if (strcmp(s_command, "bootcount") == 0) {
+        reply_cpu_start_count();
     } else if (strcmp(s_command, "diag") == 0) {
         reply_strobe_diagnostics();
     } else {

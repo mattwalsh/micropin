@@ -218,19 +218,10 @@ static void commit_all_dirty(void)
             memcpy(s_staging[chip], image, IMAGE_SIZE_BYTES); s_dirty[chip] = true;
         }
     }
-    bool any = false;
-    for (unsigned chip = 0; chip < NUM_CHIPS; chip++) if (s_dirty[chip]) {
-        uint32_t ints = save_and_disable_interrupts();
-        flash_range_erase(flash_offset_for_chip(chip), IMAGE_SECTOR_SIZE);
-        flash_range_program(flash_offset_for_chip(chip), s_staging[chip], IMAGE_SIZE_BYTES);
-        restore_interrupts(ints);
-        unsigned active_buf = emu_active_buffer[chip];
-        unsigned staging_buf = active_buf < 2u ? active_buf ^ 1u : 0u;
-        memcpy(emu_rom_image[chip][staging_buf], s_staging[chip], IMAGE_SIZE_BYTES);
-        core1_emulator_publish(chip, staging_buf);
-        s_dirty[chip] = false; any = true;
-    }
 
+    // Resolve any mode change from the committed FAT image. Publishing new
+    // ROM contents or a new mode no longer implicitly resets the target CPU;
+    // reset is an explicit CDC command.
     bool mode_changed = false;
     int rom5_slot = find_rom_dir_slot(4u);
     bool rom5_present_now = false;
@@ -240,20 +231,30 @@ static void commit_all_dirty(void)
     }
     if (rom5_present_now != s_rom5_present) {
         s_rom5_present = rom5_present_now;
-        any = true;
         mode_changed = true;
     }
     bool aperture_enabled_now = !rom5_present_now && aperture_marker_present();
     if (aperture_enabled_now != s_aperture_enabled) {
         s_aperture_enabled = aperture_enabled_now;
-        any = true;
         mode_changed = true;
     }
+
+    for (unsigned chip = 0; chip < NUM_CHIPS; chip++) if (s_dirty[chip]) {
+        uint32_t ints = save_and_disable_interrupts();
+        flash_range_erase(flash_offset_for_chip(chip), IMAGE_SECTOR_SIZE);
+        flash_range_program(flash_offset_for_chip(chip), s_staging[chip], IMAGE_SIZE_BYTES);
+        restore_interrupts(ints);
+        unsigned active_buf = emu_active_buffer[chip];
+        unsigned staging_buf = active_buf < 2u ? active_buf ^ 1u : 0u;
+        memcpy(emu_rom_image[chip][staging_buf], s_staging[chip], IMAGE_SIZE_BYTES);
+        core1_emulator_publish(chip, staging_buf);
+        s_dirty[chip] = false;
+    }
+
     if (mode_changed) {
         persist_mode_metadata();
         core1_emulator_set_ce4_mode(s_rom5_present, s_aperture_enabled);
     }
-    if (any) reset_control_release();
 }
 
 void msc_disk_init(void)
@@ -276,7 +277,7 @@ bool msc_disk_aperture_enabled(void)
 void msc_disk_task(void)
 {
     if (s_write_pending && absolute_time_diff_us(s_last_write_time, get_absolute_time()) > COMMIT_IDLE_US) {
-        commit_all_dirty(); s_write_pending = false; reset_control_release();
+        commit_all_dirty(); s_write_pending = false;
     }
 }
 
@@ -289,7 +290,7 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun)
 bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, bool load_eject)
 {
     (void)lun; (void)power_condition;
-    if (load_eject && !start) { commit_all_dirty(); s_write_pending = false; reset_control_release(); s_ejected = true; }
+    if (load_eject && !start) { commit_all_dirty(); s_write_pending = false; s_ejected = true; }
     return true;
 }
 
@@ -308,13 +309,13 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t *
 {
     (void)lun;
     if (s_ejected || lba >= TOTAL_SECTORS || offset > SECTOR_SIZE || bufsize > SECTOR_SIZE - offset) return -1;
-    reset_control_notify_write(); memcpy(s_disk[lba] + offset, buffer, bufsize);
+    memcpy(s_disk[lba] + offset, buffer, bufsize);
     s_last_write_time = get_absolute_time(); s_write_pending = true; return (int32_t)bufsize;
 }
 
 int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void *buffer, uint16_t bufsize)
 {
     (void)buffer; (void)bufsize;
-    if (scsi_cmd[0] == 0x35) { commit_all_dirty(); s_write_pending = false; reset_control_release(); return 0; }
+    if (scsi_cmd[0] == 0x35) { commit_all_dirty(); s_write_pending = false; return 0; }
     tud_msc_set_sense(lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00); return -1;
 }
