@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+shopt -s nullglob
+
+devices=(/dev/cu.usbmodemEPROM5*)
+
+if (( ${#devices[@]} == 0 )); then
+    echo "no connected romulator" >&2
+    exit 1
+fi
+
+if (( ${#devices[@]} > 1 )); then
+    echo "multiple connected romulators:" >&2
+    printf '  %s\n' "${devices[@]}" >&2
+    exit 1
+fi
+
+printf 'mount\n' > "${devices[0]}"
+echo "mount sent to ${devices[0]}"

@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+shopt -s nullglob
+
+devices=(/dev/cu.usbmodemEPROM5*)
+if (( ${#devices[@]} == 0 )); then
+    echo "no connected romulator" >&2
+    exit 1
+fi
+if (( ${#devices[@]} > 1 )); then
+    echo "multiple connected romulators:" >&2
+    printf '  %s\n' "${devices[@]}" >&2
+    exit 1
+fi
+
+uf2="/Users/msw/dev/micropin/romulator/build-aperture/pico_eprom_emulator.uf2"
+printf 'bootsel\n' > "${devices[0]}"
+
+# A stale mountpoint can remain visible while macOS is still replacing the
+# running firmware's USB device with the BOOTSEL volume. The ordinary reload
+# helper's three-second delay has proven reliable on this machine.
+sleep 3
+if [[ ! -d /Volumes/RPI-RP2 ]]; then
+    echo "RPI-RP2 bootloader volume did not appear" >&2
+    exit 1
+fi
+
+cp -X "$uf2" /Volumes/RPI-RP2/
+echo "deployed $(md5 "$uf2")"
+echo "This firmware exposes CDC only; no EPROMEMU disk should mount."

@@ -26,8 +26,8 @@ CABINET_NAMES = (
     "playfield-dma",
     "credit",
     "tilt-3",
-    "left-flipper",
     "right-flipper",
+    "left-flipper",
     "start",
     "tilt-7",
 )

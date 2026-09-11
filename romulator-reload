@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+shopt -s nullglob
+
+devices=(/dev/cu.usbmodemEPROM5*)
+
+if (( ${#devices[@]} == 0 )); then
+    echo "no connected romulator" >&2
+    exit 1
+fi
+
+if (( ${#devices[@]} > 1 )); then
+    echo "multiple connected romulators:" >&2
+    printf '  %s\n' "${devices[@]}" >&2
+    exit 1
+fi
+
+DEVICE=${devices[0]}
+
+printf 'bootsel\n' > ${DEVICE}
+
+sleep 3
+
+FILE="/Users/msw/dev/micropin/romulator/build/pico_eprom_emulator.uf2"
+
+cp -X ${FILE} /Volumes/RPI-RP2
+
+echo "deployed `md5 ${FILE}`"
+

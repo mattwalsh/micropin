@@ -1,0 +1,12 @@
+ls /dev/cu.usbmodem*
+printf 'bootsel\n' > /dev/cu.usbmodemEPROM5_00011
+
+# to check
+screen /dev/cu.usbmodemEPROM5_00011 115200
+
+# ...and type
+status
+
+# ...and see mode aperture or  rom5
+
+and do ctl-A + : + quit
