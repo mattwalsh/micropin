@@ -251,10 +251,16 @@ POLL_HOST:
 IDLE_POLL_DELAY:
         DCR A
         JNZ IDLE_POLL_DELAY
-; Open one bounded interrupt window per poll. EI takes effect after NOP; an ISR
-; returns with interrupts disabled, and DI also closes the no-interrupt path.
+; Open one bounded interrupt window per poll. The former single-NOP window was
+; only about 2.7 us at 1.5 MHz and could miss a short Start-button encoder
+; pulse. Sixteen delay iterations hold the safe idle window open for roughly
+; 150 us, while DI still protects every aperture read below. An accepted ISR
+; returns with interrupts disabled; the delay then simply finishes that poll.
         EI
-        NOP
+        MVI A,#10
+CABINET_SAMPLE_WINDOW:
+        DCR A
+        JNZ CABINET_SAMPLE_WINDOW
         DI
         LDA HOST_SEQUENCE
         MOV B,A
@@ -495,10 +501,13 @@ RESPONSE_POLL_DELAY:
 ; Host traffic must not starve the real-time switch handlers. The first version
 ; reached this loop after a response with interrupts still disabled, making
 ; reflexes weak while the client was active and leaving them that way after a
-; disconnected client. Open the same one-instruction interrupt window used by
-; POLL_HOST before each stable sequence probe.
+; disconnected client. Open the same bounded idle window used by POLL_HOST
+; before each stable sequence probe.
         EI
-        NOP
+        MVI A,#10
+RESPONSE_INTERRUPT_WINDOW:
+        DCR A
+        JNZ RESPONSE_INTERRUPT_WINDOW
         DI
         LDA HOST_SEQUENCE
         MOV B,A
