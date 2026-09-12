@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import random
+import signal
 import time
 
 from aperture_stress import SerialLines, drain_received, find_device, wait_until_ready
@@ -44,6 +45,27 @@ POPCORN = (
     (0xb4, 0x04),
     (0x78, 0x04),
 )
+
+
+def cleanup_outputs(serial: SerialLines) -> None:
+    """Best-effort final frame: silence sound and leave mechanisms safe."""
+    payload = build_control_payload(
+        lamp=0xff,
+        reflex_enabled=False,
+        cup_mask=0,
+        launch=False,
+        tone_pitch=0,
+        tone_duration=0,
+    )
+    last_error: Exception | None = None
+    for _ in range(3):
+        try:
+            wait_until_ready(serial)
+            send_and_verify(serial, payload)
+            return
+        except (ConnectionError, OSError, ResponseMismatch, TimeoutError) as error:
+            last_error = error
+    print(f"warning: final sound-off/safe frame was not verified: {last_error}")
 
 
 def main() -> int:
@@ -107,6 +129,13 @@ def main() -> int:
     tilt_was_active = False
     transaction = 0
     popcorn_index = 0
+    stop_requested = False
+
+    def request_stop(_signum: int, _frame: object) -> None:
+        nonlocal stop_requested
+        stop_requested = True
+
+    previous_sigint = signal.signal(signal.SIGINT, request_stop)
 
     print(f"device: {device}")
     print("reflex: enabled (hit either tilt input to toggle)")
@@ -118,7 +147,7 @@ def main() -> int:
         wait_until_ready(serial)
         drain_received(serial)
         try:
-            while args.commands == 0 or transaction < args.commands:
+            while not stop_requested and (args.commands == 0 or transaction < args.commands):
                 transaction += 1
                 lamp = generator.randrange(38) if args.lamp_dance else 0xff
                 command_cups = pending_cups
@@ -200,22 +229,17 @@ def main() -> int:
                 have_snapshot = True
                 time.sleep(args.dwell)
         finally:
-            # Disable local reflex firing, clear cup commands, and turn lamps
-            # off before returning control to the operator.
-            try:
-                wait_until_ready(serial)
-                send_and_verify(serial, build_control_payload(reflex_enabled=False))
-            except (ResponseMismatch, TimeoutError) as error:
-                print(f"warning: final inhibit response was not verified: {error}")
+            cleanup_outputs(serial)
+            signal.signal(signal.SIGINT, previous_sigint)
 
+    if stop_requested:
+        print("stopped; final sound-off/safe frame sent")
     return 0
 
 
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except KeyboardInterrupt:
-        print("\nstopped")
     except (ConnectionError, OSError, RuntimeError, TimeoutError) as error:
         print(f"FAIL: {error}")
         raise SystemExit(1)

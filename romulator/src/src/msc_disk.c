@@ -305,10 +305,16 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun)
 bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, bool load_eject)
 {
     (void)lun; (void)power_condition; (void)load_eject;
-    // macOS does not consistently set LOEJ when Finder ejects this virtual
-    // disk. Treat any STOP as an eject and do not honor a subsequent automatic
-    // START; otherwise the volume immediately remounts itself.
-    if (!start) msc_disk_set_ejected(true);
+    // macOS emits STOP for ordinary volume and power-management activity as
+    // well as user ejects. Making every STOP sticky caused a still-mounted
+    // EPROMEMU volume to become read-only until the Pico was power-cycled.
+    // Flush on STOP, but reserve the sticky ejected state for the explicit CDC
+    // `eject` command used by romulator-eject. A host START must not undo that
+    // deliberate state; `mount` is its explicit inverse.
+    if (!start) {
+        commit_all_dirty();
+        s_write_pending = false;
+    }
     return true;
 }
 
