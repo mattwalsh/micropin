@@ -33,6 +33,7 @@ CUPS = (
     (14, "side-bonus-cup", 25),
 )
 TILT_MASK = 0x88
+CREDIT_EVENT_MASK = 0x04
 RIGHT_FLIPPER_MASK = 0x10
 START_MASK = 0x40
 OUTHOLE_DMA_INDEX = 24
@@ -199,6 +200,11 @@ def main() -> int:
                 flippers = describe_events(ports[0] & 0x30, CABINET_NAMES)
                 if flippers != "-":
                     print(f"{transaction:5d}: flipper {flippers} (sequence {sequence:02x})")
+                if ports[0] & CREDIT_EVENT_MASK:
+                    print(
+                        f"{transaction:5d}: credit event "
+                        f"(p0irq={ports[0]:02x}, sequence {sequence:02x})"
+                    )
 
                 outhole_closed = not bool(dma[OUTHOLE_DMA_INDEX] & 0x10)
                 start_pressed = bool(ports[0] & START_MASK)
