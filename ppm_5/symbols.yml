@@ -1,8 +1,8 @@
-#addresses:
-#   POPCORN_MUSIC : $2800
+addresses:
+   POPCORN_MUSIC : $2800
 
 not_code:
-   MUSIC2 : [$2800, $2900]
+   MUSIC2 : [$2800, $2810]
 
 notes:
-  $2800:  "extra 2k start"
+  $2800:  "Jeri expansion ROM 5 start; Popcorn music"
