@@ -139,6 +139,26 @@ class MicropinGameTests(unittest.TestCase):
         self.assertEqual(game.context.rollover_lit_mask.bit_count(), 7)
         self.assertEqual(result.output.tone_pitch, game.config.rollover_sound.pitch)
 
+    def test_lit_cup_awards_tiered_bonus_and_turns_off_cup_and_target(self) -> None:
+        game = MicropinGame(GameConfig(hole_settle_seconds=0))
+        game.step(snapshot(cabinet=0x40))
+        game.step(snapshot(cabinet=0x10))
+        result = game.step(snapshot(outhole=False, cups=0x01))
+        self.assertEqual(game.context.bonus, 2000)
+        self.assertEqual(game.context.player_scores[0], 250)
+        self.assertEqual(game.context.cup_lit_mask, 0x1e)
+        self.assertEqual(result.output.tone_pitch, game.config.cup_lit_sound.pitch)
+
+    def test_unlit_cup_awards_token_points(self) -> None:
+        game = MicropinGame(GameConfig(hole_settle_seconds=0))
+        game.step(snapshot(cabinet=0x40))
+        game.step(snapshot(cabinet=0x10))
+        game.context.cup_lit_mask = 0x1e
+        result = game.step(snapshot(outhole=False, cups=0x01))
+        self.assertEqual(game.context.bonus, 0)
+        self.assertEqual(game.context.player_scores[0], 100)
+        self.assertEqual(result.output.tone_pitch, game.config.cup_unlit_sound.pitch)
+
     def test_left_flipper_rotates_rollover_lamp_pattern_clockwise(self) -> None:
         game = MicropinGame(GameConfig(hole_settle_seconds=0))
         game.step(snapshot(cabinet=0x40))

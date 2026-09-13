@@ -28,6 +28,12 @@ OUTHOLE_DMA_INDEX = 24
 # The six physical cup contacts, in host-command bit order.
 CUP_DMA_INDICES = (29, 27, 25, 20, 18, 14)
 OUTHOLE_CONTACT = len(CUP_DMA_INDICES)
+# Five scoring cups, left to right.  The sixth contact is the side bonus cup.
+CUP_LAMPS = (36, 24, 25, 26, 13)
+CUP_TARGET_LAMPS = (29, 37, 32, 33, 34)
+CUP_TIER_LAMPS = (28, 35, 29, 37)
+CUP_BONUS_VALUES = (2000, 4000, 6000, 8000)
+CUP_REGULAR_VALUES = (250, 500, 750, 1000)
 
 # R-K and Q-A are physical DMA contacts 1 and 32, hence byte indices 0 and 31
 # in the $23e0-$23ff switch snapshot. A clear $10 bit means the contact is shut.
@@ -100,6 +106,9 @@ class GameConfig:
     credit_sound: Tone = Tone(0x78, 0x28)
     rollover_sound: Tone = Tone(0x54, 0x08)
     rollover_complete_sound: Tone = Tone(0xf1, 0x10)
+    cup_lit_sound: Tone = Tone(0x65, 0x08)
+    cup_unlit_sound: Tone = Tone(0x33, 0x04)
+    cups_complete_sound: Tone = Tone(0xf1, 0x10)
     match_win_song: tuple[SongNote, ...] = DEFAULT_MATCH_WIN_SONG
     boot_song: tuple[SongNote, ...] = ()
     start_song: tuple[SongNote, ...] = ()
@@ -207,6 +216,9 @@ def load_game_config(path: Path) -> GameConfig:
         credit_sound=load_tone("credit", Tone(0x78, 0x28)),
         rollover_sound=load_tone("rollover", Tone(0x54, 0x08)),
         rollover_complete_sound=load_tone("rollover_complete", Tone(0xf1, 0x10)),
+        cup_lit_sound=load_tone("cup_lit", Tone(0x65, 0x08)),
+        cup_unlit_sound=load_tone("cup_unlit", Tone(0x33, 0x04)),
+        cups_complete_sound=load_tone("cups_complete", Tone(0xf1, 0x10)),
         match_win_song=load_song("match_win"),
         boot_song=boot_song,
         start_song=start_song,
@@ -348,6 +360,8 @@ class GameContext:
     previous_inlane_mask: int = 0
     previous_rollover_mask: int = 0
     rollover_lit_mask: int = 0xff
+    cup_lit_mask: int = 0x1f
+    cup_tier: int = 0
     previous_left_flipper: bool = False
     previous_right_flipper: bool = False
     next_bonus_time: float = 0.0
@@ -450,6 +464,7 @@ class MicropinGame:
                     if old_lit & (1 << bit):
                         rotated |= 1 << ROLLOVER_RING_BITS[(ring_index + 1) % len(ROLLOVER_RING_BITS)]
                 self.context.rollover_lit_mask = rotated
+                self.context.cup_lit_mask = ((self.context.cup_lit_mask << 1) & 0x1f) | (self.context.cup_lit_mask >> 4)
                 messages.append(f"lane change: rollovers={rotated:02x}")
             right_flipper_edge = inputs.right_flipper_pressed and not self.context.previous_right_flipper
             self.context.previous_right_flipper = inputs.right_flipper_pressed
@@ -460,6 +475,7 @@ class MicropinGame:
                     if old_lit & (1 << bit):
                         rotated |= 1 << ROLLOVER_RING_BITS[(ring_index - 1) % len(ROLLOVER_RING_BITS)]
                 self.context.rollover_lit_mask = rotated
+                self.context.cup_lit_mask = (self.context.cup_lit_mask >> 1) | ((self.context.cup_lit_mask & 1) << 4)
                 messages.append(f"lane change: rollovers={rotated:02x}")
             if inputs.tilt_pressed and not self.context.tilted:
                 self.context.tilted = True
@@ -555,6 +571,32 @@ class MicropinGame:
                         messages.append(self._state_message())
                     break
                 cup_mask |= 1 << hole
+                if hole < 5 and not self.context.tilted:
+                    cup_bit = 1 << hole
+                    if self.context.cup_lit_mask & cup_bit:
+                        bonus_value = CUP_BONUS_VALUES[self.context.cup_tier]
+                        regular_value = CUP_REGULAR_VALUES[self.context.cup_tier]
+                        player_index = self.context.current_player - 1
+                        self.context.bonus += bonus_value
+                        self.context.player_scores[player_index] += regular_value
+                        self.context.cup_lit_mask &= ~cup_bit
+                        sound = self.config.cup_lit_sound
+                        messages.append(
+                            f"cup {hole + 1}: +{bonus_value} bonus, +{regular_value} points; "
+                            f"remaining={self.context.cup_lit_mask:02x}"
+                        )
+                        if not self.context.cup_lit_mask:
+                            self.context.cup_lit_mask = 0x1f
+                            if self.context.cup_tier < len(CUP_BONUS_VALUES) - 1:
+                                self.context.cup_tier += 1
+                            messages.append(
+                                f"cups complete: next value {CUP_BONUS_VALUES[self.context.cup_tier]}"
+                            )
+                            sound = self.config.cups_complete_sound
+                    else:
+                        self.context.player_scores[self.context.current_player - 1] += 100
+                        sound = self.config.cup_unlit_sound
+                        messages.append(f"cup {hole + 1}: unlit, +100 points")
                 messages.append(f"cup eject requested: {hole + 1}")
 
         elif self.context.state is GameState.BONUS_PROCESSING:
@@ -697,6 +739,8 @@ class MicropinGame:
         self.context.previous_left_flipper = False
         self.context.previous_right_flipper = False
         self.context.rollover_lit_mask = 0xff
+        self.context.cup_lit_mask = 0x1f
+        self.context.cup_tier = 0
 
     def _launch_ball(self, *, new_numbered_ball: bool) -> None:
         self._enter_state(GameState.GAME_PLAYING)
@@ -786,6 +830,15 @@ class MicropinGame:
         for bit, lamp in enumerate(ROLLOVER_LAMPS):
             if self.context.rollover_lit_mask & (1 << bit):
                 lamp_bitmap[lamp // 8] |= 1 << (lamp % 8)
+        for bit, lamp in enumerate(CUP_LAMPS):
+            if self.context.cup_lit_mask & (1 << bit):
+                lamp_bitmap[lamp // 8] |= 1 << (lamp % 8)
+        for bit, lamp in enumerate(CUP_TARGET_LAMPS):
+            if self.context.cup_lit_mask & (1 << bit):
+                lamp_bitmap[lamp // 8] |= 1 << (lamp % 8)
+        if self.context.cup_tier < len(CUP_TIER_LAMPS):
+            lamp = CUP_TIER_LAMPS[self.context.cup_tier]
+            lamp_bitmap[lamp // 8] |= 1 << (lamp % 8)
         if flash_on:
             lamp_bitmap[SAME_PLAYER_AGAIN_LAMP // 8] |= 1 << (SAME_PLAYER_AGAIN_LAMP % 8)
         display.set_same_player_again_led(flash_on)
