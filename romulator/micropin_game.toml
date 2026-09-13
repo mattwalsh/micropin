@@ -1,0 +1,113 @@
+[game]
+balls_per_game = 4
+# Temporary debugging shortcut: the back credit button starts a game from
+# game over, or launches a ball when waiting and the outhole confirms it is present.
+# Set false to disable both shortcuts; the button still adds a credit.
+credit_button_launch = true
+
+[holes]
+settle_seconds = 0.5
+
+# Reuse the Popcorn notes below for boot and start. Set either to "none" to
+# silence it, or point it to another [[songs.NAME]] sequence.
+[music]
+boot = "match_win"
+start = "match_win"
+
+# The R-K and Q-A inlanes each add this much to the bonus bank. Once a ball
+# drains, pay it to the active player in 1,000-point steps at this interval.
+[bonus]
+inlane_points = 1000
+tick_seconds = 0.10
+
+# Port-1 reflex-event scoring. Each of the four bumpers and both slings is
+# independently configurable.
+[points]
+lower_left_bumper = 10
+upper_left_bumper = 10
+middle_rollover_bumper = 10
+lower_right_bumper = 10
+right_sling = 5
+left_sling = 5
+
+# Logical pitch/duration bytes sent through the aperture. These six tuples are
+# cribbed from ppm.asm's reflex sound table at $12ad-$12be. Duration zero is
+# reserved for silence and is intentionally rejected by the config loader.
+[sounds.lower_left_bumper]
+pitch = 0xca
+duration = 0x08
+
+[sounds.upper_left_bumper]
+pitch = 0xaa
+duration = 0x08
+
+[sounds.middle_rollover_bumper]
+pitch = 0x87
+duration = 0x08
+
+[sounds.lower_right_bumper]
+pitch = 0x65
+duration = 0x08
+
+[sounds.right_sling]
+pitch = 0x33
+duration = 0x08
+
+[sounds.left_sling]
+pitch = 0x3c
+duration = 0x08
+
+[sounds.match]
+pitch = 0x78
+duration = 0x04
+
+# First note of the original credit jingle in ppm.asm ($1341).
+[sounds.credit]
+pitch = 0x78
+duration = 0x28
+
+[sounds.rollover]
+pitch = 0x54
+duration = 0x08
+
+[sounds.rollover_complete]
+pitch = 0xf1
+duration = 0x10
+
+# Winning-match melody. Each tuple is sent once; interval_seconds is the wait
+# before the next tuple, while the ROMulator keeps polling switches normally.
+# The pitches are the familiar Popcorn phrase and can be changed freely.
+[[songs.match_win]]
+pitch = 0xf1
+duration = 0x04
+interval_seconds = 0.14
+
+[[songs.match_win]]
+pitch = 0xd6
+duration = 0x04
+interval_seconds = 0.14
+
+[[songs.match_win]]
+pitch = 0xf1
+duration = 0x04
+interval_seconds = 0.14
+
+[[songs.match_win]]
+pitch = 0xb4
+duration = 0x04
+interval_seconds = 0.14
+
+[[songs.match_win]]
+pitch = 0x8f
+duration = 0x04
+interval_seconds = 0.14
+
+[[songs.match_win]]
+pitch = 0xb4
+duration = 0x04
+interval_seconds = 0.14
+
+[[songs.match_win]]
+pitch = 0x78
+duration = 0x04
+interval_seconds = 0.20

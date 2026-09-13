@@ -11,7 +11,7 @@
 ; Response frame uses address strobes:
 ;   read $28e0 to start
 ;   transmit sequence, length, echoed payload, port 0, the RST 5.5-latched
-;   Port-1 reflex events, cabinet Port 4, one reserved byte, the 32 raw
+;   Port-1 reflex events, cabinet Port 4, latched rollover edges, the 32 raw
 ;   playfield DMA samples at
 ;   $23e0-$23ff, and CRC-8 as paired high/low-nibble reads from
 ;   $28c0+nibble and $28d0+nibble
@@ -52,6 +52,9 @@ RESET_COUNT EQU #22a2
 FLIPPER_COIL_TIMERS EQU #22a3
 LAUNCHER_COIL_TIMER EQU #22a5
 PREVIOUS_LAUNCH_COMMAND EQU #22a6
+FLIPPER_PWM_MASK EQU #22a7
+ROLLOVER_PREVIOUS EQU #22a8
+ROLLOVER_HIT_LATCH EQU #22a9
 SWITCH_DMA_SOURCE EQU #23e0
 SWITCH_CHANGE_DISPLAY EQU #23d3
 MAX_PAYLOAD EQU #40
@@ -60,9 +63,11 @@ CONTROL_LENGTH EQU #08
 DISPLAY_BYTE_COUNT EQU #20
 LEGACY_DISPLAY_COMMAND_LENGTH EQU #26
 DISPLAY_COMMAND_LENGTH EQU #28
+DISPLAY_LAMP_BITMAP_COMMAND_LENGTH EQU #2d
 DISPLAY_PAYLOAD EQU LOCAL_PAYLOAD+#06
 SHORT_SOUND_PAYLOAD EQU LOCAL_PAYLOAD+#06
 DISPLAY_SOUND_PAYLOAD EQU LOCAL_PAYLOAD+#26
+LAMP_BITMAP_PAYLOAD EQU LOCAL_PAYLOAD+#28
 STACK_TOP EQU #23c0
 
         ORG #0000
@@ -203,6 +208,8 @@ CLEAR_LOCAL_COIL_TIMERS:
         STA FLIPPER_COIL_TIMERS+#01
         STA LAUNCHER_COIL_TIMER
         STA PREVIOUS_LAUNCH_COMMAND
+        MVI A,#ff
+        STA FLIPPER_PWM_MASK
 ; Local reflexes are enabled by default for the present de-ablation test.
 ; This lets the six bumper/slingshot paths run without a host connection while
 ; cup and host-commanded coils remain disabled. A later validated host command
@@ -223,6 +230,11 @@ INITIALIZE_SWITCH_BASELINE:
         INX D
         DCR B
         JNZ INITIALIZE_SWITCH_BASELINE
+; Establish the eight rollover contact levels without reporting a hit merely
+; because a ball was already resting on one when power came up.
+        CALL SCAN_ROLLOVERS
+        XRA A
+        STA ROLLOVER_HIT_LATCH
 ; Acknowledge stale sources, then unmask RST 5.5 and RST 6.5 while leaving
 ; RST 7.5 masked. RST 5.5 drives the six local reflex coils; RST 6.5 supplies
 ; their bounded expiration cadence.
@@ -262,14 +274,29 @@ CABINET_SAMPLE_WINDOW:
         DCR A
         JNZ CABINET_SAMPLE_WINDOW
         DI
+; Poll the eight short-lived rollover contacts at the ~1 ms idle cadence,
+; independently of the much slower host transaction rate.
+        CALL SCAN_ROLLOVERS
         LDA HOST_SEQUENCE
         MOV B,A
         LDA HOST_SEQUENCE
         CMP B
         JNZ POLL_HOST
         CMP C
-        JNZ RECEIVE_HOST_TRANSACTION
-        JMP POLL_HOST
+        JZ POLL_HOST
+; Mailbox validation and response run with interrupts disabled. Force an active
+; held flipper on across that bounded critical section so an OFF carrier phase
+; cannot be stretched long enough for the return spring to win. The Port-6
+; helper preserves B because B still contains the pending host sequence here.
+        LXI H,FLIPPER_COIL_TIMERS
+        MOV A,M
+        INX H
+        ORA M
+        JZ RECEIVE_HOST_TRANSACTION
+        MVI A,#ff
+        STA FLIPPER_PWM_MASK
+        CALL WRITE_LOCAL_COIL_PORT6
+        JMP RECEIVE_HOST_TRANSACTION
 
 RECEIVE_HOST_TRANSACTION:
         MOV A,B
@@ -413,6 +440,7 @@ CAPTURE_HOST_RESPONSE:
 ; reuse these bytes rather than changing the response underneath its sequence.
 ; Atomically consume the Port-0 and Port-1 events accumulated by their ISRs.
         DI
+        CALL SCAN_ROLLOVERS
         LDA CABINET_EVENT_LATCH
         STA LOCAL_SWITCH_0
         XRA A
@@ -423,12 +451,14 @@ CAPTURE_HOST_RESPONSE:
         STA REFLEX_EVENT_LATCH
 ; Cabinet controls do not need interrupt latency; sample Port 4 once per host
 ; transaction. Port 5 contains DIP switches and is intentionally omitted in
-; aperture mode. Keep one reserved zero byte so the established 36-byte switch
-; trailer and its host parsers remain stable.
+; aperture mode. The former reserved byte now carries rising closure edges for
+; the eight rollovers, preserving the established 36-byte switch trailer.
         IN #04
         STA LOCAL_SWITCH_4
-        XRA A
+        LDA ROLLOVER_HIT_LATCH
         STA LOCAL_SWITCH_5
+        XRA A
+        STA ROLLOVER_HIT_LATCH
 ; Keep the timing-sensitive response transmitter at its previously tested ROM
 ; addresses. Replacing LDA+RIM with IN+XRA made this block one byte shorter.
         NOP
@@ -529,7 +559,10 @@ CABINET_SWITCH_ISR:
         PUSH H
         IN #00
         ORA A
-        JZ CABINET_SWITCH_DONE
+        JNZ CABINET_SWITCH_ACTIVE
+        CALL ADVANCE_FLIPPER_PWM
+        JMP CABINET_SWITCH_DONE
+CABINET_SWITCH_ACTIVE:
         MVI B,#00
 FIND_CABINET_BIT:
         RAR
@@ -540,10 +573,19 @@ CABINET_BIT_FOUND:
         MOV A,B
         CMA
         OUT #0d
+; Acknowledge the selected encoder source before spending time on PWM.
+        CALL ADVANCE_FLIPPER_PWM
 ; The physical flipper contacts are fanned into Port 0 bits 4/5 for their
 ; latency-sensitive coil action. Fire a bounded local impulse before doing
 ; ordinary event bookkeeping for the host.
         CALL FIRE_FLIPPER_COIL
+; Port-0 source bit 1 announces a playfield-DMA update. Capture rollover
+; closure edges immediately, rather than waiting for the next host frame.
+        MOV A,B
+        CPI #01
+        JNZ CABINET_ROLLOVER_SCAN_DONE
+        CALL SCAN_ROLLOVERS
+CABINET_ROLLOVER_SCAN_DONE:
 ; Port-0 bit zero is the board's periodic source and supplies the expiration
 ; cadence. Acknowledge it before doing the timer work, and do not burden the
 ; higher-priority RST 6.5 path for DMA/cabinet events with a timer scan.
@@ -576,8 +618,9 @@ CABINET_SWITCH_DONE:
         RET
 
 ; Port-0 bit 4 is the right flipper (coil 12, port 6 bit 4); bit 5 is the left
-; flipper (coil 13, port 6 bit 5). Like the original game, this first version
-; is an impulse: a live timer is never renewed by a repeated event.
+; flipper (coil 13, port 6 bit 5). Start with ten timer ticks at full power.
+; ADVANCE_FLIPPER_PWM subsequently renews a held contact at $09, where the
+; timer's $10 bit is clear and the interrupt-driven 50% hold carrier applies.
 FIRE_FLIPPER_COIL:
         LDA REFLEX_ENABLED
         ORA A
@@ -596,10 +639,61 @@ FIRE_FLIPPER_COIL:
         MOV A,M
         ORA A
         JNZ FLIPPER_COIL_DONE
-        MVI M,#09
+        MVI M,#19
         CALL WRITE_LOCAL_COILS
 FLIPPER_COIL_DONE:
         POP B
+        RET
+
+; The two interrupt lines alternate at about 454 edges per second. Toggle both
+; flipper bits on every accepted edge for the 227 Hz, 50% carrier proven by
+; ppm_hold_pwm on the physical machine. Timer bit $10 preserves full pull-in.
+; After pull-in, Port 4 supplies held levels: $20 right and $40 left.
+ADVANCE_FLIPPER_PWM:
+; With no active flipper, leave the carrier and Port 6 untouched. This is the
+; overwhelmingly common path and keeps switch interrupts close to stock cost.
+        LXI H,FLIPPER_COIL_TIMERS
+        MOV A,M
+        INX H
+        ORA M
+        RZ
+
+        LXI H,FLIPPER_PWM_MASK
+        MOV A,M
+        XRI #30
+        MOV M,A
+
+        LXI H,FLIPPER_COIL_TIMERS
+        MOV A,M
+        ORA A
+        JZ CHECK_LEFT_FLIPPER_HOLD
+        ANI #10
+        JNZ CHECK_LEFT_FLIPPER_HOLD
+        IN #04
+        ANI #20
+        JZ RELEASE_RIGHT_FLIPPER
+        MVI M,#09
+        JMP CHECK_LEFT_FLIPPER_HOLD
+RELEASE_RIGHT_FLIPPER:
+        MVI M,#00
+
+CHECK_LEFT_FLIPPER_HOLD:
+        INX H
+        MOV A,M
+        ORA A
+        JZ WRITE_FLIPPER_PWM
+        ANI #10
+        JNZ WRITE_FLIPPER_PWM
+        IN #04
+        ANI #40
+        JZ RELEASE_LEFT_FLIPPER
+        MVI M,#09
+        JMP WRITE_FLIPPER_PWM
+RELEASE_LEFT_FLIPPER:
+        MVI M,#00
+
+WRITE_FLIPPER_PWM:
+        CALL WRITE_LOCAL_COIL_PORT6
         RET
 
 ; RST 5.5 is generated by the dedicated fast-switch hardware. The original
@@ -613,7 +707,10 @@ REFLEX_SWITCH_ISR:
         PUSH H
         IN #01
         ORA A
-        JZ REFLEX_SWITCH_DONE
+        JNZ REFLEX_SWITCH_ACTIVE
+        CALL ADVANCE_FLIPPER_PWM
+        JMP REFLEX_SWITCH_DONE
+REFLEX_SWITCH_ACTIVE:
         MVI B,#00
 FIND_REFLEX_BIT:
         RAR
@@ -626,6 +723,8 @@ REFLEX_BIT_FOUND:
         MOV A,B
         CMA
         OUT #0e
+; Acknowledge the selected encoder source before spending time on PWM.
+        CALL ADVANCE_FLIPPER_PWM
         CALL FIRE_REFLEX_COIL
 
 ; Convert the selected bit number back to a one-hot event mask.
@@ -705,6 +804,68 @@ NEXT_FLIPPER_COIL_TIMER:
         STA LAUNCHER_COIL_TIMER
 LOCAL_COIL_TIMERS_READY:
         CALL WRITE_LOCAL_COILS
+        RET
+
+; Carrier-edge fast path for Port 6, which contains two reflex mechanisms and
+; both flippers. Preserve B: the mailbox caller keeps its pending sequence in B.
+WRITE_LOCAL_COIL_PORT6:
+        PUSH B
+        MVI B,#00
+        RIM
+        ANI #01
+        JNZ OUTPUT_LOCAL_COIL_PORT6
+
+        LXI H,REFLEX_COIL_TIMERS
+        MOV A,M
+        ORA A
+        JZ FAST_REFLEX_COIL_3
+        MVI A,#08
+        ORA B
+        MOV B,A
+FAST_REFLEX_COIL_3:
+        LXI H,REFLEX_COIL_TIMERS+#03
+        MOV A,M
+        ORA A
+        JZ FAST_RIGHT_FLIPPER
+        MVI A,#04
+        ORA B
+        MOV B,A
+
+FAST_RIGHT_FLIPPER:
+        LXI H,FLIPPER_COIL_TIMERS
+        MOV A,M
+        ORA A
+        JZ FAST_LEFT_FLIPPER
+        ANI #10
+        JNZ FAST_RIGHT_FLIPPER_ON
+        LDA FLIPPER_PWM_MASK
+        ANI #10
+        JZ FAST_LEFT_FLIPPER
+FAST_RIGHT_FLIPPER_ON:
+        MVI A,#10
+        ORA B
+        MOV B,A
+
+FAST_LEFT_FLIPPER:
+        LXI H,FLIPPER_COIL_TIMERS+#01
+        MOV A,M
+        ORA A
+        JZ OUTPUT_LOCAL_COIL_PORT6
+        ANI #10
+        JNZ FAST_LEFT_FLIPPER_ON
+        LDA FLIPPER_PWM_MASK
+        ANI #20
+        JZ OUTPUT_LOCAL_COIL_PORT6
+FAST_LEFT_FLIPPER_ON:
+        MVI A,#20
+        ORA B
+        MOV B,A
+
+OUTPUT_LOCAL_COIL_PORT6:
+        MOV A,B
+        CMA
+        OUT #06
+        POP B
         RET
 
 ; Build active-high logical state from the local timers, then complement it for
@@ -829,6 +990,12 @@ READ_FLIPPER_COILS:
         MOV A,M
         ORA A
         JZ LEFT_FLIPPER_COIL
+        ANI #10
+        JNZ RIGHT_FLIPPER_COIL_ON
+        LDA FLIPPER_PWM_MASK
+        ANI #10
+        JZ LEFT_FLIPPER_COIL
+RIGHT_FLIPPER_COIL_ON:
         MVI A,#10
         ORA C
         MOV C,A
@@ -837,6 +1004,12 @@ LEFT_FLIPPER_COIL:
         MOV A,M
         ORA A
         JZ READ_LAUNCHER_COIL
+        ANI #10
+        JNZ LEFT_FLIPPER_COIL_ON
+        LDA FLIPPER_PWM_MASK
+        ANI #20
+        JZ READ_LAUNCHER_COIL
+LEFT_FLIPPER_COIL_ON:
         MVI A,#20
         ORA C
         MOV C,A
@@ -930,6 +1103,30 @@ CLEAR_LOCAL_LAMPS:
         DCR B
         JNZ CLEAR_LOCAL_LAMPS
 
+; The signed 45-byte frame appends five logical lamp-mask bytes after sound.
+; Preserve the legacy one-hot selector for diagnostic and soak-test clients.
+        LDA LOCAL_LENGTH
+        CPI DISPLAY_LAMP_BITMAP_COMMAND_LENGTH
+        JNZ LEGACY_ONE_HOT_LAMP
+        LDA LOCAL_PAYLOAD+#01
+        CPI #4d
+        JNZ LEGACY_ONE_HOT_LAMP
+        LDA LOCAL_PAYLOAD+#02
+        CPI #50
+        JNZ LEGACY_ONE_HOT_LAMP
+        LXI H,LAMP_BITMAP_PAYLOAD
+        LXI D,LOCAL_LAMP_BYTES
+        MVI B,#05
+COPY_LAMP_BITMAP:
+        MOV A,M
+        STAX D
+        INX H
+        INX D
+        DCR B
+        JNZ COPY_LAMP_BITMAP
+        JMP OUTPUT_LOCAL_LAMPS
+
+LEGACY_ONE_HOT_LAMP:
         LDA LOCAL_LENGTH
         ORA A
         JZ OUTPUT_LOCAL_LAMPS
@@ -1010,6 +1207,8 @@ MANIFEST_CONTROL_COMMANDS:
         CPI LEGACY_DISPLAY_COMMAND_LENGTH
         JZ VALIDATE_CONTROL_SIGNATURE
         CPI DISPLAY_COMMAND_LENGTH
+        JZ VALIDATE_CONTROL_SIGNATURE
+        CPI DISPLAY_LAMP_BITMAP_COMMAND_LENGTH
         JNZ NO_CONTROL_COMMAND
 VALIDATE_CONTROL_SIGNATURE:
         LDA LOCAL_PAYLOAD+#01
@@ -1127,6 +1326,8 @@ MANIFEST_DISPLAY_COMMANDS:
         CPI LEGACY_DISPLAY_COMMAND_LENGTH
         JZ VALIDATE_DISPLAY_SIGNATURE
         CPI DISPLAY_COMMAND_LENGTH
+        JZ VALIDATE_DISPLAY_SIGNATURE
+        CPI DISPLAY_LAMP_BITMAP_COMMAND_LENGTH
         JNZ DISPLAY_COMMAND_DONE
 VALIDATE_DISPLAY_SIGNATURE:
         LDA LOCAL_PAYLOAD+#01
@@ -1166,7 +1367,10 @@ MANIFEST_SOUND_COMMANDS:
         CPI CONTROL_LENGTH
         JZ SHORT_SOUND_COMMAND
         CPI DISPLAY_COMMAND_LENGTH
+        JZ FULL_SOUND_COMMAND
+        CPI DISPLAY_LAMP_BITMAP_COMMAND_LENGTH
         JNZ SOUND_COMMAND_DONE
+FULL_SOUND_COMMAND:
         LXI H,DISPLAY_SOUND_PAYLOAD
         JMP VALIDATE_SOUND_SIGNATURE
 SHORT_SOUND_COMMAND:
@@ -1198,6 +1402,81 @@ MANIFEST_SOUND_DURATION:
 SOUND_COMMAND_DONE:
         POP H
         POP D
+        POP B
+        RET
+
+; Each raw DMA byte's $10 bit is high when its inductive contact is open.
+; Sample only the eight 500-point rollover contacts and retain 0->1 closure
+; edges until CAPTURE_HOST_RESPONSE consumes the latch. Low-nibble measurement
+; jitter cannot manufacture a hit. Preserve BC: C owns the mailbox sequence.
+SCAN_ROLLOVERS:
+        PUSH B
+        MVI B,#00
+        LDA #23f3              ; contact 20, rollover NW
+        ANI #10
+        JNZ ROLLOVER_0_OPEN
+        MOV A,B
+        ORI #01
+        MOV B,A
+ROLLOVER_0_OPEN:
+        LDA #23e9              ; contact 10, rollover W
+        ANI #10
+        JNZ ROLLOVER_1_OPEN
+        MOV A,B
+        ORI #02
+        MOV B,A
+ROLLOVER_1_OPEN:
+        LDA #23ea              ; contact 11, rollover N
+        ANI #10
+        JNZ ROLLOVER_2_OPEN
+        MOV A,B
+        ORI #04
+        MOV B,A
+ROLLOVER_2_OPEN:
+        LDA #23ec              ; contact 13, rollover SE
+        ANI #10
+        JNZ ROLLOVER_3_OPEN
+        MOV A,B
+        ORI #08
+        MOV B,A
+ROLLOVER_3_OPEN:
+        LDA #23ed              ; contact 14, rollover NE
+        ANI #10
+        JNZ ROLLOVER_4_OPEN
+        MOV A,B
+        ORI #10
+        MOV B,A
+ROLLOVER_4_OPEN:
+        LDA #23eb              ; contact 12, rollover E
+        ANI #10
+        JNZ ROLLOVER_5_OPEN
+        MOV A,B
+        ORI #20
+        MOV B,A
+ROLLOVER_5_OPEN:
+        LDA #23f0              ; contact 17, rollover SW
+        ANI #10
+        JNZ ROLLOVER_6_OPEN
+        MOV A,B
+        ORI #40
+        MOV B,A
+ROLLOVER_6_OPEN:
+        LDA #23f1              ; contact 18, rollover S
+        ANI #10
+        JNZ ROLLOVER_7_OPEN
+        MOV A,B
+        ORI #80
+        MOV B,A
+ROLLOVER_7_OPEN:
+        LDA ROLLOVER_PREVIOUS
+        CMA
+        ANA B
+        MOV C,A
+        MOV A,B
+        STA ROLLOVER_PREVIOUS
+        LDA ROLLOVER_HIT_LATCH
+        ORA C
+        STA ROLLOVER_HIT_LATCH
         POP B
         RET
 

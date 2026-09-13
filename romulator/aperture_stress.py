@@ -255,7 +255,7 @@ def main() -> int:
                     time.sleep(0.001)
 
             # RST 6.5-latched Port-0 events, RST 5.5-latched Port-1 reflex
-            # events, cabinet Port 4, one reserved byte, and all 32 raw
+            # events, cabinet Port 4, latched rollover edges, and all 32 raw
             # inductive DMA samples make up the 36-byte switch snapshot.
             expected_prefix = bytes((sequence, length + 36)) + payload
             if len(response) != len(expected_prefix) + 36 or not response.startswith(expected_prefix):

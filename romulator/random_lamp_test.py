@@ -118,7 +118,7 @@ def main() -> int:
                 print(
                     f"{number:4d}: lamp {lamp:2d}  sequence {sequence:02x}  "
                     f"ports p0irq={ports[0]:02x} p1irq={ports[1]:02x} "
-                    f"p4={ports[2]:02x} reserved={ports[3]:02x}  "
+                    f"p4={ports[2]:02x} rollovers={ports[3]:02x}  "
                     f"dma={dma.hex()}  changed={changed}  "
                     f"p0-events={describe_events(ports[0], CABINET_NAMES)}  "
                     f"reflex={describe_events(ports[1], REFLEX_NAMES)}"
