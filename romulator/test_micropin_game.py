@@ -640,6 +640,25 @@ class MicropinGameTests(unittest.TestCase):
         self.assertEqual(first.output.cup_mask, 0x01)
         self.assertEqual(held.output.cup_mask, 0)
 
+    def test_cups_are_ejected_while_game_over_without_scoring(self) -> None:
+        game = MicropinGame(GameConfig(hole_settle_seconds=0))
+        result = game.step(snapshot(outhole=False, cups=0x3f))
+        self.assertIs(game.context.state, GameState.GAME_OVER)
+        self.assertEqual(result.output.cup_mask, 0x3f)
+        self.assertEqual(game.context.player_scores, [0, 0, 0, 0])
+        self.assertEqual(game.context.bonus, 0)
+        # A held cup is reported only once until its contact opens again.
+        self.assertEqual(game.step(snapshot(outhole=False, cups=0x3f)).output.cup_mask, 0)
+
+    def test_cups_are_ejected_while_waiting_for_launch(self) -> None:
+        game = MicropinGame(GameConfig(hole_settle_seconds=0))
+        game.step(snapshot(cabinet=0x40))
+        self.assertIs(game.context.state, GameState.WAITING_FOR_LAUNCH)
+        result = game.step(snapshot(outhole=True, cups=0x3f))
+        self.assertIs(game.context.state, GameState.WAITING_FOR_LAUNCH)
+        self.assertEqual(result.output.cup_mask, 0x3f)
+        self.assertEqual(game.context.player_scores, [0, 0, 0, 0])
+
     def test_hole_dwell_timer_cancels_on_open_and_rearms(self) -> None:
         timer = HoleDwellTimer(2, 0.5)
         self.assertEqual(timer.update((True, False), 1.0), ())
@@ -760,14 +779,27 @@ class MicropinGameTests(unittest.TestCase):
         game = MicropinGame()
         self.assertEqual(game.initial_output().display.to_bytes()[30] & 0x0f, 0)
         waiting = game.step(snapshot(cabinet=0x40))
-        self.assertEqual(waiting.output.display.to_bytes()[30] & 0x0f, 1)
+        self.assertIn(waiting.output.display.to_bytes()[30] & 0xf0, (0, 0x10))
         game.context.current_player = 4
         game.context.state = GameState.BONUS_PROCESSING
+        game.context.bonus = 1000
+        game.context.next_bonus_time = 1e12
         bonus = game.step(snapshot())
-        self.assertEqual(bonus.output.display.to_bytes()[30] & 0x0f, 8)
+        self.assertEqual(bonus.output.display.to_bytes()[30] & 0xf0, 0x80)
         game.context.state = GameState.MATCH_SEQUENCE
         match = game.step(snapshot())
-        self.assertEqual(match.output.display.to_bytes()[30] & 0x0f, 0)
+        self.assertEqual(match.output.display.to_bytes()[30] & 0xf0, 0)
+
+    def test_nonparticipating_player_displays_are_blank(self) -> None:
+        game = MicropinGame()
+        game.context.players_in_game = 2
+        game.context.player_scores[:] = [0, 123456, 0, 0]
+        window = game.initial_output().display.to_bytes()
+        # P1/P2 are present (including a real zero); P3/P4 retain blank F glyphs.
+        self.assertEqual(window[6:9], b"\x00\x00\x00")
+        self.assertEqual(window[13:16], b"\x56\x34\x12")
+        self.assertEqual(window[3:6], b"\xff\xff\xff")
+        self.assertEqual(window[16:19], b"\xff\xff\xff")
 
 
 if __name__ == "__main__":

@@ -155,7 +155,9 @@ class DisplayFrame:
     def set_player_led(self, player: int, enabled: bool) -> None:
         if player not in range(1, 5):
             raise ValueError("player must be 1, 2, 3, or 4")
-        self._set_bit(30, player - 1, enabled)
+        # Byte 0x1e carries the four player indicators in its high nibble;
+        # the low nibble appears unused on this revision.
+        self._set_bit(30, player + 3, enabled)
 
 
 def display_window_from_hex(value: str) -> bytes:

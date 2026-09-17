@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass, field
 from enum import Enum
+import json
+import os
 from pathlib import Path
 import random
 import signal
@@ -55,6 +57,7 @@ MATCH_END_RATE_HZ = 0.7
 SAME_PLAYER_AGAIN_SECONDS = 2.0
 SAME_PLAYER_AGAIN_FLASH_HZ = 4.0
 SAME_PLAYER_AGAIN_LAMP = 6
+WAITING_PLAYER_FLASH_HZ = 2.0
 GRACE_SECONDS = 4.0
 DEFAULT_CONFIG_PATH = Path(__file__).with_name("micropin_game.toml")
 
@@ -346,6 +349,9 @@ class HardwareSnapshot:
 class GameContext:
     state: GameState = GameState.GAME_OVER
     current_player: int = 1
+    # Number of players who joined the current game.  Unjoined player
+    # displays remain blank; a joined player with a zero score displays 000000.
+    players_in_game: int = 1
     ball_number: int = 0
     ball_in_play: bool = False
     tilted: bool = False
@@ -410,11 +416,16 @@ class MicropinGame:
         *,
         clock: Callable[[], float] = time.monotonic,
         randomizer: random.Random | None = None,
+        nvram_path: Path | None = None,
     ) -> None:
         self.config = config or GameConfig()
         self._clock = clock
         self._random = randomizer or random.Random()
+        self.nvram_path = nvram_path
         self.context = GameContext()
+        self.high_scores: list[int] = [0, 0, 0, 0]
+        self.recent_games: list[int] = []
+        self._load_nvram()
         self._hole_timer = HoleDwellTimer(OUTHOLE_CONTACT + 1, self.config.hole_settle_seconds)
         self._song: tuple[SongNote, ...] = ()
         self._song_index = 0
@@ -429,6 +440,25 @@ class MicropinGame:
         launch = False
         cup_mask = 0
         sound: Tone | None = None
+
+        # A ball can be left in a cup while the machine is game-over (or
+        # waiting for a launch).  Those contacts must still be serviced so
+        # the table is physically emptied before the next ball starts.  Keep
+        # this path deliberately inert with respect to scoring and game state:
+        # only the cup eject coil is requested.  The outhole is excluded.
+        if self.context.state in (
+            GameState.GAME_OVER,
+            GameState.WAITING_FOR_LAUNCH,
+        ):
+            closed_inactive_cups = tuple(
+                bool(inputs.closed_cup_mask & (1 << index))
+                for index in range(OUTHOLE_CONTACT)
+            ) + (False,)
+            for hole in self._hole_timer.update(
+                closed_inactive_cups, self._clock()
+            ):
+                cup_mask |= 1 << hole
+                messages.append(f"cup eject requested: {hole + 1} (inactive-state cleanup)")
 
         if inputs.credit_pressed:
             self._add_credit("button", messages)
@@ -633,6 +663,7 @@ class MicropinGame:
                             + ",".join(map(str, matching_players))
                         )
                         self._start_song(self.config.match_win_song)
+                    self._record_completed_game()
                     self.context.ball_number = 0
                     self.context.ball_in_play = False
                     self.context.last_match_digit = self.context.match_digit
@@ -669,6 +700,53 @@ class MicropinGame:
             messages.append(f"credit ({source}): {self.context.credits}")
         else:
             messages.append(f"credit ({source}): already at 99")
+        self._save_nvram()
+
+    def _load_nvram(self) -> None:
+        if self.nvram_path is None or not self.nvram_path.exists():
+            return
+        try:
+            data = json.loads(self.nvram_path.read_text())
+            self.context.credits = max(0, min(99, int(data.get("credits", 0))))
+            scores = data.get("high_scores", [])
+            if isinstance(scores, list):
+                self.high_scores = sorted(
+                    [max(0, int(score)) for score in scores[:4]], reverse=True
+                )[:4]
+                self.high_scores.extend([0] * (4 - len(self.high_scores)))
+            games = data.get("recent_games", [])
+            if isinstance(games, list):
+                self.recent_games = [max(0, int(score)) for score in games[-20:]]
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            # A corrupt NVRAM file should not prevent the game from booting.
+            self.context.credits = 0
+            self.high_scores = [0, 0, 0, 0]
+            self.recent_games = []
+
+    def _save_nvram(self) -> None:
+        if self.nvram_path is None:
+            return
+        data = {
+            "credits": self.context.credits,
+            "high_scores": self.high_scores,
+            "recent_games": self.recent_games[-20:],
+        }
+        temporary = self.nvram_path.with_suffix(self.nvram_path.suffix + ".tmp")
+        try:
+            temporary.write_text(json.dumps(data, indent=2) + "\n")
+            os.replace(temporary, self.nvram_path)
+        except OSError:
+            try:
+                temporary.unlink()
+            except OSError:
+                pass
+
+    def _record_completed_game(self) -> None:
+        final_score = max(self.context.player_scores, default=0)
+        self.recent_games.append(final_score)
+        self.recent_games = self.recent_games[-20:]
+        self.high_scores = sorted(self.high_scores + [final_score], reverse=True)[:4]
+        self._save_nvram()
 
     def _start_song(self, song: tuple[SongNote, ...]) -> None:
         self._song = song
@@ -793,7 +871,8 @@ class MicropinGame:
     ) -> OutputFrame:
         display = DisplayFrame()
         for player, score in enumerate(self.context.player_scores, start=1):
-            display.set_player_score(player, f"{min(score, 999_999):06d}")
+            if player <= self.context.players_in_game:
+                display.set_player_score(player, f"{min(score, 999_999):06d}")
         display.set_bonus(f"{min(self.context.bonus, 999_999):06d}")
         display.set_credits(f"{self.context.credits % 100:02d}")
         ball_display = (
@@ -843,10 +922,18 @@ class MicropinGame:
             lamp_bitmap[SAME_PLAYER_AGAIN_LAMP // 8] |= 1 << (SAME_PLAYER_AGAIN_LAMP % 8)
         display.set_same_player_again_led(flash_on)
         if self.context.state not in (GameState.GAME_OVER, GameState.MATCH_SEQUENCE):
-            display.set_player_led(self.context.current_player, True)
+            player_led_on = True
+            if self.context.state is GameState.WAITING_FOR_LAUNCH:
+                player_led_on = int(now * WAITING_PLAYER_FLASH_HZ * 2) % 2 == 0
+            display.set_player_led(self.context.current_player, player_led_on)
 
         host_coils_allowed = (
-            self.context.state in (GameState.WAITING_FOR_LAUNCH, GameState.GAME_PLAYING)
+            self.context.state
+            in (
+                GameState.GAME_OVER,
+                GameState.WAITING_FOR_LAUNCH,
+                GameState.GAME_PLAYING,
+            )
             and not self.context.tilted
         )
         # The right-flipper contact is reported to the host even while the local
@@ -925,6 +1012,12 @@ def main() -> int:
         default=DEFAULT_CONFIG_PATH,
         help=f"game configuration (default: {DEFAULT_CONFIG_PATH})",
     )
+    parser.add_argument(
+        "--nvram",
+        type=Path,
+        default=Path(__file__).with_name("micropin_game.nvram.json"),
+        help="persistent credits/high-score file",
+    )
     parser.add_argument("--dwell", type=float, default=0.01, help="seconds between frames")
     parser.add_argument("--timeout", type=float, default=5.0)
     args = parser.parse_args()
@@ -932,7 +1025,7 @@ def main() -> int:
         parser.error("--dwell cannot be negative")
 
     device = find_device(args.device)
-    game = MicropinGame(load_game_config(args.config))
+    game = MicropinGame(load_game_config(args.config), nvram_path=args.nvram)
     stop_requested = False
 
     def request_stop(_signum: int, _frame: object) -> None:
