@@ -10,7 +10,7 @@
 ;
 ; Response frame uses address strobes:
 ;   read $28e0 to start
-;   transmit sequence, length, echoed payload, port 0, the RST 5.5-latched
+;   transmit sequence, length (36), port 0, the RST 5.5-latched
 ;   Port-1 reflex events, cabinet Port 4, latched rollover edges, the 32 raw
 ;   playfield DMA samples at
 ;   $23e0-$23ff, and CRC-8 as paired high/low-nibble reads from
@@ -43,6 +43,8 @@ LOCAL_CRC_COMPLEMENT EQU #228e
 REFLEX_EVENT_LATCH EQU #228f
 CABINET_EVENT_LATCH EQU #2290
 REFLEX_COIL_TIMERS EQU #2291
+; Bumper/slingshot lease in board-periodic timer ticks (formerly 9).
+REFLEX_PULSE_TICKS EQU #0a
 CUP_COIL_TIMERS EQU #2297
 CUP_COMMAND_BYTE EQU #229d
 PREVIOUS_CUP_COMMAND EQU #229f
@@ -210,11 +212,8 @@ CLEAR_LOCAL_COIL_TIMERS:
         STA PREVIOUS_LAUNCH_COMMAND
         MVI A,#ff
         STA FLIPPER_PWM_MASK
-; Local reflexes are enabled by default for the present de-ablation test.
-; This lets the six bumper/slingshot paths run without a host connection while
-; cup and host-commanded coils remain disabled. A later validated host command
-; may still inhibit them.
-        MVI A,#01
+; Boot inhibited: only a validated host command may enable local reflexes.
+        MVI A,#00
         STA REFLEX_ENABLED
 ; Establish a baseline for the raw inductive samples. Subsequent transactions
 ; ignore normal low-nibble measurement jitter and display the highest-numbered
@@ -480,11 +479,14 @@ TRANSMIT_RESPONSE:
         MVI D,#00
         MOV A,C
         CALL SEND_BYTE
-        LDA LOCAL_LENGTH
-        ADI #24
+; Compact response: sequence plus 36 switch bytes, without payload echo.
+        MVI A,#24
+        NOP
+        NOP
+        NOP
         CALL SEND_BYTE
 
-        LDA LOCAL_LENGTH
+        JMP SEND_SWITCH_SNAPSHOT
         ORA A
         JZ SEND_SWITCH_SNAPSHOT
         MOV B,A
@@ -770,7 +772,7 @@ FIRE_REFLEX_COIL:
         MOV A,M
         ORA A
         RNZ
-        MVI M,#09
+        MVI M,REFLEX_PULSE_TICKS
         CALL WRITE_LOCAL_COILS
         RET
 
@@ -1355,9 +1357,8 @@ DISPLAY_COMMAND_DONE:
         RET
 
 ; The final two bytes of a current command are logical pitch and duration. The
-; original board ports are active-low. Never complement a logical zero duration
-; into raw $ff: zero is our explicit silence request and raw $fe is the stock
-; ROM's safe sound-off value.
+; original board ports are active-low. ff/00 leaves sound unchanged; other
+; zero-duration commands silence via port 9 only, leaving port A untouched.
 MANIFEST_SOUND_COMMANDS:
         PUSH B
         PUSH D
@@ -1383,6 +1384,23 @@ VALIDATE_SOUND_SIGNATURE:
         CPI #50
         JNZ SOUND_COMMAND_DONE
 
+; Logical ff/00 is no new sound command. Leave both sound ports untouched.
+        MOV A,M
+        CPI #ff
+        JNZ APPLY_SOUND_COMMAND
+        INX H
+        MOV A,M
+        DCX H
+        ORA A
+        JZ SOUND_COMMAND_DONE
+APPLY_SOUND_COMMAND:
+; Duration zero is an explicit stop. Do not rewrite pitch while silencing:
+; the stock stop path writes only raw fe to port 9, preserving port A.
+        INX H
+        MOV A,M
+        DCX H
+        ORA A
+        JZ STOP_SOUND_COMMAND
         MVI A,#ff
         OUT #09
         MOV A,M
@@ -1390,13 +1408,11 @@ VALIDATE_SOUND_SIGNATURE:
         OUT #0a
         INX H
         MOV A,M
-        ORA A
-        JNZ MANIFEST_SOUND_DURATION
-        MVI A,#fe
+        CMA
         OUT #09
         JMP SOUND_COMMAND_DONE
-MANIFEST_SOUND_DURATION:
-        CMA
+STOP_SOUND_COMMAND:
+        MVI A,#fe
         OUT #09
 
 SOUND_COMMAND_DONE:
