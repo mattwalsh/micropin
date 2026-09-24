@@ -1,9 +1,13 @@
 [game]
 balls_per_game = 4
-# Temporary debugging shortcut: the back credit button starts a game from
-# game over, or launches a ball when waiting and the outhole confirms it is present.
-# Set false to disable both shortcuts; the button still adds a credit.
+# Temporary debugging shortcut: the back credit button launches a ball when
+# waiting and the outhole confirms it is present. It never starts a game.
+# Set false to disable the launch shortcut; the button still adds a credit.
 credit_button_launch = true
+
+[high_scores]
+# Initial/reset table; saved NVRAM scores take precedence during normal boots.
+defaults = [60000, 50000, 40000, 30000, 20000, 10000]
 
 [holes]
 settle_seconds = 0.5
@@ -12,11 +16,18 @@ settle_seconds = 0.5
 # silence it, or point it to another [[songs.NAME]] sequence.
 [music]
 boot = "match_win"
+# Played whenever a player joins, including player 1 on a new game.
 start = "match_win"
+launch = "launch"
+outlane = "outlane"
+outlane_save = "outlane_save"
+standup_special = "charge"
+high_score = "funkytown"
 
 # The R-K and Q-A inlanes each add this much to the bonus bank. Once a ball
 # drains, pay it to the active player in 1,000-point steps at this interval.
 [bonus]
+pause_seconds = 0.75
 inlane_points = 1000
 tick_seconds = 0.10
 
@@ -50,21 +61,39 @@ pitch = 0x65
 duration = 0x08
 
 [sounds.right_sling]
-pitch = 0x33
+pitch = 0x78
 duration = 0x08
 
 [sounds.left_sling]
-pitch = 0x3c
+pitch = 0xb6
 duration = 0x08
 
 [sounds.match]
 pitch = 0x78
 duration = 0x04
 
+[sounds.bonus_add]
+pitch = 0x87
+duration = 0x04
+
+[sounds.end_ball]
+# Stock ppm outhole tone, played on a settled drain, not a saved-ball relaunch.
+pitch = 0x15
+duration = 0x0c
+
+# One tone for each 1,000-point bonus payout tick, including the final tick.
+[sounds.bonus_payout]
+pitch = 0x87
+duration = 0x04
+
+[sounds.standup]
+pitch = 0x87
+duration = 0x04
+
 # First note of the original credit jingle in ppm.asm ($1341).
 [sounds.credit]
-pitch = 0x78
-duration = 0x28
+pitch = 0x18
+duration = 0x08
 
 [sounds.rollover]
 pitch = 0x54
@@ -85,6 +114,141 @@ duration = 0x04
 [sounds.cups_complete]
 pitch = 0xf1
 duration = 0x04
+
+# Quick five-note approximately chromatic ascent; tune pitches after mapping
+# the real hardware's notes. Duration 04 avoids the louder envelope settings.
+[[songs.launch]]
+pitch = 0x78
+duration = 0x04
+interval_seconds = 0.07
+
+[[songs.launch]]
+pitch = 0x7e
+duration = 0x04
+interval_seconds = 0.07
+
+[[songs.launch]]
+pitch = 0x85
+duration = 0x04
+interval_seconds = 0.07
+
+[[songs.launch]]
+pitch = 0x8c
+duration = 0x04
+interval_seconds = 0.07
+
+[[songs.launch]]
+pitch = 0x94
+duration = 0x04
+interval_seconds = 0.07
+
+# Ordinary outlane: descending counterpart of the launch cue.
+[[songs.outlane]]
+pitch = 0x94
+duration = 0x04
+interval_seconds = 0.07
+[[songs.outlane]]
+pitch = 0x8c
+duration = 0x04
+interval_seconds = 0.07
+[[songs.outlane]]
+pitch = 0x85
+duration = 0x04
+interval_seconds = 0.07
+[[songs.outlane]]
+pitch = 0x7e
+duration = 0x04
+interval_seconds = 0.07
+[[songs.outlane]]
+pitch = 0x78
+duration = 0x04
+interval_seconds = 0.07
+
+# Saved outlane: base note then approximately a perfect fifth up.
+[[songs.outlane_save]]
+pitch = 0x78
+duration = 0x04
+interval_seconds = 0.07
+[[songs.outlane_save]]
+pitch = 0xae
+duration = 0x04
+interval_seconds = 0.07
+
+# High-score phrase from ppm/ppm.asm. 00/00 entries are silent rests.
+[[songs.funkytown]]
+pitch = 0x87
+duration = 0x0c
+interval_seconds = 0.14
+[[songs.funkytown]]
+pitch = 0x87
+duration = 0x0c
+interval_seconds = 0.14
+[[songs.funkytown]]
+pitch = 0x78
+duration = 0x0c
+interval_seconds = 0.14
+[[songs.funkytown]]
+pitch = 0x87
+duration = 0x0c
+interval_seconds = 0.14
+[[songs.funkytown]]
+pitch = 0
+duration = 0
+interval_seconds = 0.14
+[[songs.funkytown]]
+pitch = 0x65
+duration = 0x0c
+interval_seconds = 0.14
+[[songs.funkytown]]
+pitch = 0
+duration = 0
+interval_seconds = 0.14
+[[songs.funkytown]]
+pitch = 0x65
+duration = 0x0c
+interval_seconds = 0.14
+[[songs.funkytown]]
+pitch = 0x87
+duration = 0x0c
+interval_seconds = 0.14
+[[songs.funkytown]]
+pitch = 0xbf
+duration = 0x0c
+interval_seconds = 0.14
+[[songs.funkytown]]
+pitch = 0xaa
+duration = 0x0c
+interval_seconds = 0.14
+[[songs.funkytown]]
+pitch = 0x87
+duration = 0x0c
+interval_seconds = 0.14
+
+# Standup special award: approximate "Charge!" fanfare pending pitch mapping.
+[[songs.charge]]
+pitch = 0x78
+duration = 0x04
+interval_seconds = 0.09
+[[songs.charge]]
+pitch = 0x94
+duration = 0x04
+interval_seconds = 0.09
+[[songs.charge]]
+pitch = 0xae
+duration = 0x04
+interval_seconds = 0.09
+[[songs.charge]]
+pitch = 0xe4
+duration = 0x04
+interval_seconds = 0.09
+[[songs.charge]]
+pitch = 0xae
+duration = 0x04
+interval_seconds = 0.09
+[[songs.charge]]
+pitch = 0xe4
+duration = 0x04
+interval_seconds = 0.09
 
 # Winning-match melody. Each tuple is sent once; interval_seconds is the wait
 # before the next tuple, while the ROMulator keeps polling switches normally.

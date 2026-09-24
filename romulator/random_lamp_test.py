@@ -61,15 +61,20 @@ def send_and_verify(serial: SerialLines, payload: bytes) -> tuple[int, tuple[int
                 raise TimeoutError(f"incomplete response for lamp transaction {sequence:02x}")
             time.sleep(0.001)
 
+    # Accept either the compact sequence+switch response or the original full
+    # echo. The Pico validates CRC before delivering either frame to the host.
+    # This keeps the host compatible with the checkpointed diagnostic ROM.
+    compact = len(response) == 38 and response[:2] == bytes((sequence, 36))
     expected_prefix = bytes((sequence, len(payload) + 36)) + payload
-    if len(response) != len(expected_prefix) + 36 or not response.startswith(expected_prefix):
+    echoed = len(response) == len(expected_prefix) + 36 and response.startswith(expected_prefix)
+    if not compact and not echoed:
         returned_sequence = response[0] if response else -1
         returned_payload = response[2:2 + len(payload)] if len(response) >= 2 else b""
         raise ResponseMismatch(
             f"sequence {sequence:02x}: expected echo {payload.hex()}, "
             f"received sequence {returned_sequence:02x} echo {returned_payload.hex()}"
         )
-    switches = response[len(expected_prefix):]
+    switches = response[2:] if compact else response[len(expected_prefix):]
     return sequence, tuple(switches[:4]), bytes(switches[4:])
 
 

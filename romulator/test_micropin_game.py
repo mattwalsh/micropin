@@ -21,6 +21,11 @@ from micropin_game import (
 from micropin_protocol import build_control_payload
 
 
+def spread_digits(output):
+    window = output.display.to_bytes()
+    return ''.join(f'{window[offset]:02x}' for offset in (25, 24, 23))
+
+
 def snapshot(
     *,
     cabinet: int = 0,
@@ -47,6 +52,119 @@ def snapshot(
 
 
 class MicropinGameTests(unittest.TestCase):
+    def test_every_player_entry_restarts_add_player_music(self):
+        now = [0.0]
+        song = (SongNote(Tone(0x78, 4), 0.1), SongNote(Tone(0x87, 4), 0.1))
+        game = MicropinGame(GameConfig(start_song=song), clock=lambda: now[0])
+        for count in range(1, 5):
+            game.step(snapshot(cabinet=0x40))
+            self.assertEqual(game.context.players_in_game, count)
+            self.assertEqual(game._song, song)
+            # Entry 1 is consumed in the same step; later entries on the next.
+            if count > 1:
+                first = game.step(snapshot()).output
+                self.assertEqual((first.tone_pitch, first.tone_duration), (0x78, 4))
+            now[0] += 0.1
+            second = game.step(snapshot()).output
+            self.assertEqual((second.tone_pitch, second.tone_duration), (0x87, 4))
+            now[0] += 0.01
+        game.step(snapshot(cabinet=0x40))
+        self.assertEqual(game._song_index, 2)  # Fifth press did not restart it.
+
+    def test_match_awards_each_matching_participant_and_caps_total(self) -> None:
+        for players, credits, expected in ((2, 0, 2), (4, 0, 3), (4, 98, 99)):
+            with self.subTest(players=players, credits=credits):
+                game = MicropinGame(clock=lambda: 10.0)
+                game.context.state = GameState.MATCH_SEQUENCE
+                game.context.players_in_game = players
+                game.context.player_scores = [17, 27, 38, 47]
+                game.context.match_digit = 7
+                game.context.match_step = MATCH_SEQUENCE_STEPS
+                game.context.credits = credits
+                game.step(snapshot())
+                self.assertEqual(game.context.credits, expected)
+                self.assertIs(game.context.state, GameState.GAME_OVER)
+                game.step(snapshot())
+                self.assertEqual(game.context.credits, expected)
+
+    def test_start_adds_players_on_ball_one_up_to_four(self) -> None:
+        game = MicropinGame()
+        game.context.credits = 5
+        for count in range(1, 5):
+            game.step(snapshot(cabinet=0x40))
+            self.assertEqual(game.context.players_in_game, count)
+            self.assertEqual(game.context.credits, 5 - count)
+            self.assertEqual(game.context.player_scores, [0, 0, 0, 0])
+        game.step(snapshot(cabinet=0x40))
+        self.assertEqual(game.context.players_in_game, 4)
+        self.assertEqual(game.context.credits, 1)
+
+    def test_multiplayer_turn_order_and_match_after_last_player(self) -> None:
+        game = MicropinGame(GameConfig(balls_per_game=2))
+        game.context.players_in_game = 3
+        game.context.ball_number = 1
+        game.context.current_player = 1
+        for ball, player in ((1, 2), (1, 3), (2, 1), (2, 2), (2, 3)):
+            game._finish_ball([])
+            self.assertEqual((game.context.ball_number, game.context.current_player), (ball, player))
+            self.assertIs(game.context.state, GameState.WAITING_FOR_LAUNCH)
+        game._finish_ball([])
+        self.assertIs(game.context.state, GameState.MATCH_SEQUENCE)
+
+    def test_start_resets_later_ball_without_launch_or_scoring(self) -> None:
+        for state in (GameState.GAME_PLAYING, GameState.WAITING_FOR_LAUNCH,
+                      GameState.BONUS_PROCESSING):
+            with self.subTest(state=state):
+                game = MicropinGame()
+                game.context.state = state
+                game.context.ball_number = 2
+                game.context.current_player = 3
+                game.context.players_in_game = 4
+                game.context.player_scores = [10, 20, 30, 40]
+                game.context.bonus = 5000
+                game.context.tilted = True
+                game.context.ball_in_play = True
+                game.context.cup_lit_mask = 0
+                result = game.step(snapshot(cabinet=0x50, reflex=1, outhole=False))
+                self.assertIs(game.context.state, GameState.WAITING_FOR_LAUNCH)
+                self.assertEqual((game.context.ball_number, game.context.current_player,
+                                  game.context.players_in_game), (1, 1, 1))
+                self.assertEqual(game.context.player_scores, [0, 0, 0, 0])
+                self.assertEqual(game.context.bonus, 0)
+                self.assertFalse(game.context.tilted)
+                self.assertFalse(result.output.launch)
+                self.assertFalse(result.output.reflex_enabled)
+                game.step(snapshot(cabinet=0x10, outhole=False))
+                self.assertIs(game.context.state, GameState.WAITING_FOR_LAUNCH)
+
+    def test_start_consumes_one_credit_but_zero_credits_still_starts(self) -> None:
+        for credits in (0, 1, 99):
+            for state in (GameState.GAME_OVER, GameState.MATCH_SEQUENCE):
+                with self.subTest(credits=credits, state=state):
+                    game = MicropinGame()
+                    game.context.state = state
+                    game.context.credits = credits
+                    result = game.step(snapshot(cabinet=0x40))
+                    self.assertIs(game.context.state, GameState.WAITING_FOR_LAUNCH)
+                    remaining = max(0, credits - 1)
+                    self.assertEqual(game.context.credits, remaining)
+                    self.assertEqual(result.output.display.to_bytes()[26],
+                                     (remaining // 10 if remaining >= 10 else 15) * 16 + remaining % 10)
+
+    def test_game_over_and_zero_credit_indicators_blink_together(self) -> None:
+        now = [0.0]
+        game = MicropinGame(clock=lambda: now[0])
+        game.context.credits = 0
+        self.assertEqual(game.initial_output().display.to_bytes()[22] & 0xc0, 0xc0)
+        now[0] = 0.25
+        self.assertEqual(game.initial_output().display.to_bytes()[22] & 0xc0, 0)
+        now[0] = 0.5
+        game.context.credits = 1
+        self.assertEqual(game.initial_output().display.to_bytes()[22] & 0xc0, 0x40)
+        game.context.state = GameState.WAITING_FOR_LAUNCH
+        game.context.credits = 0
+        self.assertEqual(game.initial_output().display.to_bytes()[22] & 0xc0, 0)
+
     @staticmethod
     def lit_rollover_lamps(game: MicropinGame) -> set[int]:
         bitmap = game.initial_output().lamp_bitmap
@@ -188,6 +306,7 @@ class MicropinGameTests(unittest.TestCase):
         game.step(snapshot(outhole=False))
         game.step(snapshot(outhole=True))
         self.assertIs(game.context.state, GameState.BONUS_PROCESSING)
+        now[0] += game.config.bonus_pause_seconds
         game.step(snapshot())
         self.assertIs(game.context.state, GameState.WAITING_FOR_LAUNCH)
         self.assertEqual(game.context.rollover_lit_mask, 0xfc)
@@ -232,7 +351,7 @@ class MicropinGameTests(unittest.TestCase):
         self.assertEqual(serial.sent_payload[-2:], b"\x00\x00")
 
     def test_credit_button_plays_sound_and_caps_at_99(self) -> None:
-        game = MicropinGame()
+        game = MicropinGame(GameConfig(credit_button_launch=False))
         game.context.credits = 98
         credited = game.step(snapshot(cabinet=0x04))
         self.assertEqual(game.context.credits, 99)
@@ -247,7 +366,8 @@ class MicropinGameTests(unittest.TestCase):
     def test_config_loads_match_song(self) -> None:
         config = load_game_config(Path(__file__).with_name("micropin_game.toml"))
         self.assertTrue(config.match_win_song)
-        self.assertEqual(config.credit_sound, Tone(0x78, 0x28))
+        self.assertTrue(0 <= config.credit_sound.pitch <= 255)
+        self.assertTrue(1 <= config.credit_sound.duration <= 255)
         self.assertEqual(config.hole_settle_seconds, 0.5)
         self.assertTrue(config.credit_button_launch)
         self.assertEqual(config.boot_song, config.match_win_song)
@@ -261,17 +381,21 @@ class MicropinGameTests(unittest.TestCase):
         self.assertFalse(result.output.launch)
         self.assertFalse(result.output.reflex_enabled)
 
-    def test_credit_starts_from_game_over_then_launches_on_next_press(self) -> None:
+    def test_credit_does_not_start_game_but_can_launch_after_start(self) -> None:
         game = MicropinGame(GameConfig(credit_button_launch=True))
         started = game.step(snapshot(cabinet=0x04))
-        self.assertIs(game.context.state, GameState.WAITING_FOR_LAUNCH)
+        self.assertIs(game.context.state, GameState.GAME_OVER)
         self.assertEqual(game.context.credits, 1)
         self.assertFalse(started.output.launch)
         self.assertFalse(started.output.reflex_enabled)
 
+        game.step(snapshot(cabinet=0x40))
+        self.assertIs(game.context.state, GameState.WAITING_FOR_LAUNCH)
+        self.assertEqual(game.context.credits, 0)
+
         launched = game.step(snapshot(cabinet=0x04))
         self.assertIs(game.context.state, GameState.GAME_PLAYING)
-        self.assertEqual(game.context.credits, 2)
+        self.assertEqual(game.context.credits, 1)
         self.assertTrue(launched.output.launch)
         self.assertFalse(launched.output.reflex_enabled)
 
@@ -361,7 +485,7 @@ class MicropinGameTests(unittest.TestCase):
         self.assertIs(game.context.state, GameState.GAME_PLAYING)
         self.assertEqual(game.context.player_scores[0], 120)
 
-    def test_grace_flashes_four_seconds_from_first_launch(self) -> None:
+    def test_grace_flash_stops_half_second_before_save_deadline(self) -> None:
         now = [10.0]
         game = MicropinGame(clock=lambda: now[0])
         game.step(snapshot(cabinet=0x40))
@@ -372,6 +496,10 @@ class MicropinGameTests(unittest.TestCase):
         off = game.step(snapshot(outhole=False))
         self.assertEqual(off.output.lamp, 0xff)
         self.assertEqual(off.output.display.to_bytes()[22] & 0x10, 0)
+        now[0] = 13.5
+        early_off = game.step(snapshot(outhole=False))
+        self.assertEqual(early_off.output.lamp, 0xff)
+        self.assertEqual(early_off.output.display.to_bytes()[22] & 0x10, 0)
         now[0] = 14.0
         expired = game.step(snapshot(outhole=False))
         self.assertEqual(expired.output.lamp, 0xff)
@@ -385,6 +513,7 @@ class MicropinGameTests(unittest.TestCase):
         game.step(snapshot(reflex=1, outhole=False))
         now[0] = 13.8
         game.step(snapshot(outhole=True))
+        self.assertEqual(game.initial_output().display.to_bytes()[22] & 0x10, 0)
         now[0] = 14.31
         saved = game.step(snapshot(outhole=True))
         self.assertIs(game.context.state, GameState.GAME_PLAYING)
@@ -392,8 +521,14 @@ class MicropinGameTests(unittest.TestCase):
         self.assertFalse(saved.output.reflex_enabled)
         self.assertTrue(game.context.grace_save_used)
         self.assertEqual(game.context.ball_number, 1)
-        self.assertEqual(saved.output.lamp, 6)
-        self.assertEqual(saved.output.display.to_bytes()[22] & 0x10, 0x10)
+        self.assertEqual(saved.output.lamp, 0xff)
+        self.assertEqual(saved.output.display.to_bytes()[22] & 0x10, 0)
+        self.assertEqual(saved.output.lamp_bitmap[0] & (1 << 6), 0)
+        self.assertIsNone(game.context.same_player_again_started)
+        now[0] += 0.25
+        still_off = game.step(snapshot(outhole=True))
+        self.assertEqual(still_off.output.lamp, 0xff)
+        self.assertEqual(still_off.output.display.to_bytes()[22] & 0x10, 0)
         now[0] += 2.0
         expired = game.step(snapshot(outhole=True))
         self.assertEqual(expired.output.lamp, 0xff)
@@ -419,6 +554,7 @@ class MicropinGameTests(unittest.TestCase):
         self.assertIs(game.context.state, GameState.BONUS_PROCESSING)
         self.assertEqual(game.context.ball_number, 1)
         self.assertEqual(game.context.player_scores[0], 10)
+        now[0] += game.config.bonus_pause_seconds
         game.step(snapshot())
         self.assertIs(game.context.state, GameState.WAITING_FOR_LAUNCH)
         self.assertEqual(game.context.ball_number, 2)
@@ -456,6 +592,7 @@ class MicropinGameTests(unittest.TestCase):
         self.assertIs(game.context.state, GameState.BONUS_PROCESSING)
         self.assertFalse(drained.output.reflex_enabled)
 
+        now[0] += game.config.bonus_pause_seconds
         result = game.step(snapshot())
         self.assertIs(game.context.state, GameState.WAITING_FOR_LAUNCH)
         self.assertEqual(game.context.ball_number, 2)
@@ -467,20 +604,22 @@ class MicropinGameTests(unittest.TestCase):
         game.context.state = GameState.BONUS_PROCESSING
         game.context.ball_number = game.config.balls_per_game
         game.step(snapshot())
+        now[0] += game.config.bonus_pause_seconds
+        game.step(snapshot())
         self.assertIs(game.context.state, GameState.MATCH_SEQUENCE)
 
         for _ in range(MATCH_SEQUENCE_STEPS):
             result = game.step(snapshot())
             self.assertEqual(
-                result.output.display.to_bytes()[27] & 0x0f,
-                game.context.match_digit,
+                spread_digits(result.output).replace('f', ''),
+                str(game.context.match_digit),
             )
             self.assertEqual(result.output.tone_duration, game.config.match_sound.duration)
             now[0] = game.context.next_match_time
         result = game.step(snapshot())
         self.assertIs(game.context.state, GameState.GAME_OVER)
         self.assertEqual(game.context.ball_number, 0)
-        self.assertEqual(result.output.display.to_bytes()[27] & 0x0f, game.context.match_digit)
+        self.assertEqual(spread_digits(result.output), f'ff{game.context.match_digit}fff')
         self.assertFalse(result.output.reflex_enabled)
 
     def test_start_during_match_abandons_match_and_starts_new_game(self) -> None:
@@ -497,7 +636,7 @@ class MicropinGameTests(unittest.TestCase):
         self.assertIs(game.context.state, GameState.WAITING_FOR_LAUNCH)
         self.assertEqual(game.context.ball_number, 1)
         self.assertEqual(game.context.player_scores, [0, 0, 0, 0])
-        self.assertEqual(game.context.credits, 2)
+        self.assertEqual(game.context.credits, 1)
         self.assertFalse(started.output.launch)
         self.assertFalse(started.output.reflex_enabled)
         self.assertEqual(started.output.display.to_bytes()[27] & 0x0f, 1)
@@ -526,17 +665,17 @@ class MicropinGameTests(unittest.TestCase):
         game = MicropinGame(config, clock=lambda: now[0], randomizer=FixedRandom())
         game.context.state = GameState.MATCH_SEQUENCE
         game.context.next_match_time = now[0]
-        game.context.player_scores = [12, 0, 0, 0]
+        game.context.player_scores = [16, 0, 0, 0]
         game.context.credits = 98
 
         digits = []
         for _ in range(MATCH_SEQUENCE_STEPS):
             result = game.step(snapshot())
             digits.append(game.context.match_digit)
-            self.assertEqual(result.output.display.to_bytes()[27] & 0x0f, digits[-1])
+            self.assertEqual(spread_digits(result.output).replace('f', ''), str(digits[-1]))
             now[0] = game.context.next_match_time
         self.assertTrue(all(left != right for left, right in zip(digits, digits[1:])))
-        self.assertEqual(digits[-1], 2)
+        self.assertEqual(digits[-1], 6)
 
         result = game.step(snapshot())
         self.assertIs(game.context.state, GameState.GAME_OVER)
@@ -564,7 +703,7 @@ class MicropinGameTests(unittest.TestCase):
         result = game.step(snapshot())
         self.assertIs(game.context.state, GameState.GAME_OVER)
         self.assertEqual(game.context.credits, 0)
-        self.assertEqual((result.output.tone_pitch, result.output.tone_duration), (0, 0))
+        self.assertEqual((result.output.tone_pitch, result.output.tone_duration), (0xff, 0))
 
     def test_tilt_latches_and_inhibits_coils(self) -> None:
         game = MicropinGame()
@@ -585,7 +724,7 @@ class MicropinGameTests(unittest.TestCase):
         game.step(snapshot(reflex=1, outhole=False))
         first = game.step(snapshot(outhole=False, inlanes=0x01))
         self.assertEqual(game.context.bonus, 1000)
-        self.assertEqual(first.output.display.to_bytes()[0:3], bytes((0, 0x10, 0)))
+        self.assertEqual(first.output.display.to_bytes()[0:3], bytes((0, 0x10, 0xff)))
         game.step(snapshot(outhole=False, inlanes=0x01))
         self.assertEqual(game.context.bonus, 1000)
         game.step(snapshot(outhole=False, inlanes=0))
@@ -598,13 +737,16 @@ class MicropinGameTests(unittest.TestCase):
         before_tick = game.step(snapshot())
         self.assertEqual(game.context.bonus, 3000)
         self.assertEqual(game.context.player_scores[0], 10)
-        self.assertEqual(before_tick.output.display.to_bytes()[0:3], bytes((0, 0x30, 0)))
+        self.assertEqual(before_tick.output.display.to_bytes()[0:3], bytes((0, 0x30, 0xff)))
 
         for remaining in (2000, 1000, 0):
             now[0] += game.config.bonus_tick_seconds
             result = game.step(snapshot())
             self.assertEqual(game.context.bonus, remaining)
             self.assertEqual(game.context.player_scores[0], 3010 - remaining)
+        self.assertIs(game.context.state, GameState.BONUS_PROCESSING)
+        now[0] += game.config.bonus_pause_seconds
+        game.step(snapshot())
         self.assertIs(game.context.state, GameState.WAITING_FOR_LAUNCH)
         self.assertEqual(game.context.ball_number, 2)
 
@@ -766,7 +908,7 @@ class MicropinGameTests(unittest.TestCase):
         self.assertEqual((sling.output.tone_pitch, sling.output.tone_duration), (0xb2, 0x03))
 
         silence = game.step(snapshot(outhole=False))
-        self.assertEqual((silence.output.tone_pitch, silence.output.tone_duration), (0, 0))
+        self.assertEqual((silence.output.tone_pitch, silence.output.tone_duration), (0xff, 0))
 
     def test_match_rate_slows_from_five_to_point_seven_hz(self) -> None:
         self.assertAlmostEqual(MicropinGame._match_rate(0), MATCH_START_RATE_HZ)
@@ -796,7 +938,7 @@ class MicropinGameTests(unittest.TestCase):
         game.context.player_scores[:] = [0, 123456, 0, 0]
         window = game.initial_output().display.to_bytes()
         # P1/P2 are present (including a real zero); P3/P4 retain blank F glyphs.
-        self.assertEqual(window[6:9], b"\x00\x00\x00")
+        self.assertEqual(window[6:9], b"\xf0\xff\xff")
         self.assertEqual(window[13:16], b"\x56\x34\x12")
         self.assertEqual(window[3:6], b"\xff\xff\xff")
         self.assertEqual(window[16:19], b"\xff\xff\xff")
