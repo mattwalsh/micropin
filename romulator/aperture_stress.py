@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import glob
 import math
 import os
 import random
@@ -17,12 +16,7 @@ import termios
 import time
 import tty
 
-
-DEFAULT_DEVICE_PATTERNS = (
-    "/dev/cu.usbmodemEPROM5*",
-    "/dev/cu.usbmodem*",
-    "/dev/ttyACM*",
-)
+from usb_helpers import serial_device
 
 
 class SerialLines:
@@ -117,19 +111,7 @@ class SocketLines:
 
 
 def find_device(explicit: str | None) -> str:
-    if explicit:
-        return explicit
-    matches: list[str] = []
-    for pattern in DEFAULT_DEVICE_PATTERNS:
-        matches.extend(glob.glob(pattern))
-        if matches:
-            break
-    matches = sorted(set(matches))
-    if not matches:
-        raise RuntimeError("no ROMulator CDC device found; pass its /dev path explicitly")
-    if len(matches) > 1:
-        raise RuntimeError(f"multiple CDC devices found; choose one explicitly: {', '.join(matches)}")
-    return matches[0]
+    return serial_device(explicit)
 
 
 def parse_state(line: str) -> tuple[int, int]:

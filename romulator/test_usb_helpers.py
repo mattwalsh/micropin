@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import usb_helpers as usb
+import aperture_stress as aperture
 
 
 class USBHelpersTests(unittest.TestCase):
@@ -25,6 +26,18 @@ class USBHelpersTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(RuntimeError, "no connected"):
                 usb.serial_device()
+
+    def test_game_discovery_uses_only_romulator_identity(self):
+        with patch.object(usb.platform, "system", return_value="Darwin"), patch.object(
+            usb.glob, "glob", return_value=[]
+        ) as glob:
+            with self.assertRaisesRegex(RuntimeError, "refusing to guess"):
+                aperture.find_device(None)
+            glob.assert_called_once_with("/dev/cu.usbmodemEPROM5*")
+
+    def test_explicit_device_remains_available_for_diagnostics(self):
+        self.assertEqual(aperture.find_device("/dev/cu.test-romulator"),
+                         "/dev/cu.test-romulator")
 
     def test_multiple_devices(self):
         with patch.object(usb.platform, "system", return_value="Darwin"), patch.object(

@@ -1,9 +1,8 @@
 [game]
 balls_per_game = 4
-# Temporary debugging shortcut: the back credit button launches a ball when
-# waiting and the outhole confirms it is present. It never starts a game.
-# Set false to disable the launch shortcut; the button still adds a credit.
-credit_button_launch = true
+# A shorter press adds one credit after release. Holding the same button this
+# long toggles persistent sound mute and does not add a credit.
+credit_long_press_seconds = 3.0
 
 [high_scores]
 # Initial/reset table; saved NVRAM scores take precedence during normal boots.
@@ -22,7 +21,15 @@ launch = "launch"
 outlane = "outlane"
 outlane_save = "outlane_save"
 standup_special = "charge"
+standup_complete = "standup_complete"
+bonus_2x = "bonus_2x"
+bonus_3x = "bonus_3x"
+side_bonus_hole = "side_bonus_hole"
+tilt = "tilt"
 high_score = "funkytown"
+add_credit = "add_credit"
+mute_on = "mute_on"
+mute_off = "mute_off"
 
 # The R-K and Q-A inlanes each add this much to the bonus bank. Once a ball
 # drains, pay it to the active player in 1,000-point steps at this interval.
@@ -30,13 +37,17 @@ high_score = "funkytown"
 pause_seconds = 0.75
 inlane_points = 1000
 tick_seconds = 0.10
+# Pause after the hole-entry cue before multiplier presentation/countdown.
+entry_pause_seconds = 0.5
+# Presentation pause before showing each multiplier and before countdown.
+multiplier_pause_seconds = 0.5
 
 # Port-1 reflex-event scoring. Each of the four bumpers and both slings is
 # independently configurable.
 [points]
-lower_left_bumper = 10
-upper_left_bumper = 10
-middle_rollover_bumper = 10
+lower_left_bumper = 25
+upper_left_bumper = 50
+middle_rollover_bumper = 100
 lower_right_bumper = 10
 right_sling = 5
 left_sling = 5
@@ -90,11 +101,6 @@ duration = 0x04
 pitch = 0x87
 duration = 0x04
 
-# First note of the original credit jingle in ppm.asm ($1341).
-[sounds.credit]
-pitch = 0x18
-duration = 0x08
-
 [sounds.rollover]
 pitch = 0x54
 duration = 0x08
@@ -102,6 +108,99 @@ duration = 0x08
 [sounds.rollover_complete]
 pitch = 0xf1
 duration = 0x04
+
+# Credit-button and mute-state feedback. Songs may be expanded later without
+# changing the game-state code.
+[[songs.add_credit]]
+pitch = 0x78
+duration = 0x04
+interval_seconds = 0.14
+
+[[songs.mute_on]]
+pitch = 0x94
+duration = 0x04
+interval_seconds = 0.10
+[[songs.mute_on]]
+pitch = 0x78
+duration = 0x04
+interval_seconds = 0.10
+
+[[songs.mute_off]]
+pitch = 0x78
+duration = 0x04
+interval_seconds = 0.10
+[[songs.mute_off]]
+pitch = 0x94
+duration = 0x04
+interval_seconds = 0.10
+
+# Temporary stand-in cue for clearing all five standup targets.
+[[songs.standup_complete]]
+pitch = 0xae
+duration = 0x04
+interval_seconds = 0.14
+
+[[songs.bonus_2x]]
+pitch = 0x78
+duration = 0x04
+interval_seconds = 0.10
+[[songs.bonus_2x]]
+pitch = 0xae
+duration = 0x04
+interval_seconds = 0.10
+
+[[songs.bonus_3x]]
+pitch = 0x78
+duration = 0x04
+interval_seconds = 0.08
+[[songs.bonus_3x]]
+pitch = 0x94
+duration = 0x04
+interval_seconds = 0.08
+[[songs.bonus_3x]]
+pitch = 0xca
+duration = 0x04
+interval_seconds = 0.08
+
+# Distinct acknowledgement when the ball settles in the side bonus cup.
+[[songs.side_bonus_hole]]
+pitch = 0x78
+duration = 0x04
+interval_seconds = 0.10
+[[songs.side_bonus_hole]]
+pitch = 0x94
+duration = 0x04
+interval_seconds = 0.10
+[[songs.side_bonus_hole]]
+pitch = 0xae
+duration = 0x04
+interval_seconds = 0.10
+
+# First six notes of an approximate Taps phrase: G G C, G C E.
+[[songs.tilt]]
+pitch = 0x3c
+duration = 0x0c
+interval_seconds = 0.30
+[[songs.tilt]]
+pitch = 0x3c
+duration = 0x0c
+interval_seconds = 0.30
+[[songs.tilt]]
+pitch = 0x57
+duration = 0x0c
+interval_seconds = 0.70
+[[songs.tilt]]
+pitch = 0x3c
+duration = 0x0c
+interval_seconds = 0.30
+[[songs.tilt]]
+pitch = 0x57
+duration = 0x0c
+interval_seconds = 0.30
+[[songs.tilt]]
+pitch = 0x6e
+duration = 0x0c
+interval_seconds = 0.70
 
 [sounds.cup_lit]
 pitch = 0x65

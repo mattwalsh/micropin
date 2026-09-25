@@ -23,14 +23,14 @@ def serial_device(explicit=None):
         candidates = glob.glob("/dev/cu.usbmodemEPROM5*")
     elif platform.system() == "Linux":
         candidates = glob.glob("/dev/serial/by-id/*EPROM*if00*")
-        # Avoid selecting an unrelated ACM device when stable USB IDs exist.
-        if not candidates:
-            candidates = glob.glob("/dev/ttyACM*")
     else:
         raise RuntimeError("supported systems are macOS and Linux")
     candidates = sorted(set(os.path.realpath(p) for p in candidates))
     if not candidates:
-        raise RuntimeError("no connected romulator")
+        raise RuntimeError(
+            "no connected ROMulator CDC device; refusing to guess from generic "
+            "USB modem/ttyACM devices (connect the ROMulator or pass --device explicitly)"
+        )
     if len(candidates) != 1:
         raise RuntimeError("multiple serial devices; use --device: " + ", ".join(candidates))
     return candidates[0]

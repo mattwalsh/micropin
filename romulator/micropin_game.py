@@ -24,18 +24,27 @@ START_MASK = 0x40
 RIGHT_FLIPPER_MASK = 0x10
 LEFT_FLIPPER_MASK = 0x20
 CREDIT_MASK = 0x04
+CREDIT_LEVEL_MASK = 0x10
 TILT_MASK = 0x88
 OUTHOLE_DMA_INDEX = 24
 
 # The six physical cup contacts, in host-command bit order.
 CUP_DMA_INDICES = (29, 27, 25, 20, 18, 14)
 OUTHOLE_CONTACT = len(CUP_DMA_INDICES)
+SIDE_BONUS_CUP = 5
 # Five scoring cups, left to right.  The sixth contact is the side bonus cup.
 CUP_LAMPS = (36, 24, 25, 26, 13)
 CUP_TARGET_LAMPS = (29, 37, 32, 33, 34)
-CUP_TIER_LAMPS = (28, 35, 29, 37)
+# The four value inserts form one physical column.  Outputs 29/37 belong to
+# standup targets; the upper two value lamps are outputs 27 and 18.
+CUP_TIER_LAMPS = (28, 35, 27, 18)
 CUP_BONUS_VALUES = (2000, 4000, 6000, 8000)
 CUP_REGULAR_VALUES = (250, 500, 750, 1000)
+COLLECT_BONUS_LAMP = 15
+DOUBLE_BONUS_LAMP = 10
+TRIPLE_BONUS_LAMP = 7
+EXTRA_BALL_ROLLOVER_LAMP = 9
+EXTRA_BALL_SIDE_CUP_LAMP = 14
 
 # R-K and Q-A are physical DMA contacts 1 and 32, hence byte indices 0 and 31
 # in the $23e0-$23ff switch snapshot. A clear $10 bit means the contact is shut.
@@ -47,7 +56,9 @@ STANDUP_DMA_INDICES = (28, 26, 21, 22, 23)  # c29,c27,c22,c23,c24; cup order
 STANDUP_BAR_MASK = 0x40
 STANDUP_FLASH_HZ = 2.0
 STANDUP_COINCIDENCE_FRAMES = 2
+STANDUP_COMPLETE_POINTS = 10_000
 GAME_OVER_FLASH_HZ = 2.0
+TILT_FLASH_HZ = 4.0
 ATTRACT_HOLD_SECONDS = 4.5
 ATTRACT_TRANSITION_SECONDS = 0.5
 DEFAULT_HIGH_SCORES = (60000, 50000, 40000, 30000, 20000, 10000)
@@ -128,17 +139,46 @@ DEFAULT_CHARGE_SONG = tuple(
     SongNote(Tone(pitch, 0x04), 0.09)
     for pitch in (0x78, 0x94, 0xae, 0xe4, 0xae, 0xe4)
 )
+DEFAULT_ADD_CREDIT_SONG = (SongNote(Tone(0x78, 0x04), 0.14),)
+DEFAULT_MUTE_ON_SONG = (
+    SongNote(Tone(0x94, 0x04), 0.10),
+    SongNote(Tone(0x78, 0x04), 0.10),
+)
+DEFAULT_MUTE_OFF_SONG = tuple(reversed(DEFAULT_MUTE_ON_SONG))
+DEFAULT_STANDUP_COMPLETE_SONG = (SongNote(Tone(0xae, 0x04), 0.14),)
+DEFAULT_BONUS_2X_SONG = (
+    SongNote(Tone(0x78, 0x04), 0.10),
+    SongNote(Tone(0xae, 0x04), 0.10),
+)
+DEFAULT_BONUS_3X_SONG = (
+    SongNote(Tone(0x78, 0x04), 0.08),
+    SongNote(Tone(0x94, 0x04), 0.08),
+    SongNote(Tone(0xca, 0x04), 0.08),
+)
+DEFAULT_SIDE_BONUS_HOLE_SONG = tuple(
+    SongNote(Tone(pitch, 0x04), 0.10)
+    for pitch in (0x78, 0x94, 0xae)
+)
+DEFAULT_TILT_SONG = tuple(
+    SongNote(Tone(pitch, 0x0c), interval)
+    for pitch, interval in (
+        (0x3c, 0.30), (0x3c, 0.30), (0x57, 0.70),
+        (0x3c, 0.30), (0x57, 0.30), (0x6e, 0.70),
+    )
+)
 
 
 @dataclass(frozen=True)
 class GameConfig:
     balls_per_game: int = 4
     hole_settle_seconds: float = 0.5
-    credit_button_launch: bool = True
+    credit_long_press_seconds: float = 3.0
     inlane_bonus_points: int = 1000
     bonus_tick_seconds: float = 0.10
     bonus_pause_seconds: float = 0.75
-    reflex_points: tuple[int, ...] = (10, 10, 10, 10, 5, 5)
+    bonus_entry_pause_seconds: float = 0.5
+    bonus_multiplier_pause_seconds: float = 0.5
+    reflex_points: tuple[int, ...] = (25, 50, 100, 10, 5, 5)
     reflex_sounds: tuple[Tone, ...] = (
         Tone(0xca, 0x08),
         Tone(0xaa, 0x08),
@@ -148,7 +188,6 @@ class GameConfig:
         Tone(0x3c, 0x08),
     )
     match_sound: Tone = Tone(0x78, 0x04)
-    credit_sound: Tone = Tone(0x78, 0x28)
     bonus_add_sound: Tone = Tone(0x87, 0x04)
     bonus_payout_sound: Tone = Tone(0x87, 0x04)
     end_ball_sound: Tone = Tone(0x15, 0x0c)
@@ -165,7 +204,15 @@ class GameConfig:
     outlane_song: tuple[SongNote, ...] = DEFAULT_OUTLANE_SONG
     outlane_save_song: tuple[SongNote, ...] = DEFAULT_OUTLANE_SAVE_SONG
     standup_special_song: tuple[SongNote, ...] = DEFAULT_CHARGE_SONG
+    standup_complete_song: tuple[SongNote, ...] = DEFAULT_STANDUP_COMPLETE_SONG
+    bonus_2x_song: tuple[SongNote, ...] = DEFAULT_BONUS_2X_SONG
+    bonus_3x_song: tuple[SongNote, ...] = DEFAULT_BONUS_3X_SONG
+    side_bonus_hole_song: tuple[SongNote, ...] = DEFAULT_SIDE_BONUS_HOLE_SONG
+    tilt_song: tuple[SongNote, ...] = DEFAULT_TILT_SONG
     high_score_song: tuple[SongNote, ...] = DEFAULT_FUNKYTOWN_SONG
+    add_credit_song: tuple[SongNote, ...] = DEFAULT_ADD_CREDIT_SONG
+    mute_on_song: tuple[SongNote, ...] = DEFAULT_MUTE_ON_SONG
+    mute_off_song: tuple[SongNote, ...] = DEFAULT_MUTE_OFF_SONG
     default_high_scores: tuple[int, ...] = DEFAULT_HIGH_SCORES
 
 
@@ -184,9 +231,9 @@ def load_game_config(path: Path) -> GameConfig:
     balls_per_game = int(game.get("balls_per_game", 4))
     if not 1 <= balls_per_game <= 9:
         raise ValueError("game.balls_per_game must be between 1 and 9")
-    credit_button_launch = game.get("credit_button_launch", True)
-    if not isinstance(credit_button_launch, bool):
-        raise ValueError("game.credit_button_launch must be true or false")
+    credit_long_press_seconds = float(game.get("credit_long_press_seconds", 3.0))
+    if not 0.5 <= credit_long_press_seconds <= 10.0:
+        raise ValueError("game.credit_long_press_seconds must be between 0.5 and 10 seconds")
 
     holes = data.get("holes", {})
     hole_settle_seconds = float(holes.get("settle_seconds", 0.5))
@@ -197,17 +244,29 @@ def load_game_config(path: Path) -> GameConfig:
     inlane_bonus_points = int(bonus_config.get("inlane_points", 1000))
     bonus_tick_seconds = float(bonus_config.get("tick_seconds", 0.10))
     bonus_pause_seconds = float(bonus_config.get("pause_seconds", 0.75))
+    bonus_entry_pause_seconds = float(
+        bonus_config.get("entry_pause_seconds", 0.5)
+    )
+    bonus_multiplier_pause_seconds = float(
+        bonus_config.get("multiplier_pause_seconds", 0.5)
+    )
     if not 0 <= bonus_pause_seconds <= 5:
         raise ValueError("bonus.pause_seconds must be between 0 and 5 seconds")
+    if not 0 <= bonus_entry_pause_seconds <= 5:
+        raise ValueError("bonus.entry_pause_seconds must be between 0 and 5 seconds")
     if inlane_bonus_points <= 0 or inlane_bonus_points % 1000:
         raise ValueError("bonus.inlane_points must be a positive multiple of 1000")
     if not 0.01 <= bonus_tick_seconds <= 5.0:
         raise ValueError("bonus.tick_seconds must be between 0.01 and 5 seconds")
+    if not 0 <= bonus_multiplier_pause_seconds <= 5.0:
+        raise ValueError(
+            "bonus.multiplier_pause_seconds must be between 0 and 5 seconds"
+        )
 
     point_values = tuple(
         int(points.get(name, default))
         for name, default in zip(
-            REFLEX_EVENT_NAMES, (10, 10, 10, 10, 5, 5)
+            REFLEX_EVENT_NAMES, (25, 50, 100, 10, 5, 5)
         )
     )
     if any(value < 0 for value in point_values):
@@ -241,6 +300,22 @@ def load_game_config(path: Path) -> GameConfig:
             return DEFAULT_CHARGE_SONG
         if source is None and name == "funkytown":
             return DEFAULT_FUNKYTOWN_SONG
+        if source is None and name == "add_credit":
+            return DEFAULT_ADD_CREDIT_SONG
+        if source is None and name == "mute_on":
+            return DEFAULT_MUTE_ON_SONG
+        if source is None and name == "mute_off":
+            return DEFAULT_MUTE_OFF_SONG
+        if source is None and name == "standup_complete":
+            return DEFAULT_STANDUP_COMPLETE_SONG
+        if source is None and name == "bonus_2x":
+            return DEFAULT_BONUS_2X_SONG
+        if source is None and name == "bonus_3x":
+            return DEFAULT_BONUS_3X_SONG
+        if source is None and name == "side_bonus_hole":
+            return DEFAULT_SIDE_BONUS_HOLE_SONG
+        if source is None and name == "tilt":
+            return DEFAULT_TILT_SONG
         if not isinstance(source, list) or not source:
             raise ValueError(f"songs.{name} must contain at least one note")
         result = tuple(
@@ -268,10 +343,12 @@ def load_game_config(path: Path) -> GameConfig:
         default_high_scores=tuple(sorted(high_scores, reverse=True)),
         balls_per_game=balls_per_game,
         hole_settle_seconds=hole_settle_seconds,
-        credit_button_launch=credit_button_launch,
+        credit_long_press_seconds=credit_long_press_seconds,
         inlane_bonus_points=inlane_bonus_points,
         bonus_tick_seconds=bonus_tick_seconds,
         bonus_pause_seconds=bonus_pause_seconds,
+        bonus_entry_pause_seconds=bonus_entry_pause_seconds,
+        bonus_multiplier_pause_seconds=bonus_multiplier_pause_seconds,
         reflex_points=point_values,
         reflex_sounds=tuple(
             load_tone(name, default)
@@ -288,7 +365,6 @@ def load_game_config(path: Path) -> GameConfig:
             )
         ),
         match_sound=load_tone("match", Tone(0x78, 0x04)),
-        credit_sound=load_tone("credit", Tone(0x78, 0x28)),
         bonus_add_sound=load_tone("bonus_add", Tone(0x87, 0x04)),
         bonus_payout_sound=load_tone("bonus_payout", Tone(0x87, 0x04)),
         end_ball_sound=load_tone("end_ball", Tone(0x15, 0x0c)),
@@ -305,7 +381,19 @@ def load_game_config(path: Path) -> GameConfig:
         outlane_song=load_song(str(music.get("outlane", "outlane"))),
         outlane_save_song=load_song(str(music.get("outlane_save", "outlane_save"))),
         standup_special_song=load_song(str(music.get("standup_special", "charge"))),
+        standup_complete_song=load_song(
+            str(music.get("standup_complete", "standup_complete"))
+        ),
+        bonus_2x_song=load_song(str(music.get("bonus_2x", "bonus_2x"))),
+        bonus_3x_song=load_song(str(music.get("bonus_3x", "bonus_3x"))),
+        side_bonus_hole_song=load_song(
+            str(music.get("side_bonus_hole", "side_bonus_hole"))
+        ),
+        tilt_song=load_song(str(music.get("tilt", "tilt"))),
         high_score_song=load_song(str(music.get("high_score", "funkytown"))),
+        add_credit_song=load_song(str(music.get("add_credit", "add_credit"))),
+        mute_on_song=load_song(str(music.get("mute_on", "mute_on"))),
+        mute_off_song=load_song(str(music.get("mute_off", "mute_off"))),
     )
 
 
@@ -316,6 +404,13 @@ class GameState(Enum):
     BONUS_PROCESSING = "bonus processing"
     HIGH_SCORE = "high score tributes"
     MATCH_SEQUENCE = "match sequence"
+
+
+class BonusPayoutPhase(Enum):
+    COUNTING = "counting"
+    WAIT_TO_START = "waiting to begin"
+    WAIT_FOR_TRIPLE = "waiting to show 3x"
+    WAIT_TO_COUNT = "waiting to count"
 
 
 class StandupCoincidence:
@@ -430,6 +525,10 @@ class HardwareSnapshot:
         return bool(self.cabinet_events & CREDIT_MASK)
 
     @property
+    def credit_held(self) -> bool:
+        return bool(self.cabinet_levels & CREDIT_LEVEL_MASK)
+
+    @property
     def tilt_pressed(self) -> bool:
         return bool(self.cabinet_events & TILT_MASK)
 
@@ -488,6 +587,11 @@ class GameContext:
     tilted: bool = False
     credits: int = 0
     bonus: int = 0
+    bonus_multiplier: int = 1
+    bonus_payout_multiplier: int = 1
+    bonus_payout_base: int = 0
+    bonus_payout_phase: BonusPayoutPhase = BonusPayoutPhase.COUNTING
+    bonus_returns_to_play: bool = False
     player_scores: list[int] = field(default_factory=lambda: [0, 0, 0, 0])
     score_at_ball_start: int = 0
     same_player_again_started: float | None = None
@@ -506,6 +610,11 @@ class GameContext:
     rollover_lit_mask: int = 0xff
     cup_lit_mask: int = 0x1f
     cup_tier: int = 0
+    cups_completed_this_ball: bool = False
+    standups_completed_this_ball: bool = False
+    extra_ball_qualified: bool = False
+    extra_ball_awarded_this_ball: bool = False
+    extra_ball_pending: bool = False
     previous_left_flipper: bool = False
     previous_right_flipper: bool = False
     next_bonus_time: float = 0.0
@@ -573,13 +682,18 @@ class MicropinGame:
         self._new_high_score_ranks: set[int] = set()
         self._matched_players: set[int] = set()
         self.recent_games: list[int] = []
+        self.muted = False
+        self._credit_press_started: float | None = None
+        self._credit_long_handled = False
+        self._mute_feedback_active = False
         self._load_nvram()
         self._hole_timer = HoleDwellTimer(OUTHOLE_CONTACT + 1, self.config.hole_settle_seconds)
         self._song: tuple[SongNote, ...] = ()
         self._song_index = 0
         self._next_song_time = 0.0
         self._sound_until: float | None = None
-        self._start_song(self.config.boot_song)
+        if not self.muted:
+            self._start_song(self.config.boot_song)
         self._standup_coincidence = StandupCoincidence()
 
     def initial_output(self) -> OutputFrame:
@@ -621,9 +735,11 @@ class MicropinGame:
                 cup_mask |= 1 << hole
                 messages.append(f"cup eject requested: {hole + 1} (inactive-state cleanup)")
 
-        if inputs.credit_pressed:
-            self._add_credit("button", messages)
-            sound = self.config.credit_sound
+        self._handle_credit_button(
+            event=inputs.credit_pressed,
+            held=inputs.credit_held,
+            messages=messages,
+        )
 
         if inputs.start_pressed and self.context.state in (
             GameState.WAITING_FOR_LAUNCH, GameState.GAME_PLAYING,
@@ -648,9 +764,7 @@ class MicropinGame:
                 self._advance_high_score_tributes()
 
         elif self.context.state is GameState.WAITING_FOR_LAUNCH:
-            if inputs.right_flipper_pressed or (
-                self.config.credit_button_launch and inputs.credit_pressed
-            ):
+            if inputs.right_flipper_pressed:
                 if inputs.outhole_closed:
                     launch = True
                     self._launch_ball(new_numbered_ball=True)
@@ -668,11 +782,9 @@ class MicropinGame:
                 rotated = 0
                 for ring_index, bit in enumerate(ROLLOVER_RING_BITS):
                     if old_lit & (1 << bit):
-                        rotated |= 1 << ROLLOVER_RING_BITS[(ring_index + 1) % len(ROLLOVER_RING_BITS)]
+                        rotated |= 1 << ROLLOVER_RING_BITS[(ring_index - 1) % len(ROLLOVER_RING_BITS)]
                 self.context.rollover_lit_mask = rotated
-                self.context.cup_lit_mask = ((self.context.cup_lit_mask << 1) & 0x1f) | (self.context.cup_lit_mask >> 4)
-                self.context.standup_solid_mask = ((self.context.standup_solid_mask << 1) & 0x1f) | (self.context.standup_solid_mask >> 4)
-                self.context.standup_flashing_mask = ((self.context.standup_flashing_mask << 1) & 0x1f) | (self.context.standup_flashing_mask >> 4)
+                self.context.cup_lit_mask = (self.context.cup_lit_mask >> 1) | ((self.context.cup_lit_mask & 1) << 4)
                 messages.append(f"lane change: rollovers={rotated:02x}")
             right_flipper_edge = inputs.right_flipper_pressed and not self.context.previous_right_flipper
             self.context.previous_right_flipper = inputs.right_flipper_pressed
@@ -681,15 +793,14 @@ class MicropinGame:
                 rotated = 0
                 for ring_index, bit in enumerate(ROLLOVER_RING_BITS):
                     if old_lit & (1 << bit):
-                        rotated |= 1 << ROLLOVER_RING_BITS[(ring_index - 1) % len(ROLLOVER_RING_BITS)]
+                        rotated |= 1 << ROLLOVER_RING_BITS[(ring_index + 1) % len(ROLLOVER_RING_BITS)]
                 self.context.rollover_lit_mask = rotated
-                self.context.cup_lit_mask = (self.context.cup_lit_mask >> 1) | ((self.context.cup_lit_mask & 1) << 4)
-                self.context.standup_solid_mask = (self.context.standup_solid_mask >> 1) | ((self.context.standup_solid_mask & 1) << 4)
-                self.context.standup_flashing_mask = (self.context.standup_flashing_mask >> 1) | ((self.context.standup_flashing_mask & 1) << 4)
+                self.context.cup_lit_mask = ((self.context.cup_lit_mask << 1) & 0x1f) | (self.context.cup_lit_mask >> 4)
                 messages.append(f"lane change: rollovers={rotated:02x}")
             if inputs.tilt_pressed and not self.context.tilted:
                 self.context.tilted = True
                 self.context.outlane_save_pending = False
+                self._start_song(self.config.tilt_song)
                 messages.append("TILT: local reflex and flipper coils inhibited")
 
             if newly_closed_outlanes and not self.context.tilted and not self.context.ball_ending:
@@ -720,18 +831,6 @@ class MicropinGame:
             scoring_allowed = not self.context.tilted and not self.context.ball_ending
             if scoring_allowed:
                 sound = self._score_reflex_events(inputs.reflex_events, messages)
-                if inputs.reflex_events & (1 << 2):
-                    lit = [bit for bit in range(8) if self.context.rollover_lit_mask & (1 << bit)]
-                    if lit:
-                        removed = self._random.choice(lit)
-                        self.context.rollover_lit_mask &= ~(1 << removed)
-                        messages.append(f"middle bumper: rollover {removed} off; remaining={self.context.rollover_lit_mask:02x}")
-                        sound = self.config.rollover_sound
-                        if not self.context.rollover_lit_mask:
-                            self.context.rollover_lit_mask = 0xff
-                            self.context.bonus += ROLLOVER_COMPLETE_BONUS
-                            messages.append(f"rollovers complete: +{ROLLOVER_COMPLETE_BONUS} bonus")
-                            sound = self.config.rollover_complete_sound
 
             closed_inlanes = inputs.closed_inlane_mask
             newly_closed_inlanes = closed_inlanes & ~self.context.previous_inlane_mask
@@ -743,9 +842,12 @@ class MicropinGame:
                 messages.append(f"bonus: +{gained} = {self.context.bonus}")
 
             if newly_closed_playfield & (1 << TEN_THOUSAND_BONUS_DMA_INDEX) and scoring_allowed:
-                self.context.bonus += 10_000
-                sound = self.config.bonus_add_sound
-                messages.append(f"bonus: c16 +10000 = {self.context.bonus}")
+                if self.context.extra_ball_qualified:
+                    self._award_extra_ball("10,000 rollover", messages)
+                else:
+                    self.context.bonus += 10_000
+                    sound = self.config.bonus_add_sound
+                    messages.append(f"bonus: c16 +10000 = {self.context.bonus}")
 
             if scoring_allowed:
                 matched_standups = self._standup_coincidence.update(standup_hits, bar_hit)
@@ -763,7 +865,29 @@ class MicropinGame:
                 self.context.standup_solid_mask &= ~standup_hits
                 self.context.standup_flashing_mask &= ~standup_hits
                 sound = self.config.standup_sound
-                if flashing_hits:
+                if (
+                    (solid_hits | flashing_hits)
+                    and not (
+                        self.context.standup_solid_mask
+                        | self.context.standup_flashing_mask
+                    )
+                ):
+                    self.context.standup_solid_mask = 0x1f
+                    self.context.player_scores[
+                        self.context.current_player - 1
+                    ] += STANDUP_COMPLETE_POINTS
+                    points += STANDUP_COMPLETE_POINTS
+                    self.context.bonus_multiplier = min(
+                        3, self.context.bonus_multiplier + 1
+                    )
+                    self.context.standups_completed_this_ball = True
+                    self._maybe_qualify_extra_ball(messages)
+                    self._start_song(self.config.standup_complete_song)
+                    messages.append(
+                        f"standups complete: +{STANDUP_COMPLETE_POINTS} points; "
+                        f"bonus {self.context.bonus_multiplier}x; reset solid"
+                    )
+                elif flashing_hits:
                     self._start_song(self.config.standup_special_song)
                 else:
                     # Give a normal target beep priority over an older song.
@@ -839,15 +963,38 @@ class MicropinGame:
                     else:
                         self._song = ()
                         sound = self.config.end_ball_sound
-                        self._enter_state(GameState.BONUS_PROCESSING)
-                        messages.append(self._state_message())
+                        self._begin_bonus_payout(
+                            self.context.bonus_multiplier,
+                            return_to_play=False,
+                            messages=messages,
+                        )
+                    break
+                if hole == SIDE_BONUS_CUP and scoring_allowed:
+                    if self.context.extra_ball_qualified:
+                        self._award_extra_ball("side bonus cup", messages)
+                    self._song = ()
+                    self._start_song(self.config.side_bonus_hole_song)
+                    messages.append(
+                        f"side bonus cup: collecting {self.context.bonus} "
+                        f"at {self.context.bonus_multiplier}x"
+                    )
+                    self._begin_bonus_payout(
+                        self.context.bonus_multiplier,
+                        return_to_play=True,
+                        messages=messages,
+                    )
                     break
                 cup_mask |= 1 << hole
                 if hole < 5 and scoring_allowed:
                     cup_bit = 1 << hole
-                    self.context.standup_solid_mask &= ~cup_bit
-                    self.context.standup_flashing_mask |= cup_bit
                     if self.context.cup_lit_mask & cup_bit:
+                        # Standups are fixed physical targets.  A lit cup only
+                        # promotes the target currently beneath it when that
+                        # target is still lit; lane change never rotates these
+                        # masks with the cup lamps.
+                        if self.context.standup_solid_mask & cup_bit:
+                            self.context.standup_solid_mask &= ~cup_bit
+                            self.context.standup_flashing_mask |= cup_bit
                         bonus_value = CUP_BONUS_VALUES[self.context.cup_tier]
                         regular_value = CUP_REGULAR_VALUES[self.context.cup_tier]
                         player_index = self.context.current_player - 1
@@ -863,6 +1010,8 @@ class MicropinGame:
                             self.context.cup_lit_mask = 0x1f
                             self.context.standup_solid_mask = 0x1f
                             self.context.standup_flashing_mask = 0
+                            self.context.cups_completed_this_ball = True
+                            self._maybe_qualify_extra_ball(messages)
                             if self.context.cup_tier < len(CUP_BONUS_VALUES) - 1:
                                 self.context.cup_tier += 1
                             messages.append(
@@ -876,23 +1025,10 @@ class MicropinGame:
                 messages.append(f"cup eject requested: {hole + 1}")
 
         elif self.context.state is GameState.BONUS_PROCESSING:
-            if self.context.bonus and self._clock() >= self.context.next_bonus_time:
-                payout = min(1000, self.context.bonus)
-                self.context.bonus -= payout
-                player_index = self.context.current_player - 1
-                self.context.player_scores[player_index] += payout
-                sound = self.config.bonus_payout_sound
-                self.context.next_bonus_time = self._clock() + self.config.bonus_tick_seconds
-                messages.append(
-                    f"bonus payout: player {self.context.current_player} +{payout}; "
-                    f"remaining {self.context.bonus}"
-                )
-            if not self.context.bonus:
-                now = self._clock()
-                if self.context.bonus_completed_at is None:
-                    self.context.bonus_completed_at = now
-                if now - self.context.bonus_completed_at >= self.config.bonus_pause_seconds:
-                    self._finish_ball(messages)
+            payout_sound, payout_cups = self._advance_bonus_payout(messages)
+            if payout_sound is not None:
+                sound = payout_sound
+            cup_mask |= payout_cups
 
         elif self.context.state is GameState.HIGH_SCORE:
             if inputs.start_pressed:
@@ -957,6 +1093,13 @@ class MicropinGame:
         song_sound = self._advance_song(self._clock())
         if song_sound is not None:
             sound = song_sound
+        if self.muted:
+            if self._mute_feedback_active:
+                # The mute confirmation is the only song allowed to finish
+                # after mute becomes active. Ignore unrelated direct tones.
+                sound = song_sound
+            elif sound != Tone(0, 0):
+                sound = None
         now = self._clock()
         if sound is not None:
             self._sound_until = (
@@ -980,12 +1123,189 @@ class MicropinGame:
             messages.append(f"credit ({source}): already at 99")
         self._save_nvram()
 
+    def _maybe_qualify_extra_ball(self, messages: list[str]) -> None:
+        if (
+            self.context.cups_completed_this_ball
+            and self.context.standups_completed_this_ball
+            and not self.context.extra_ball_awarded_this_ball
+            and not self.context.extra_ball_qualified
+        ):
+            self.context.extra_ball_qualified = True
+            messages.append("extra ball: qualified at rollover and side cup")
+
+    def _award_extra_ball(self, source: str, messages: list[str]) -> None:
+        if not self.context.extra_ball_qualified:
+            return
+        self.context.extra_ball_qualified = False
+        self.context.extra_ball_awarded_this_ball = True
+        self.context.extra_ball_pending = True
+        messages.append(f"extra ball: awarded by {source}")
+
+    def _reset_extra_ball_ball_state(self) -> None:
+        self.context.cups_completed_this_ball = False
+        self.context.standups_completed_this_ball = False
+        self.context.extra_ball_qualified = False
+        self.context.extra_ball_awarded_this_ball = False
+
+    def _begin_bonus_payout(
+        self,
+        multiplier: int,
+        *,
+        return_to_play: bool,
+        messages: list[str],
+    ) -> None:
+        """Start the shared outhole/side-cup bonus-counting sequence."""
+        self.context.bonus_payout_multiplier = max(1, min(3, multiplier))
+        self.context.bonus_payout_base = self.context.bonus
+        self.context.bonus_returns_to_play = return_to_play
+        self._enter_state(GameState.BONUS_PROCESSING)
+        now = self._clock()
+        if self.context.bonus:
+            self.context.bonus_payout_phase = BonusPayoutPhase.WAIT_TO_START
+            self.context.next_bonus_time = now + self.config.bonus_entry_pause_seconds
+        else:
+            self.context.bonus_payout_phase = BonusPayoutPhase.COUNTING
+            self.context.next_bonus_time = now
+        messages.append(self._state_message())
+
+    def _advance_bonus_payout(
+        self, messages: list[str]
+    ) -> tuple[Tone | None, int]:
+        """Advance one payout tick and perform the source-specific exit."""
+        sound: Tone | None = None
+        cup_mask = 0
+        now = self._clock()
+        phase = self.context.bonus_payout_phase
+        if (
+            phase is BonusPayoutPhase.WAIT_TO_START
+            and now >= self.context.next_bonus_time
+        ):
+            if self.context.bonus_payout_multiplier >= 2:
+                self.context.bonus = self.context.bonus_payout_base * 2
+                self._start_song(self.config.bonus_2x_song)
+                messages.append(f"bonus: showing 2x = {self.context.bonus}")
+                self.context.bonus_payout_phase = (
+                    BonusPayoutPhase.WAIT_FOR_TRIPLE
+                    if self.context.bonus_payout_multiplier >= 3
+                    else BonusPayoutPhase.WAIT_TO_COUNT
+                )
+                self.context.next_bonus_time = (
+                    now + self.config.bonus_multiplier_pause_seconds
+                )
+            else:
+                self.context.bonus_payout_phase = BonusPayoutPhase.COUNTING
+                self.context.next_bonus_time = now
+        elif (
+            phase is BonusPayoutPhase.WAIT_FOR_TRIPLE
+            and now >= self.context.next_bonus_time
+        ):
+            # Always multiply the saved original, never the displayed 2x
+            # intermediate value.
+            self.context.bonus = (
+                self.context.bonus_payout_base * 3
+            )
+            self._start_song(self.config.bonus_3x_song)
+            messages.append(f"bonus: showing 3x = {self.context.bonus}")
+            self.context.bonus_payout_phase = BonusPayoutPhase.WAIT_TO_COUNT
+            self.context.next_bonus_time = (
+                now + self.config.bonus_multiplier_pause_seconds
+            )
+        elif (
+            phase is BonusPayoutPhase.WAIT_TO_COUNT
+            and now >= self.context.next_bonus_time
+        ):
+            self.context.bonus_payout_phase = BonusPayoutPhase.COUNTING
+            self.context.next_bonus_time = now
+
+        if (
+            self.context.bonus_payout_phase is BonusPayoutPhase.COUNTING
+            and self.context.bonus
+            and now >= self.context.next_bonus_time
+        ):
+            payout = min(1000, self.context.bonus)
+            self.context.bonus -= payout
+            player_index = self.context.current_player - 1
+            self.context.player_scores[player_index] += payout
+            sound = self.config.bonus_payout_sound
+            self.context.next_bonus_time = now + self.config.bonus_tick_seconds
+            messages.append(
+                f"bonus payout: player {self.context.current_player} +{payout}; "
+                f"remaining {self.context.bonus}"
+            )
+
+        if not self.context.bonus:
+            if self.context.bonus_completed_at is None:
+                self.context.bonus_completed_at = now
+            if (
+                now - self.context.bonus_completed_at
+                >= self.config.bonus_pause_seconds
+            ):
+                if self.context.bonus_returns_to_play:
+                    self.context.bonus_returns_to_play = False
+                    self.context.bonus_completed_at = None
+                    self._enter_state(GameState.GAME_PLAYING)
+                    cup_mask = 1 << SIDE_BONUS_CUP
+                    messages.append("side bonus cup: payout complete; ejecting")
+                    messages.append(self._state_message())
+                else:
+                    self._finish_ball(messages)
+        return sound, cup_mask
+
+    def _handle_credit_button(
+        self,
+        *,
+        event: bool,
+        held: bool,
+        messages: list[str],
+    ) -> None:
+        """Distinguish a short credit press from a long mute gesture.
+
+        The motherboard fans the physical switch into two software-visible
+        paths, just as it does for the flippers: Port 0 bit $04 provides the
+        interrupt event that catches a tap, while Port 4 bit $10 is the held
+        level used by the stock ROM's polling path.
+        """
+        now = self._clock()
+        if event or held:
+            if self._credit_press_started is None:
+                self._credit_press_started = now
+            self._credit_long_handled = False
+            if (
+                held
+                and
+                not self._credit_long_handled
+                and now - self._credit_press_started
+                >= self.config.credit_long_press_seconds
+            ):
+                self._credit_long_handled = True
+                self.muted = not self.muted
+                self._save_nvram()
+                if self.muted:
+                    self._start_song(
+                        self.config.mute_on_song, audible_while_muted=True
+                    )
+                    messages.append("sound: muted")
+                else:
+                    self._start_song(self.config.mute_off_song)
+                    messages.append("sound: unmuted")
+            return
+
+        if self._credit_press_started is None:
+            return
+
+        if not self._credit_long_handled:
+            self._add_credit("button", messages)
+            self._start_song(self.config.add_credit_song)
+        self._credit_press_started = None
+        self._credit_long_handled = False
+
     def _load_nvram(self) -> None:
         if self.nvram_path is None or not self.nvram_path.exists():
             return
         try:
             data = json.loads(self.nvram_path.read_text())
             self.context.credits = max(0, min(99, int(data.get("credits", 0))))
+            self.muted = data.get("muted", False) is True
             scores = data.get("high_scores")
             if isinstance(scores, list) and any(scores):
                 loaded = [max(0, int(score)) for score in scores[:6]]
@@ -997,6 +1317,7 @@ class MicropinGame:
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
             # A corrupt NVRAM file should not prevent the game from booting.
             self.context.credits = 0
+            self.muted = False
             self.high_scores = list(self.config.default_high_scores)
             self.recent_games = []
 
@@ -1005,6 +1326,7 @@ class MicropinGame:
             return
         data = {
             "credits": self.context.credits,
+            "muted": self.muted,
             "high_scores": self.high_scores,
             "recent_games": self.recent_games[-20:],
         }
@@ -1055,16 +1377,25 @@ class MicropinGame:
             self._tribute_player = None
             self._attract_started = now
 
-    def _start_song(self, song: tuple[SongNote, ...]) -> None:
+    def _start_song(
+        self,
+        song: tuple[SongNote, ...],
+        *,
+        audible_while_muted: bool = False,
+    ) -> None:
+        if self.muted and not audible_while_muted:
+            return
         self._song = song
         self._song_index = 0
         self._next_song_time = self._clock()
+        self._mute_feedback_active = audible_while_muted and bool(song)
 
     def _advance_song(self, now: float) -> Tone | None:
         if not self._song or now < self._next_song_time:
             return None
         if self._song_index >= len(self._song):
             self._song = ()
+            self._mute_feedback_active = False
             return Tone(0, 0)
         note = self._song[self._song_index]
         self._song_index += 1
@@ -1125,6 +1456,11 @@ class MicropinGame:
         self.context.ball_in_play = False
         self.context.tilted = False
         self.context.bonus = 0
+        self.context.bonus_multiplier = 1
+        self.context.bonus_payout_multiplier = 1
+        self.context.bonus_payout_base = 0
+        self.context.bonus_payout_phase = BonusPayoutPhase.COUNTING
+        self.context.bonus_returns_to_play = False
         self.context.player_scores[:] = [0, 0, 0, 0]
         self.context.score_at_ball_start = 0
         self.context.same_player_again_started = None
@@ -1140,6 +1476,8 @@ class MicropinGame:
         self.context.rollover_lit_mask = 0xff
         self.context.cup_lit_mask = 0x1f
         self.context.cup_tier = 0
+        self._reset_extra_ball_ball_state()
+        self.context.extra_ball_pending = False
         self.context.last_match_digit = None
         self.context.match_digit = 0
         self.context.match_step = 0
@@ -1162,15 +1500,29 @@ class MicropinGame:
         self._hole_timer.clear()
 
     def _finish_ball(self, messages: list[str]) -> None:
+        replay_current_ball = self.context.extra_ball_pending
         self.context.outlane_save_pending = False
         self.context.ball_ending = False
         self.context.bonus = 0
+        self.context.bonus_multiplier = 1
+        self.context.bonus_payout_multiplier = 1
+        self.context.bonus_payout_base = 0
+        self.context.bonus_payout_phase = BonusPayoutPhase.COUNTING
+        self.context.bonus_returns_to_play = False
         self.context.tilted = False
         self.context.ball_has_left_outhole = False
         self._hole_timer.clear()
         self.context.previous_inlane_mask = 0
         self.context.previous_rollover_mask = 0
         self.context.grace_save_used = False
+        self.context.extra_ball_pending = False
+        self._reset_extra_ball_ball_state()
+        if replay_current_ball:
+            self._enter_state(GameState.WAITING_FOR_LAUNCH)
+            messages.append(
+                f"extra ball: player {self.context.current_player} shoots again"
+            )
+            return
         if self.context.current_player < self.context.players_in_game:
             self.context.current_player += 1
             self._enter_state(GameState.WAITING_FOR_LAUNCH)
@@ -1265,7 +1617,10 @@ class MicropinGame:
         )
         display.set_game_over_led(game_over_flash)
         display.set_pay_bartender_led(game_over_flash and self.context.credits == 0)
-        display.set_tilt_led(self.context.tilted)
+        display.set_tilt_led(
+            self.context.tilted
+            and int(now * TILT_FLASH_HZ * 2) % 2 == 0
+        )
         flash_on = False
         grace_active = (
             self.context.grace_started is not None
@@ -1299,9 +1654,29 @@ class MicropinGame:
         if self.context.cup_tier < len(CUP_TIER_LAMPS):
             lamp = CUP_TIER_LAMPS[self.context.cup_tier]
             lamp_bitmap[lamp // 8] |= 1 << (lamp % 8)
+        if self.context.bonus > 0:
+            lamp_bitmap[COLLECT_BONUS_LAMP // 8] |= 1 << (
+                COLLECT_BONUS_LAMP % 8
+            )
+        if self.context.bonus_multiplier == 2:
+            lamp_bitmap[DOUBLE_BONUS_LAMP // 8] |= 1 << (
+                DOUBLE_BONUS_LAMP % 8
+            )
+        elif self.context.bonus_multiplier >= 3:
+            lamp_bitmap[TRIPLE_BONUS_LAMP // 8] |= 1 << (
+                TRIPLE_BONUS_LAMP % 8
+            )
+        if self.context.extra_ball_qualified:
+            for lamp in (EXTRA_BALL_ROLLOVER_LAMP, EXTRA_BALL_SIDE_CUP_LAMP):
+                lamp_bitmap[lamp // 8] |= 1 << (lamp % 8)
         if flash_on:
             lamp_bitmap[SAME_PLAYER_AGAIN_LAMP // 8] |= 1 << (SAME_PLAYER_AGAIN_LAMP % 8)
-        display.set_same_player_again_led(flash_on)
+        same_player_on = flash_on or self.context.extra_ball_pending
+        if self.context.extra_ball_pending:
+            lamp_bitmap[SAME_PLAYER_AGAIN_LAMP // 8] |= 1 << (
+                SAME_PLAYER_AGAIN_LAMP % 8
+            )
+        display.set_same_player_again_led(same_player_on)
         if self.context.state not in (GameState.GAME_OVER, GameState.MATCH_SEQUENCE, GameState.HIGH_SCORE):
             player_led_on = True
             if self.context.state is GameState.WAITING_FOR_LAUNCH:
@@ -1314,8 +1689,8 @@ class MicropinGame:
                 GameState.GAME_OVER,
                 GameState.WAITING_FOR_LAUNCH,
                 GameState.GAME_PLAYING,
+                GameState.BONUS_PROCESSING,
             )
-            and not self.context.tilted
         )
         # The right-flipper contact is reported to the host even while the local
         # flipper reflex is inhibited.  In WAITING_FOR_LAUNCH this prevents the
