@@ -4,6 +4,8 @@ import tempfile
 
 from micropin_game import (
     COLLECT_BONUS_LAMP,
+    CUP_LAMPS,
+    CUP_TARGET_LAMPS,
     CUP_TIER_LAMPS,
     DOUBLE_BONUS_LAMP,
     EXTRA_BALL_ROLLOVER_LAMP,
@@ -238,7 +240,141 @@ class MicropinGameTests(unittest.TestCase):
         self.assertEqual(game.context.player_scores[0], 4000)
         self.assertEqual(game.context.bonus, 5000)
         self.assertEqual(game.context.rollover_lit_mask, 0xff)
-        self.assertEqual(self.lit_rollover_lamps(game), set(ROLLOVER_LAMPS))
+        # Completion starts a two-pass clockwise chase.  The freshly reset
+        # rule state is temporarily hidden by the animation overlay.
+        self.assertEqual(
+            self.lit_rollover_lamps(game),
+            {ROLLOVER_LAMPS[ROLLOVER_RING_BITS[0]]},
+        )
+
+    def test_rollover_chase_hides_but_does_not_block_new_rule_state(self) -> None:
+        now = [0.0]
+        game = MicropinGame(
+            GameConfig(hole_settle_seconds=0), clock=lambda: now[0]
+        )
+        game.step(snapshot(cabinet=0x40))
+        game.step(snapshot(cabinet=0x10))
+        game.context.rollover_lit_mask = 0x01
+
+        game.step(snapshot(outhole=False, rollovers=0x01))
+        self.assertEqual(game.context.rollover_lit_mask, 0xff)
+
+        # While the chase owns the bank, hitting raw rollover bit 3 still
+        # clears its underlying rule lamp.  At 0.15 s the chase itself is
+        # deliberately displaying that same lamp, so the hit is not yet seen.
+        now[0] = 0.11
+        game.step(snapshot(outhole=False))
+        now[0] = 0.15
+        during = game.step(snapshot(outhole=False, rollovers=0x08)).output
+        self.assertEqual(game.context.rollover_lit_mask, 0xf7)
+        assert during.lamp_bitmap is not None
+        lamp = ROLLOVER_LAMPS[3]
+        self.assertTrue(during.lamp_bitmap[lamp // 8] & (1 << (lamp % 8)))
+
+        # Two eight-step passes take 1.6 seconds.  Once the overlay expires,
+        # the live state accumulated underneath becomes visible.
+        now[0] = 1.61
+        after = game.initial_output()
+        assert after.lamp_bitmap is not None
+        self.assertFalse(after.lamp_bitmap[lamp // 8] & (1 << (lamp % 8)))
+
+    def test_cup_completion_runs_three_pass_chase_then_reveals_bank(self) -> None:
+        now = [0.0]
+        game = MicropinGame(
+            GameConfig(hole_settle_seconds=0), clock=lambda: now[0]
+        )
+        game.step(snapshot(cabinet=0x40))
+        game.step(snapshot(cabinet=0x10))
+        game.context.cup_lit_mask = 0x01
+
+        completed = game.step(snapshot(outhole=False, cups=0x01)).output
+        assert completed.lamp_bitmap is not None
+        self.assertEqual(game.context.cup_lit_mask, 0x1f)
+        self.assertTrue(
+            completed.lamp_bitmap[CUP_LAMPS[0] // 8]
+            & (1 << (CUP_LAMPS[0] % 8))
+        )
+        for lamp in CUP_LAMPS[1:]:
+            self.assertFalse(completed.lamp_bitmap[lamp // 8] & (1 << (lamp % 8)))
+
+        now[0] = 0.11
+        second = game.initial_output()
+        assert second.lamp_bitmap is not None
+        self.assertTrue(
+            second.lamp_bitmap[CUP_LAMPS[1] // 8]
+            & (1 << (CUP_LAMPS[1] % 8))
+        )
+
+        now[0] = 1.51
+        revealed = game.initial_output()
+        assert revealed.lamp_bitmap is not None
+        for lamp in CUP_LAMPS:
+            self.assertTrue(revealed.lamp_bitmap[lamp // 8] & (1 << (lamp % 8)))
+
+    def test_waiting_for_launch_repeats_paired_cup_target_chase(self) -> None:
+        now = [0.0]
+        game = MicropinGame(clock=lambda: now[0])
+        started = game.step(snapshot(cabinet=START_MASK)).output
+
+        def lit(frame, lamp: int) -> bool:
+            assert frame.lamp_bitmap is not None
+            return bool(frame.lamp_bitmap[lamp // 8] & (1 << (lamp % 8)))
+
+        self.assertTrue(lit(started, CUP_LAMPS[0]))
+        self.assertTrue(lit(started, CUP_TARGET_LAMPS[0]))
+        for lamp in (*CUP_LAMPS[1:], *CUP_TARGET_LAMPS[1:]):
+            self.assertFalse(lit(started, lamp))
+
+        now[0] = 0.11
+        second = game.initial_output()
+        self.assertTrue(lit(second, CUP_LAMPS[1]))
+        self.assertTrue(lit(second, CUP_TARGET_LAMPS[1]))
+
+        # Five 100 ms pairs are followed by a 250 ms all-dark dwell.
+        now[0] = 0.55
+        dwell = game.initial_output()
+        for lamp in (*CUP_LAMPS, *CUP_TARGET_LAMPS):
+            self.assertFalse(lit(dwell, lamp))
+
+        now[0] = 0.76
+        repeated = game.initial_output()
+        self.assertTrue(lit(repeated, CUP_LAMPS[0]))
+        self.assertTrue(lit(repeated, CUP_TARGET_LAMPS[0]))
+
+        # A normal launch cancels the repeating overlay and starts one final
+        # single pass from pair one.
+        launched = game.step(snapshot(cabinet=0x10)).output
+        self.assertTrue(lit(launched, CUP_LAMPS[0]))
+        self.assertTrue(lit(launched, CUP_TARGET_LAMPS[0]))
+        for lamp in (*CUP_LAMPS[1:], *CUP_TARGET_LAMPS[1:]):
+            self.assertFalse(lit(launched, lamp))
+
+        now[0] = 1.52
+        for lamp in (*CUP_LAMPS, *CUP_TARGET_LAMPS):
+            self.assertTrue(lit(game.initial_output(), lamp))
+
+    def test_automatic_relaunch_plays_ball_ready_chase_once(self) -> None:
+        now = [0.0]
+        game = MicropinGame(clock=lambda: now[0])
+        game.step(snapshot(cabinet=START_MASK))
+        game.step(snapshot(cabinet=0x10))
+
+        now[0] = 1.0
+        game._launch_ball(new_numbered_ball=False)
+        first = game.initial_output()
+        assert first.lamp_bitmap is not None
+        self.assertTrue(
+            first.lamp_bitmap[CUP_LAMPS[0] // 8]
+            & (1 << (CUP_LAMPS[0] % 8))
+        )
+        for lamp in (*CUP_LAMPS[1:], *CUP_TARGET_LAMPS[1:]):
+            self.assertFalse(first.lamp_bitmap[lamp // 8] & (1 << (lamp % 8)))
+
+        now[0] = 1.76
+        finished = game.initial_output()
+        assert finished.lamp_bitmap is not None
+        for lamp in (*CUP_LAMPS, *CUP_TARGET_LAMPS):
+            self.assertTrue(finished.lamp_bitmap[lamp // 8] & (1 << (lamp % 8)))
 
     def test_latched_rollover_pulse_scores_after_contact_reopens(self) -> None:
         game = MicropinGame(GameConfig(hole_settle_seconds=0))
@@ -1039,7 +1175,9 @@ class MicropinGameTests(unittest.TestCase):
         # Payout uses the multiplier captured on entry, not mutable live state.
         game.context.bonus_multiplier = 3
 
-        now[0] += game.config.bonus_entry_pause_seconds + 0.001
+        # The side-cup double/triple/extra-ball lamp cycle runs for 0.6 s
+        # before handing off to the ordinary multiplier presentation.
+        now[0] += 0.601
         doubled = game.step(snapshot(outhole=False, cups=0x20))
         self.assertEqual(game.context.bonus, 6000)
         self.assertEqual(
@@ -1062,6 +1200,55 @@ class MicropinGameTests(unittest.TestCase):
         self.assertIs(game.context.state, GameState.GAME_PLAYING)
         self.assertEqual(game.context.ball_number, starting_ball)
         self.assertTrue(game.context.ball_in_play)
+
+    def test_side_bonus_cycles_awards_then_flashes_multiplier_until_exit(self) -> None:
+        now = [0.10]
+        game = MicropinGame(
+            GameConfig(hole_settle_seconds=0), clock=lambda: now[0]
+        )
+        game.step(snapshot(cabinet=START_MASK))
+        game.step(snapshot(cabinet=0x10))
+        game.context.bonus = 1000
+        game.context.bonus_multiplier = 2
+
+        def lamp_on(output, lamp: int) -> bool:
+            assert output.lamp_bitmap is not None
+            return bool(output.lamp_bitmap[lamp // 8] & (1 << (lamp % 8)))
+
+        first = game.step(snapshot(outhole=False, cups=1 << 5)).output
+        self.assertTrue(lamp_on(first, DOUBLE_BONUS_LAMP))
+        self.assertFalse(lamp_on(first, TRIPLE_BONUS_LAMP))
+        self.assertFalse(lamp_on(first, EXTRA_BALL_SIDE_CUP_LAMP))
+
+        now[0] = 0.21
+        second = game.step(snapshot(outhole=False, cups=1 << 5)).output
+        self.assertFalse(lamp_on(second, DOUBLE_BONUS_LAMP))
+        self.assertTrue(lamp_on(second, TRIPLE_BONUS_LAMP))
+
+        now[0] = 0.31
+        third = game.step(snapshot(outhole=False, cups=1 << 5)).output
+        self.assertFalse(lamp_on(third, TRIPLE_BONUS_LAMP))
+        self.assertTrue(lamp_on(third, EXTRA_BALL_SIDE_CUP_LAMP))
+
+        # At 0.75 the two cycles are over and the shared 2 Hz flash phase is
+        # dark.  The captured 2x multiplier is now in its payout presentation.
+        now[0] = 0.75
+        flashing = game.step(snapshot(outhole=False, cups=1 << 5)).output
+        self.assertEqual(game.context.bonus, 2000)
+        self.assertFalse(lamp_on(flashing, DOUBLE_BONUS_LAMP))
+
+        now[0] = 1.26
+        game.step(snapshot(outhole=False, cups=1 << 5))
+        now[0] = 1.37
+        game.step(snapshot(outhole=False, cups=1 << 5))
+        self.assertEqual(game.context.bonus, 0)
+
+        # Payout completion relinquishes the flash override.  At another dark
+        # flash phase, the underlying earned 2x lamp is nevertheless solid.
+        now[0] = 2.26
+        finished = game.step(snapshot(outhole=False, cups=1 << 5)).output
+        self.assertIs(game.context.state, GameState.GAME_PLAYING)
+        self.assertTrue(lamp_on(finished, DOUBLE_BONUS_LAMP))
 
     def test_bonus_and_multiplier_lamps_follow_current_values(self) -> None:
         game = MicropinGame()
@@ -1166,7 +1353,7 @@ class MicropinGameTests(unittest.TestCase):
         self.assertFalse(game.context.extra_ball_qualified)
         self.assertIs(game.context.state, GameState.BONUS_PROCESSING)
 
-        now[0] += game.config.bonus_entry_pause_seconds + 0.001
+        now[0] += 0.601
         game.step(snapshot(outhole=False, cups=1 << 5))
         self.assertEqual(game.context.bonus, 0)
         self.assertEqual(game.context.player_scores[0], 1000)

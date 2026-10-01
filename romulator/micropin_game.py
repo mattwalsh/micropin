@@ -13,7 +13,7 @@ import random
 import signal
 import time
 import tomllib
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 
 from aperture_stress import SerialLines, drain_received, find_device, parse_state
 from micropin_protocol import DisplayFrame, build_control_payload
@@ -62,6 +62,9 @@ TILT_FLASH_HZ = 4.0
 ATTRACT_HOLD_SECONDS = 4.5
 ATTRACT_TRANSITION_SECONDS = 0.5
 DEFAULT_HIGH_SCORES = (60000, 50000, 40000, 30000, 20000, 10000)
+STANDARD_LAMP_FLASH_HZ = 2.0
+CUP_COMPLETE_STEP_SECONDS = 0.10
+ROLLOVER_COMPLETE_STEP_SECONDS = 0.10
 
 
 def score_digits(score: int, width: int = 6) -> str:
@@ -110,6 +113,262 @@ class Tone:
 class SongNote:
     tone: Tone
     interval_seconds: float
+
+
+class _Forever:
+    def __repr__(self) -> str:
+        return "FOREVER"
+
+
+FOREVER = _Forever()
+
+
+class LampMode(Enum):
+    OFF = "off"
+    ON = "on"
+    FLASH = "flash"
+
+
+@dataclass(frozen=True)
+class LampStep:
+    """One timed step; controlled lamps omitted from ``on`` are forced off."""
+
+    on: frozenset[int]
+    duration: float
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "on", frozenset(self.on))
+        if self.duration <= 0:
+            raise ValueError("lamp step duration must be positive")
+
+
+@dataclass(frozen=True)
+class LampSequence:
+    """A temporary lamp overlay.
+
+    ``repeat=None`` plays once, an integer plays that many total passes, and
+    ``repeat=FOREVER`` runs until its returned handle is cancelled.
+    """
+
+    name: str
+    controls: frozenset[int]
+    steps: tuple[LampStep, ...]
+    repeat: int | _Forever | None = None
+    priority: int = 0
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "controls", frozenset(self.controls))
+        object.__setattr__(self, "steps", tuple(self.steps))
+        if not self.controls:
+            raise ValueError("lamp sequence must control at least one lamp")
+        if not self.steps:
+            raise ValueError("lamp sequence must contain at least one step")
+        if any(not step.on <= self.controls for step in self.steps):
+            raise ValueError("lamp step turns on a lamp outside sequence controls")
+        if self.repeat is not None and self.repeat is not FOREVER:
+            if (
+                not isinstance(self.repeat, int)
+                or isinstance(self.repeat, bool)
+                or self.repeat < 1
+            ):
+                raise ValueError(
+                    "lamp sequence repeat must be a positive integer, FOREVER, or None"
+                )
+
+
+@dataclass
+class _ActiveLampSequence:
+    sequence: LampSequence
+    started_at: float
+    order: int
+    cancelled: bool = False
+
+
+class LampSequenceHandle:
+    def __init__(
+        self, controller: "LampController", active: _ActiveLampSequence
+    ) -> None:
+        self._controller = controller
+        self._active = active
+
+    def cancel(self) -> None:
+        self._active.cancelled = True
+
+    @property
+    def finished(self) -> bool:
+        return self._controller._finished(self._active, self._controller._clock())
+
+
+class LampController:
+    """Composes persistent lamp modes and temporary animations over rule state."""
+
+    def __init__(
+        self,
+        *,
+        clock: Callable[[], float] = time.monotonic,
+        flash_hz: float = STANDARD_LAMP_FLASH_HZ,
+    ) -> None:
+        self._clock = clock
+        self._flash_hz = flash_hz
+        self._modes: dict[int, LampMode] = {}
+        self._active: list[_ActiveLampSequence] = []
+        self._next_order = 0
+
+    @staticmethod
+    def _lamps(value: int | Iterable[int]) -> tuple[int, ...]:
+        lamps = (value,) if isinstance(value, int) else tuple(value)
+        if any(lamp < 0 or lamp >= 40 for lamp in lamps):
+            raise ValueError("lamp number must be in the 0..39 output range")
+        return lamps
+
+    def off(self, lamps: int | Iterable[int]) -> None:
+        for lamp in self._lamps(lamps):
+            self._modes[lamp] = LampMode.OFF
+
+    def on(self, lamps: int | Iterable[int]) -> None:
+        for lamp in self._lamps(lamps):
+            self._modes[lamp] = LampMode.ON
+
+    def flash(self, lamps: int | Iterable[int]) -> None:
+        for lamp in self._lamps(lamps):
+            self._modes[lamp] = LampMode.FLASH
+
+    def relinquish(self, lamps: int | Iterable[int]) -> None:
+        """Remove persistent overrides and reveal the supplied rule bitmap."""
+        for lamp in self._lamps(lamps):
+            self._modes.pop(lamp, None)
+
+    def play(self, sequence: LampSequence) -> LampSequenceHandle:
+        # A newly requested named effect replaces an older copy instead of
+        # letting the old one unexpectedly resume after the new copy ends.
+        for active in self._active:
+            if active.sequence.name == sequence.name:
+                active.cancelled = True
+        active = _ActiveLampSequence(sequence, self._clock(), self._next_order)
+        self._next_order += 1
+        self._active.append(active)
+        return LampSequenceHandle(self, active)
+
+    def cancel_all(self) -> None:
+        for active in self._active:
+            active.cancelled = True
+
+    @staticmethod
+    def _duration(sequence: LampSequence) -> float:
+        return sum(step.duration for step in sequence.steps)
+
+    def _finished(self, active: _ActiveLampSequence, now: float) -> bool:
+        if active.cancelled:
+            return True
+        repeat = active.sequence.repeat
+        if repeat is FOREVER:
+            return False
+        passes = 1 if repeat is None else repeat
+        return now - active.started_at >= self._duration(active.sequence) * passes
+
+    def _current_step(self, active: _ActiveLampSequence, now: float) -> LampStep:
+        position = max(0.0, now - active.started_at) % self._duration(active.sequence)
+        elapsed = 0.0
+        for step in active.sequence.steps:
+            elapsed += step.duration
+            if position < elapsed:
+                return step
+        return active.sequence.steps[-1]
+
+    @staticmethod
+    def _set(bitmap: bytearray, lamp: int, enabled: bool) -> None:
+        mask = 1 << (lamp % 8)
+        if enabled:
+            bitmap[lamp // 8] |= mask
+        else:
+            bitmap[lamp // 8] &= ~mask
+
+    def render(
+        self, rule_bitmap: bytes | bytearray, *, now: float | None = None
+    ) -> bytes:
+        if len(rule_bitmap) != 5:
+            raise ValueError("Micropin lamp bitmap must contain five bytes")
+        now = self._clock() if now is None else now
+        bitmap = bytearray(rule_bitmap)
+        flash_on = int(now * self._flash_hz * 2) % 2 == 0
+        for lamp, mode in self._modes.items():
+            self._set(
+                bitmap,
+                lamp,
+                mode is LampMode.ON or (mode is LampMode.FLASH and flash_on),
+            )
+
+        self._active = [
+            active for active in self._active if not self._finished(active, now)
+        ]
+        for active in sorted(
+            self._active, key=lambda item: (item.sequence.priority, item.order)
+        ):
+            step = self._current_step(active, now)
+            for lamp in active.sequence.controls:
+                self._set(bitmap, lamp, lamp in step.on)
+        return bytes(bitmap)
+
+
+CUP_COMPLETE_SEQUENCE = LampSequence(
+    name="cup_complete_chase",
+    controls=frozenset(CUP_LAMPS),
+    steps=tuple(
+        LampStep(on=frozenset((lamp,)), duration=CUP_COMPLETE_STEP_SECONDS)
+        for lamp in CUP_LAMPS
+    ),
+    repeat=3,
+    priority=20,
+)
+ROLLOVER_COMPLETE_SEQUENCE = LampSequence(
+    name="rollover_complete_chase",
+    controls=frozenset(ROLLOVER_LAMPS),
+    steps=tuple(
+        LampStep(
+            on=frozenset((ROLLOVER_LAMPS[bit],)),
+            duration=ROLLOVER_COMPLETE_STEP_SECONDS,
+        )
+        for bit in ROLLOVER_RING_BITS
+    ),
+    repeat=2,
+    priority=20,
+)
+SIDE_BONUS_LAMP_SEQUENCE = LampSequence(
+    name="side_bonus_award_cycle",
+    controls=frozenset(
+        (DOUBLE_BONUS_LAMP, TRIPLE_BONUS_LAMP, EXTRA_BALL_SIDE_CUP_LAMP)
+    ),
+    steps=tuple(
+        LampStep(on=frozenset((lamp,)), duration=0.10)
+        for lamp in (
+            DOUBLE_BONUS_LAMP,
+            TRIPLE_BONUS_LAMP,
+            EXTRA_BALL_SIDE_CUP_LAMP,
+        )
+    ),
+    repeat=2,
+    priority=20,
+)
+BALL_READY_STEPS = tuple(
+    LampStep(
+        on=frozenset((cup, target)),
+        duration=0.10,
+    )
+    for cup, target in zip(CUP_LAMPS, CUP_TARGET_LAMPS, strict=True)
+) + (LampStep(on=frozenset(), duration=0.25),)
+BALL_READY_SEQUENCE = LampSequence(
+    name="ball_ready_chase",
+    controls=frozenset((*CUP_LAMPS, *CUP_TARGET_LAMPS)),
+    steps=BALL_READY_STEPS,
+    repeat=FOREVER,
+    priority=20,
+)
+AUTO_RELAUNCH_SEQUENCE = LampSequence(
+    name="ball_ready_chase",
+    controls=BALL_READY_SEQUENCE.controls,
+    steps=BALL_READY_STEPS,
+    priority=20,
+)
 
 
 DEFAULT_MATCH_WIN_SONG = tuple(
@@ -408,6 +667,7 @@ class GameState(Enum):
 
 class BonusPayoutPhase(Enum):
     COUNTING = "counting"
+    SIDE_CUP_LAMP_SHOW = "side cup lamp show"
     WAIT_TO_START = "waiting to begin"
     WAIT_FOR_TRIPLE = "waiting to show 3x"
     WAIT_TO_COUNT = "waiting to count"
@@ -671,6 +931,10 @@ class MicropinGame:
         self._random = randomizer or random.Random()
         # Cosmetic randomness must not alter match digits or game-rule choices.
         self._display_random = random.Random()
+        self.lamps = LampController(clock=clock)
+        self._ball_ready_lamps: LampSequenceHandle | None = None
+        self._side_bonus_lamps: LampSequenceHandle | None = None
+        self._bonus_flash_lamp: int | None = None
         self.nvram_path = nvram_path
         self.context = GameContext()
         self.high_scores: list[int] = list(self.config.default_high_scores)
@@ -914,6 +1178,7 @@ class MicropinGame:
                     if not self.context.rollover_lit_mask:
                         self.context.rollover_lit_mask = 0xff
                         self.context.bonus += ROLLOVER_COMPLETE_BONUS
+                        self.lamps.play(ROLLOVER_COMPLETE_SEQUENCE)
                         messages.append(f"rollovers complete: +{ROLLOVER_COMPLETE_BONUS} bonus")
                         sound = self.config.rollover_complete_sound
 
@@ -981,6 +1246,7 @@ class MicropinGame:
                     self._begin_bonus_payout(
                         self.context.bonus_multiplier,
                         return_to_play=True,
+                        side_cup_prelude=True,
                         messages=messages,
                     )
                     break
@@ -1008,9 +1274,8 @@ class MicropinGame:
                         )
                         if not self.context.cup_lit_mask:
                             self.context.cup_lit_mask = 0x1f
-                            self.context.standup_solid_mask = 0x1f
-                            self.context.standup_flashing_mask = 0
                             self.context.cups_completed_this_ball = True
+                            self.lamps.play(CUP_COMPLETE_SEQUENCE)
                             self._maybe_qualify_extra_ball(messages)
                             if self.context.cup_tier < len(CUP_BONUS_VALUES) - 1:
                                 self.context.cup_tier += 1
@@ -1147,20 +1412,34 @@ class MicropinGame:
         self.context.extra_ball_qualified = False
         self.context.extra_ball_awarded_this_ball = False
 
+    def _stop_side_bonus_lamp_effects(self) -> None:
+        if self._side_bonus_lamps is not None:
+            self._side_bonus_lamps.cancel()
+            self._side_bonus_lamps = None
+        if self._bonus_flash_lamp is not None:
+            self.lamps.relinquish(self._bonus_flash_lamp)
+            self._bonus_flash_lamp = None
+
     def _begin_bonus_payout(
         self,
         multiplier: int,
         *,
         return_to_play: bool,
+        side_cup_prelude: bool = False,
         messages: list[str],
     ) -> None:
         """Start the shared outhole/side-cup bonus-counting sequence."""
+        self._stop_side_bonus_lamp_effects()
         self.context.bonus_payout_multiplier = max(1, min(3, multiplier))
         self.context.bonus_payout_base = self.context.bonus
         self.context.bonus_returns_to_play = return_to_play
         self._enter_state(GameState.BONUS_PROCESSING)
         now = self._clock()
-        if self.context.bonus:
+        if side_cup_prelude:
+            self._side_bonus_lamps = self.lamps.play(SIDE_BONUS_LAMP_SEQUENCE)
+            self.context.bonus_payout_phase = BonusPayoutPhase.SIDE_CUP_LAMP_SHOW
+            self.context.next_bonus_time = now
+        elif self.context.bonus:
             self.context.bonus_payout_phase = BonusPayoutPhase.WAIT_TO_START
             self.context.next_bonus_time = now + self.config.bonus_entry_pause_seconds
         else:
@@ -1176,6 +1455,26 @@ class MicropinGame:
         cup_mask = 0
         now = self._clock()
         phase = self.context.bonus_payout_phase
+        if phase is BonusPayoutPhase.SIDE_CUP_LAMP_SHOW:
+            if (
+                self._side_bonus_lamps is not None
+                and not self._side_bonus_lamps.finished
+            ):
+                return sound, cup_mask
+            self._side_bonus_lamps = None
+            if self.context.bonus_payout_multiplier == 2:
+                self._bonus_flash_lamp = DOUBLE_BONUS_LAMP
+            elif self.context.bonus_payout_multiplier >= 3:
+                self._bonus_flash_lamp = TRIPLE_BONUS_LAMP
+            if self._bonus_flash_lamp is not None:
+                self.lamps.flash(self._bonus_flash_lamp)
+            phase = (
+                BonusPayoutPhase.WAIT_TO_START
+                if self.context.bonus
+                else BonusPayoutPhase.COUNTING
+            )
+            self.context.bonus_payout_phase = phase
+            self.context.next_bonus_time = now
         if (
             phase is BonusPayoutPhase.WAIT_TO_START
             and now >= self.context.next_bonus_time
@@ -1240,6 +1539,7 @@ class MicropinGame:
                 now - self.context.bonus_completed_at
                 >= self.config.bonus_pause_seconds
             ):
+                self._stop_side_bonus_lamp_effects()
                 if self.context.bonus_returns_to_play:
                     self.context.bonus_returns_to_play = False
                     self.context.bonus_completed_at = None
@@ -1443,6 +1743,8 @@ class MicropinGame:
         self._start_song(self.config.start_song)
 
     def _start_game(self) -> None:
+        self._stop_side_bonus_lamp_effects()
+        self.lamps.cancel_all()
         self._matched_players.clear()
         self._completed_game_recorded = False
         self._high_score_tributes.clear()
@@ -1497,9 +1799,13 @@ class MicropinGame:
         self.context.grace_started = self._clock()
         if new_numbered_ball:
             self.context.score_at_ball_start = self.context.player_scores[self.context.current_player - 1]
+        # Leaving WAITING_FOR_LAUNCH cancels the repeating ready animation.
+        # Every launch, manual or automatic, then gets one final clean pass.
+        self.lamps.play(AUTO_RELAUNCH_SEQUENCE)
         self._hole_timer.clear()
 
     def _finish_ball(self, messages: list[str]) -> None:
+        self._stop_side_bonus_lamp_effects()
         replay_current_ball = self.context.extra_ball_pending
         self.context.outlane_save_pending = False
         self.context.ball_ending = False
@@ -1540,6 +1846,11 @@ class MicropinGame:
         messages.append(self._state_message())
 
     def _enter_state(self, state: GameState) -> None:
+        if state is GameState.WAITING_FOR_LAUNCH:
+            self._ball_ready_lamps = self.lamps.play(BALL_READY_SEQUENCE)
+        elif self._ball_ready_lamps is not None:
+            self._ball_ready_lamps.cancel()
+            self._ball_ready_lamps = None
         self.context.state = state
         if state is GameState.GAME_OVER:
             self._attract_started = self._clock()
@@ -1708,7 +2019,7 @@ class MicropinGame:
             cup_mask=cup_mask if host_coils_allowed else 0,
             launch=launch if host_coils_allowed else False,
             lamp=SAME_PLAYER_AGAIN_LAMP if flash_on else 0xff,
-            lamp_bitmap=bytes(lamp_bitmap),
+            lamp_bitmap=self.lamps.render(lamp_bitmap, now=now),
             # ff/00 is no-op; 00/00 explicitly silences (rests/end/cleanup).
             tone_pitch=sound.pitch if sound else 0xff,
             tone_duration=sound.duration if sound else 0,
