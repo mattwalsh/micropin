@@ -3,6 +3,10 @@ from pathlib import Path
 import tempfile
 
 from micropin_game import (
+    ATTRACT_ANIMATION_SECONDS,
+    ATTRACT_LAMP_ANIMATIONS,
+    ATTRACT_MARQUEE_PATH,
+    ATTRACT_MARQUEE_PERIOD,
     COLLECT_BONUS_LAMP,
     CUP_LAMPS,
     CUP_TARGET_LAMPS,
@@ -188,6 +192,112 @@ class MicropinGameTests(unittest.TestCase):
         game.context.credits = 0
         self.assertEqual(game.initial_output().display.to_bytes()[22] & 0xc0, 0)
 
+    def test_attract_marquee_follows_path_then_restores_last_game_lamps(self) -> None:
+        now = [0.0]
+        game = MicropinGame(clock=lambda: now[0])
+        baseline = game.initial_output().lamp_bitmap
+        assert baseline is not None
+
+        def lit_lamps(frame) -> set[int]:
+            assert frame.lamp_bitmap is not None
+            return {
+                lamp
+                for lamp in range(40)
+                if frame.lamp_bitmap[lamp // 8] & (1 << (lamp % 8))
+            }
+
+        now[0] = 4.99
+        self.assertEqual(game.initial_output().lamp_bitmap, baseline)
+
+        now[0] = 5.0
+        phase_zero = game.initial_output()
+        self.assertEqual(
+            lit_lamps(phase_zero),
+            {
+                lamp
+                for index, lamp in enumerate(ATTRACT_MARQUEE_PATH)
+                if index % ATTRACT_MARQUEE_PERIOD == 0
+            },
+        )
+
+        now[0] = 5.26
+        phase_one = game.initial_output()
+        self.assertEqual(
+            lit_lamps(phase_one),
+            {
+                lamp
+                for index, lamp in enumerate(ATTRACT_MARQUEE_PATH)
+                if (index - 1) % ATTRACT_MARQUEE_PERIOD == 0
+            },
+        )
+
+        # Four 250 ms phases repeated eight times make an eight-second show.
+        now[0] = 13.01
+        self.assertEqual(game.initial_output().lamp_bitmap, baseline)
+
+    def test_attract_marquee_includes_all_eight_rollovers_from_sw_through_s(self) -> None:
+        self.assertEqual(ATTRACT_MARQUEE_PATH[-8:], ROLLOVER_LAMPS)
+
+    def test_second_attract_animation_runs_inward_then_down_value_column(self) -> None:
+        now = [0.0]
+        game = MicropinGame(clock=lambda: now[0])
+
+        def lit_lamps(frame) -> set[int]:
+            assert frame.lamp_bitmap is not None
+            return {
+                lamp
+                for lamp in range(40)
+                if frame.lamp_bitmap[lamp // 8] & (1 << (lamp % 8))
+            }
+
+        # Start and finish animation 1, then finish its five-second hold.
+        now[0] = 5.0
+        game.initial_output()
+        now[0] = 13.01
+        game.initial_output()
+        now[0] = 18.01
+        outer = game.initial_output()
+        self.assertEqual(
+            lit_lamps(outer),
+            {
+                CUP_TARGET_LAMPS[0], CUP_TARGET_LAMPS[4],
+                CUP_LAMPS[0], CUP_LAMPS[4],
+            },
+        )
+
+        now[0] = 18.12
+        inner = game.initial_output()
+        self.assertEqual(
+            lit_lamps(inner),
+            {
+                CUP_TARGET_LAMPS[1], CUP_TARGET_LAMPS[3],
+                CUP_LAMPS[1], CUP_LAMPS[3],
+            },
+        )
+
+        now[0] = 18.22
+        center = game.initial_output()
+        self.assertEqual(
+            lit_lamps(center),
+            {CUP_TARGET_LAMPS[2], CUP_LAMPS[2]},
+        )
+
+        now[0] = 18.32
+        self.assertEqual(lit_lamps(game.initial_output()), {CUP_TIER_LAMPS[0]})
+        now[0] = 18.72
+        self.assertEqual(lit_lamps(game.initial_output()), set())
+        now[0] = 19.02
+        self.assertEqual(lit_lamps(game.initial_output()), {
+            CUP_TARGET_LAMPS[0], CUP_TARGET_LAMPS[4],
+            CUP_LAMPS[0], CUP_LAMPS[4],
+        })
+
+    def test_every_attract_animation_is_exactly_eight_seconds(self) -> None:
+        for sequence in ATTRACT_LAMP_ANIMATIONS:
+            self.assertIsInstance(sequence.repeat, int)
+            runtime = sum(step.duration for step in sequence.steps) * sequence.repeat
+            self.assertAlmostEqual(runtime, ATTRACT_ANIMATION_SECONDS)
+
     @staticmethod
     def lit_rollover_lamps(game: MicropinGame) -> set[int]:
         bitmap = game.initial_output().lamp_bitmap
@@ -278,7 +388,7 @@ class MicropinGameTests(unittest.TestCase):
         assert after.lamp_bitmap is not None
         self.assertFalse(after.lamp_bitmap[lamp // 8] & (1 << (lamp % 8)))
 
-    def test_cup_completion_runs_three_pass_chase_then_reveals_bank(self) -> None:
+    def test_cup_completion_runs_inward_and_down_once_then_reveals_bank(self) -> None:
         now = [0.0]
         game = MicropinGame(
             GameConfig(hole_settle_seconds=0), clock=lambda: now[0]
@@ -290,26 +400,47 @@ class MicropinGameTests(unittest.TestCase):
         completed = game.step(snapshot(outhole=False, cups=0x01)).output
         assert completed.lamp_bitmap is not None
         self.assertEqual(game.context.cup_lit_mask, 0x1f)
-        self.assertTrue(
-            completed.lamp_bitmap[CUP_LAMPS[0] // 8]
-            & (1 << (CUP_LAMPS[0] % 8))
+
+        def controlled_lamps(frame) -> set[int]:
+            assert frame.lamp_bitmap is not None
+            return {
+                lamp
+                for lamp in (*CUP_LAMPS, *CUP_TIER_LAMPS)
+                if frame.lamp_bitmap[lamp // 8] & (1 << (lamp % 8))
+            }
+
+        self.assertEqual(
+            controlled_lamps(completed), {CUP_LAMPS[0], CUP_LAMPS[4]}
         )
-        for lamp in CUP_LAMPS[1:]:
-            self.assertFalse(completed.lamp_bitmap[lamp // 8] & (1 << (lamp % 8)))
 
         now[0] = 0.11
         second = game.initial_output()
-        assert second.lamp_bitmap is not None
-        self.assertTrue(
-            second.lamp_bitmap[CUP_LAMPS[1] // 8]
-            & (1 << (CUP_LAMPS[1] % 8))
+        self.assertEqual(
+            controlled_lamps(second), {CUP_LAMPS[1], CUP_LAMPS[3]}
         )
 
-        now[0] = 1.51
+        now[0] = 0.21
+        self.assertEqual(controlled_lamps(game.initial_output()), {CUP_LAMPS[2]})
+        now[0] = 0.31
+        self.assertEqual(
+            controlled_lamps(game.initial_output()), {CUP_TIER_LAMPS[0]}
+        )
+
+        # Seven 100 ms steps play once.  The underlying bank is reset and its
+        # newly advanced 4000-value lamp appears when the overlay expires.
+        now[0] = 0.76
         revealed = game.initial_output()
         assert revealed.lamp_bitmap is not None
         for lamp in CUP_LAMPS:
             self.assertTrue(revealed.lamp_bitmap[lamp // 8] & (1 << (lamp % 8)))
+        self.assertFalse(
+            revealed.lamp_bitmap[CUP_TIER_LAMPS[0] // 8]
+            & (1 << (CUP_TIER_LAMPS[0] % 8))
+        )
+        self.assertTrue(
+            revealed.lamp_bitmap[CUP_TIER_LAMPS[1] // 8]
+            & (1 << (CUP_TIER_LAMPS[1] % 8))
+        )
 
     def test_waiting_for_launch_repeats_paired_cup_target_chase(self) -> None:
         now = [0.0]
@@ -1382,8 +1513,8 @@ class MicropinGameTests(unittest.TestCase):
                 Tone(0xa1, 0x04),
                 Tone(0xa2, 0x04),
                 Tone(0xa3, 0x04),
-                Tone(0xb2, 0x03),
-                Tone(0xb3, 0x03),
+                Tone(0xb2, 0x04),
+                Tone(0xb3, 0x04),
             ),
             match_sound=Tone(0xc0, 0x04),
         )
@@ -1398,7 +1529,7 @@ class MicropinGameTests(unittest.TestCase):
 
         sling = game.step(snapshot(reflex=0x10, outhole=False))
         self.assertEqual(game.context.player_scores[0], 16)
-        self.assertEqual((sling.output.tone_pitch, sling.output.tone_duration), (0xb2, 0x03))
+        self.assertEqual((sling.output.tone_pitch, sling.output.tone_duration), (0xb2, 0x04))
 
         silence = game.step(snapshot(outhole=False))
         self.assertEqual((silence.output.tone_pitch, silence.output.tone_duration), (0xff, 0))

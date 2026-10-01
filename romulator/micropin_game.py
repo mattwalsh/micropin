@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, IntEnum
 import json
 import os
 from pathlib import Path
@@ -61,6 +61,8 @@ GAME_OVER_FLASH_HZ = 2.0
 TILT_FLASH_HZ = 4.0
 ATTRACT_HOLD_SECONDS = 4.5
 ATTRACT_TRANSITION_SECONDS = 0.5
+ATTRACT_PLAYFIELD_HOLD_SECONDS = 5.0
+ATTRACT_ANIMATION_SECONDS = 8.0
 DEFAULT_HIGH_SCORES = (60000, 50000, 40000, 30000, 20000, 10000)
 STANDARD_LAMP_FLASH_HZ = 2.0
 CUP_COMPLETE_STEP_SECONDS = 0.10
@@ -103,10 +105,35 @@ REFLEX_EVENT_NAMES = (
 )
 
 
+class SoundMode(IntEnum):
+    """The four safe, electrically distinct sound modes used by the game."""
+
+    SILENCE = 0x00
+    SHORT = 0x04
+    MEDIUM = 0x08
+    LONG = 0x0C
+
+
 @dataclass(frozen=True)
 class Tone:
     pitch: int
-    duration: int
+    mode: SoundMode
+
+    def __post_init__(self) -> None:
+        if not 0 <= self.pitch <= 0xFF:
+            raise ValueError("tone pitch must fit in one byte")
+        try:
+            mode = SoundMode(self.mode)
+        except ValueError as exc:
+            raise ValueError(
+                "sound mode must be silence, short, medium, or long"
+            ) from exc
+        object.__setattr__(self, "mode", mode)
+
+    @property
+    def duration(self) -> int:
+        """Wire byte retained for compatibility with the aperture structures."""
+        return int(self.mode)
 
 
 @dataclass(frozen=True)
@@ -311,13 +338,29 @@ class LampController:
 
 
 CUP_COMPLETE_SEQUENCE = LampSequence(
-    name="cup_complete_chase",
-    controls=frozenset(CUP_LAMPS),
-    steps=tuple(
-        LampStep(on=frozenset((lamp,)), duration=CUP_COMPLETE_STEP_SECONDS)
-        for lamp in CUP_LAMPS
+    name="cup_complete_inward_and_down",
+    controls=frozenset((*CUP_LAMPS, *CUP_TIER_LAMPS)),
+    steps=(
+        LampStep(
+            on=frozenset((CUP_LAMPS[0], CUP_LAMPS[4])),
+            duration=CUP_COMPLETE_STEP_SECONDS,
+        ),
+        LampStep(
+            on=frozenset((CUP_LAMPS[1], CUP_LAMPS[3])),
+            duration=CUP_COMPLETE_STEP_SECONDS,
+        ),
+        LampStep(
+            on=frozenset((CUP_LAMPS[2],)),
+            duration=CUP_COMPLETE_STEP_SECONDS,
+        ),
+        *(
+            LampStep(
+                on=frozenset((lamp,)),
+                duration=CUP_COMPLETE_STEP_SECONDS,
+            )
+            for lamp in CUP_TIER_LAMPS
+        ),
     ),
-    repeat=3,
     priority=20,
 )
 ROLLOVER_COMPLETE_SEQUENCE = LampSequence(
@@ -370,15 +413,103 @@ AUTO_RELAUNCH_SEQUENCE = LampSequence(
     priority=20,
 )
 
+# Clockwise-ish path from the side bonus column, through the standups/cups and
+# value inserts, then around the rollover ring from SW through S.
+ATTRACT_MARQUEE_PATH = (
+    COLLECT_BONUS_LAMP,
+    EXTRA_BALL_SIDE_CUP_LAMP,
+    TRIPLE_BONUS_LAMP,
+    DOUBLE_BONUS_LAMP,
+    *reversed(CUP_TARGET_LAMPS),
+    *CUP_LAMPS,
+    *CUP_TIER_LAMPS,
+    EXTRA_BALL_ROLLOVER_LAMP,
+    SAME_PLAYER_AGAIN_LAMP,
+    *ROLLOVER_LAMPS,
+)
+ATTRACT_MARQUEE_PERIOD = 4
+ATTRACT_MARQUEE_TICK_SECONDS = 0.25
+ATTRACT_MARQUEE_SEQUENCE = LampSequence(
+    name="attract_marquee_1",
+    # Attract animations own the whole playfield so lamps outside the effect
+    # are deliberately dark rather than leaking through from the last game.
+    controls=frozenset(range(40)),
+    steps=tuple(
+        LampStep(
+            on=frozenset(
+                lamp
+                for sequence_number, lamp in enumerate(ATTRACT_MARQUEE_PATH)
+                if (sequence_number - phase) % ATTRACT_MARQUEE_PERIOD == 0
+            ),
+            duration=ATTRACT_MARQUEE_TICK_SECONDS,
+        )
+        for phase in range(ATTRACT_MARQUEE_PERIOD)
+    ),
+    repeat=round(
+        ATTRACT_ANIMATION_SECONDS
+        / (ATTRACT_MARQUEE_PERIOD * ATTRACT_MARQUEE_TICK_SECONDS)
+    ),
+    priority=30,
+)
+ATTRACT_CUP_COLUMN_STEPS = (
+    LampStep(
+        on=frozenset(
+            (
+                CUP_TARGET_LAMPS[0],
+                CUP_TARGET_LAMPS[4],
+                CUP_LAMPS[0],
+                CUP_LAMPS[4],
+            )
+        ),
+        duration=0.10,
+    ),
+    LampStep(
+        on=frozenset(
+            (
+                CUP_TARGET_LAMPS[1],
+                CUP_TARGET_LAMPS[3],
+                CUP_LAMPS[1],
+                CUP_LAMPS[3],
+            )
+        ),
+        duration=0.10,
+    ),
+    LampStep(
+        on=frozenset((CUP_TARGET_LAMPS[2], CUP_LAMPS[2])),
+        duration=0.10,
+    ),
+    *(
+        LampStep(on=frozenset((lamp,)), duration=0.10)
+        for lamp in CUP_TIER_LAMPS
+    ),
+    LampStep(on=frozenset(), duration=0.30),
+)
+ATTRACT_CUP_COLUMN_SEQUENCE = LampSequence(
+    name="attract_marquee_2",
+    controls=frozenset(range(40)),
+    steps=ATTRACT_CUP_COLUMN_STEPS,
+    repeat=round(
+        ATTRACT_ANIMATION_SECONDS
+        / sum(step.duration for step in ATTRACT_CUP_COLUMN_STEPS)
+    ),
+    priority=30,
+)
+ATTRACT_LAMP_ANIMATIONS = (
+    ATTRACT_MARQUEE_SEQUENCE,
+    ATTRACT_CUP_COLUMN_SEQUENCE,
+)
+
 
 DEFAULT_MATCH_WIN_SONG = tuple(
-    SongNote(Tone(pitch, 0x04), 0.14)
+    SongNote(Tone(pitch, SoundMode.LONG), 0.14)
     for pitch in (0xf1, 0xd6, 0xf1, 0xb4, 0x8f, 0xb4, 0x78)
 )
 
 # Hoisted from ppm/ppm.asm's Funkytown phrase; 00/00 pairs are rests.
 DEFAULT_FUNKYTOWN_SONG = tuple(
-    SongNote(Tone(pitch, 0x0c if pitch else 0), 0.14)
+    SongNote(
+        Tone(pitch, SoundMode.LONG if pitch else SoundMode.SILENCE), 0.14
+    )
     for pitch in (0x87, 0x87, 0x78, 0x87, 0, 0x65, 0, 0x65,
                   0x87, 0xbf, 0xaa, 0x87)
 )
@@ -386,40 +517,42 @@ DEFAULT_FUNKYTOWN_SONG = tuple(
 # Approximate semitone steps using the emulator's current pitch conversion.
 # These remain configurable pending measurements of the actual oscillator.
 DEFAULT_LAUNCH_SONG = tuple(
-    SongNote(Tone(pitch, 0x04), 0.07)
+    SongNote(Tone(pitch, SoundMode.LONG), 0.07)
     for pitch in (0x78, 0x7e, 0x85, 0x8c, 0x94)
 )
 DEFAULT_OUTLANE_SONG = tuple(reversed(DEFAULT_LAUNCH_SONG))
 DEFAULT_OUTLANE_SAVE_SONG = (
-    SongNote(Tone(0x78, 0x04), 0.07),
-    SongNote(Tone(0xae, 0x04), 0.07),
+    SongNote(Tone(0x78, SoundMode.LONG), 0.07),
+    SongNote(Tone(0xae, SoundMode.LONG), 0.07),
 )
 DEFAULT_CHARGE_SONG = tuple(
-    SongNote(Tone(pitch, 0x04), 0.09)
+    SongNote(Tone(pitch, SoundMode.LONG), 0.09)
     for pitch in (0x78, 0x94, 0xae, 0xe4, 0xae, 0xe4)
 )
-DEFAULT_ADD_CREDIT_SONG = (SongNote(Tone(0x78, 0x04), 0.14),)
+DEFAULT_ADD_CREDIT_SONG = (SongNote(Tone(0x78, SoundMode.LONG), 0.14),)
 DEFAULT_MUTE_ON_SONG = (
-    SongNote(Tone(0x94, 0x04), 0.10),
-    SongNote(Tone(0x78, 0x04), 0.10),
+    SongNote(Tone(0x94, SoundMode.LONG), 0.10),
+    SongNote(Tone(0x78, SoundMode.LONG), 0.10),
 )
 DEFAULT_MUTE_OFF_SONG = tuple(reversed(DEFAULT_MUTE_ON_SONG))
-DEFAULT_STANDUP_COMPLETE_SONG = (SongNote(Tone(0xae, 0x04), 0.14),)
+DEFAULT_STANDUP_COMPLETE_SONG = (
+    SongNote(Tone(0xae, SoundMode.LONG), 0.14),
+)
 DEFAULT_BONUS_2X_SONG = (
-    SongNote(Tone(0x78, 0x04), 0.10),
-    SongNote(Tone(0xae, 0x04), 0.10),
+    SongNote(Tone(0x78, SoundMode.LONG), 0.10),
+    SongNote(Tone(0xae, SoundMode.LONG), 0.10),
 )
 DEFAULT_BONUS_3X_SONG = (
-    SongNote(Tone(0x78, 0x04), 0.08),
-    SongNote(Tone(0x94, 0x04), 0.08),
-    SongNote(Tone(0xca, 0x04), 0.08),
+    SongNote(Tone(0x78, SoundMode.LONG), 0.08),
+    SongNote(Tone(0x94, SoundMode.LONG), 0.08),
+    SongNote(Tone(0xca, SoundMode.LONG), 0.08),
 )
 DEFAULT_SIDE_BONUS_HOLE_SONG = tuple(
-    SongNote(Tone(pitch, 0x04), 0.10)
+    SongNote(Tone(pitch, SoundMode.LONG), 0.10)
     for pitch in (0x78, 0x94, 0xae)
 )
 DEFAULT_TILT_SONG = tuple(
-    SongNote(Tone(pitch, 0x0c), interval)
+    SongNote(Tone(pitch, SoundMode.LONG), interval)
     for pitch, interval in (
         (0x3c, 0.30), (0x3c, 0.30), (0x57, 0.70),
         (0x3c, 0.30), (0x57, 0.30), (0x6e, 0.70),
@@ -439,23 +572,23 @@ class GameConfig:
     bonus_multiplier_pause_seconds: float = 0.5
     reflex_points: tuple[int, ...] = (25, 50, 100, 10, 5, 5)
     reflex_sounds: tuple[Tone, ...] = (
-        Tone(0xca, 0x08),
-        Tone(0xaa, 0x08),
-        Tone(0x87, 0x08),
-        Tone(0x65, 0x08),
-        Tone(0x33, 0x08),
-        Tone(0x3c, 0x08),
+        Tone(0xca, SoundMode.LONG),
+        Tone(0xaa, SoundMode.LONG),
+        Tone(0x87, SoundMode.LONG),
+        Tone(0x65, SoundMode.LONG),
+        Tone(0x33, SoundMode.LONG),
+        Tone(0x3c, SoundMode.LONG),
     )
-    match_sound: Tone = Tone(0x78, 0x04)
-    bonus_add_sound: Tone = Tone(0x87, 0x04)
-    bonus_payout_sound: Tone = Tone(0x87, 0x04)
-    end_ball_sound: Tone = Tone(0x15, 0x0c)
-    standup_sound: Tone = Tone(0x87, 0x04)
-    rollover_sound: Tone = Tone(0x54, 0x08)
-    rollover_complete_sound: Tone = Tone(0xf1, 0x10)
-    cup_lit_sound: Tone = Tone(0x65, 0x08)
-    cup_unlit_sound: Tone = Tone(0x33, 0x04)
-    cups_complete_sound: Tone = Tone(0xf1, 0x10)
+    match_sound: Tone = Tone(0x78, SoundMode.LONG)
+    bonus_add_sound: Tone = Tone(0x87, SoundMode.LONG)
+    bonus_payout_sound: Tone = Tone(0x87, SoundMode.LONG)
+    end_ball_sound: Tone = Tone(0x15, SoundMode.LONG)
+    standup_sound: Tone = Tone(0x87, SoundMode.LONG)
+    rollover_sound: Tone = Tone(0x54, SoundMode.LONG)
+    rollover_complete_sound: Tone = Tone(0xf1, SoundMode.LONG)
+    cup_lit_sound: Tone = Tone(0x65, SoundMode.LONG)
+    cup_unlit_sound: Tone = Tone(0x33, SoundMode.LONG)
+    cups_complete_sound: Tone = Tone(0xf1, SoundMode.LONG)
     match_win_song: tuple[SongNote, ...] = DEFAULT_MATCH_WIN_SONG
     boot_song: tuple[SongNote, ...] = ()
     start_song: tuple[SongNote, ...] = ()
@@ -531,14 +664,25 @@ def load_game_config(path: Path) -> GameConfig:
     if any(value < 0 for value in point_values):
         raise ValueError("reflex-switch point values cannot be negative")
 
+    def load_sound_mode(source: dict, default: SoundMode) -> SoundMode:
+        raw_mode = source.get("mode", source.get("duration", default))
+        try:
+            if isinstance(raw_mode, str):
+                return SoundMode[raw_mode.strip().upper()]
+            return SoundMode(int(raw_mode))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(
+                "sound mode must be silence, short, medium, or long"
+            ) from exc
+
     def load_tone(name: str, default: Tone) -> Tone:
         source = sounds.get(name, {})
         tone = Tone(
             int(source.get("pitch", default.pitch)),
-            int(source.get("duration", default.duration)),
+            load_sound_mode(source, default.mode),
         )
-        if not 0 <= tone.pitch <= 0xff or not 1 <= tone.duration <= 0xff:
-            raise ValueError(f"sounds.{name} pitch must be 0..255 and duration 1..255")
+        if tone.mode is SoundMode.SILENCE:
+            raise ValueError(f"sounds.{name} must use short, medium, or long")
         return tone
 
     songs = data.get("songs", {})
@@ -579,19 +723,23 @@ def load_game_config(path: Path) -> GameConfig:
             raise ValueError(f"songs.{name} must contain at least one note")
         result = tuple(
             SongNote(
-                Tone(int(note["pitch"]), int(note["duration"])),
+                Tone(
+                    int(note["pitch"]),
+                    load_sound_mode(note, SoundMode.SILENCE),
+                ),
                 float(note["interval_seconds"]),
             )
             for note in source
         )
         if any(
-            not 0 <= note.tone.pitch <= 0xff
-            or not (1 <= note.tone.duration <= 0xff
-                    or note.tone == Tone(0, 0))
+            (note.tone.mode is SoundMode.SILENCE and note.tone.pitch != 0)
             or not 0.01 <= note.interval_seconds <= 5.0
             for note in result
         ):
-            raise ValueError(f"songs.{name} requires byte pitch, nonzero duration (or 0/0 rest), and 0.01..5-second interval")
+            raise ValueError(
+                f"songs.{name} requires an audible mode, or pitch 0 with "
+                "silence, and a 0.01..5-second interval"
+            )
         return result
 
     music = data.get("music", {})
@@ -614,25 +762,31 @@ def load_game_config(path: Path) -> GameConfig:
             for name, default in zip(
                 REFLEX_EVENT_NAMES,
                 (
-                    Tone(0xca, 0x08),
-                    Tone(0xaa, 0x08),
-                    Tone(0x87, 0x08),
-                    Tone(0x65, 0x08),
-                    Tone(0x33, 0x08),
-                    Tone(0x3c, 0x08),
+                    Tone(0xca, SoundMode.LONG),
+                    Tone(0xaa, SoundMode.LONG),
+                    Tone(0x87, SoundMode.LONG),
+                    Tone(0x65, SoundMode.LONG),
+                    Tone(0x33, SoundMode.LONG),
+                    Tone(0x3c, SoundMode.LONG),
                 ),
             )
         ),
-        match_sound=load_tone("match", Tone(0x78, 0x04)),
-        bonus_add_sound=load_tone("bonus_add", Tone(0x87, 0x04)),
-        bonus_payout_sound=load_tone("bonus_payout", Tone(0x87, 0x04)),
-        end_ball_sound=load_tone("end_ball", Tone(0x15, 0x0c)),
-        standup_sound=load_tone("standup", Tone(0x87, 0x04)),
-        rollover_sound=load_tone("rollover", Tone(0x54, 0x08)),
-        rollover_complete_sound=load_tone("rollover_complete", Tone(0xf1, 0x10)),
-        cup_lit_sound=load_tone("cup_lit", Tone(0x65, 0x08)),
-        cup_unlit_sound=load_tone("cup_unlit", Tone(0x33, 0x04)),
-        cups_complete_sound=load_tone("cups_complete", Tone(0xf1, 0x10)),
+        match_sound=load_tone("match", Tone(0x78, SoundMode.LONG)),
+        bonus_add_sound=load_tone("bonus_add", Tone(0x87, SoundMode.LONG)),
+        bonus_payout_sound=load_tone(
+            "bonus_payout", Tone(0x87, SoundMode.LONG)
+        ),
+        end_ball_sound=load_tone("end_ball", Tone(0x15, SoundMode.LONG)),
+        standup_sound=load_tone("standup", Tone(0x87, SoundMode.LONG)),
+        rollover_sound=load_tone("rollover", Tone(0x54, SoundMode.LONG)),
+        rollover_complete_sound=load_tone(
+            "rollover_complete", Tone(0xf1, SoundMode.LONG)
+        ),
+        cup_lit_sound=load_tone("cup_lit", Tone(0x65, SoundMode.LONG)),
+        cup_unlit_sound=load_tone("cup_unlit", Tone(0x33, SoundMode.LONG)),
+        cups_complete_sound=load_tone(
+            "cups_complete", Tone(0xf1, SoundMode.LONG)
+        ),
         match_win_song=load_song("match_win"),
         boot_song=boot_song,
         start_song=start_song,
@@ -939,6 +1093,12 @@ class MicropinGame:
         self.context = GameContext()
         self.high_scores: list[int] = list(self.config.default_high_scores)
         self._attract_started = self._clock()
+        self._attract_lamp_phase = "hold"
+        self._attract_lamp_deadline = (
+            self._attract_started + ATTRACT_PLAYFIELD_HOLD_SECONDS
+        )
+        self._attract_lamp_handle: LampSequenceHandle | None = None
+        self._attract_animation_index = 0
         self._high_score_tributes: list[int] = []
         self._tribute_player: int | None = None
         self._tribute_until = 0.0
@@ -1363,16 +1523,16 @@ class MicropinGame:
                 # The mute confirmation is the only song allowed to finish
                 # after mute becomes active. Ignore unrelated direct tones.
                 sound = song_sound
-            elif sound != Tone(0, 0):
+            elif sound != Tone(0, SoundMode.SILENCE):
                 sound = None
         now = self._clock()
         if sound is not None:
             self._sound_until = (
                 (self._next_song_time if song_sound is not None else now + 0.14)
-                if sound.duration else None
+                if sound.mode is not SoundMode.SILENCE else None
             )
         elif self._sound_until is not None and now >= self._sound_until:
-            sound = Tone(0, 0)
+            sound = Tone(0, SoundMode.SILENCE)
             self._sound_until = None
         return StepResult(
             self._render_output(cup_mask=cup_mask, launch=launch, sound=sound),
@@ -1696,7 +1856,7 @@ class MicropinGame:
         if self._song_index >= len(self._song):
             self._song = ()
             self._mute_feedback_active = False
-            return Tone(0, 0)
+            return Tone(0, SoundMode.SILENCE)
         note = self._song[self._song_index]
         self._song_index += 1
         self._next_song_time = now + note.interval_seconds
@@ -1745,6 +1905,7 @@ class MicropinGame:
     def _start_game(self) -> None:
         self._stop_side_bonus_lamp_effects()
         self.lamps.cancel_all()
+        self._attract_lamp_handle = None
         self._matched_players.clear()
         self._completed_game_recorded = False
         self._high_score_tributes.clear()
@@ -1854,6 +2015,7 @@ class MicropinGame:
         self.context.state = state
         if state is GameState.GAME_OVER:
             self._attract_started = self._clock()
+            self._reset_attract_lamps()
         if state is not GameState.GAME_PLAYING:
             self._standup_coincidence.clear()
         if state is GameState.WAITING_FOR_LAUNCH:
@@ -1872,6 +2034,39 @@ class MicropinGame:
 
     def _state_message(self) -> str:
         return f"state: {self.context.state.value}"
+
+    def _reset_attract_lamps(self) -> None:
+        if self._attract_lamp_handle is not None:
+            self._attract_lamp_handle.cancel()
+        self._attract_lamp_handle = None
+        self._attract_lamp_phase = "hold"
+        self._attract_lamp_deadline = (
+            self._clock() + ATTRACT_PLAYFIELD_HOLD_SECONDS
+        )
+        self._attract_animation_index = 0
+
+    def _advance_attract_lamps(self, now: float) -> None:
+        if self.context.state is not GameState.GAME_OVER:
+            return
+        if now < self._attract_lamp_deadline:
+            return
+        if self._attract_lamp_phase == "hold":
+            sequence = ATTRACT_LAMP_ANIMATIONS[self._attract_animation_index]
+            self._attract_animation_index = (
+                self._attract_animation_index + 1
+            ) % len(ATTRACT_LAMP_ANIMATIONS)
+            self._attract_lamp_handle = self.lamps.play(sequence)
+            passes = 1 if sequence.repeat is None else sequence.repeat
+            assert isinstance(passes, int)
+            duration = sum(step.duration for step in sequence.steps) * passes
+            self._attract_lamp_phase = "animation"
+            self._attract_lamp_deadline = now + duration
+        else:
+            if self._attract_lamp_handle is not None:
+                self._attract_lamp_handle.cancel()
+            self._attract_lamp_handle = None
+            self._attract_lamp_phase = "hold"
+            self._attract_lamp_deadline = now + ATTRACT_PLAYFIELD_HOLD_SECONDS
 
     def _render_output(
         self,
@@ -1922,6 +2117,7 @@ class MicropinGame:
             digits[MATCH_DIGIT_POSITIONS[-1]] = str(self.context.last_match_digit)
             display.set_spread("".join(digits))
         now = self._clock()
+        self._advance_attract_lamps(now)
         game_over_flash = (
             self.context.state is GameState.GAME_OVER
             and int(now * GAME_OVER_FLASH_HZ * 2) % 2 == 0
@@ -2022,7 +2218,7 @@ class MicropinGame:
             lamp_bitmap=self.lamps.render(lamp_bitmap, now=now),
             # ff/00 is no-op; 00/00 explicitly silences (rests/end/cleanup).
             tone_pitch=sound.pitch if sound else 0xff,
-            tone_duration=sound.duration if sound else 0,
+            tone_duration=int(sound.mode) if sound else 0,
         )
 
 

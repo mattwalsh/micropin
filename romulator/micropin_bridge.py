@@ -215,11 +215,12 @@ class MicropinBridge:
         return mask
 
     def set_sound(self, pitch: int, duration: int) -> None:
-        """Play one tone, or silence it when ``duration`` is zero.
+        """Play one tone, or silence it when both bytes are zero.
 
         Values are the logical (pre-inversion) bytes used by Micropin's tone
-        tables.  Publishing a nonzero duration starts/restarts the hardware
-        one-shot; callers own sequencing melodies and pauses.
+        tables.  Logical duration/mode zero is valid when pitch is nonzero;
+        ``set_sound(0, 0)`` is the protocol's explicit stop command.
+        Callers own sequencing melodies and pauses.
         """
         lamps = int.from_bytes(self.snapshot[LAMP_OFFSET:LAMP_OFFSET + LAMP_SIZE], "little")
         coils = int.from_bytes(self.snapshot[COIL_OFFSET:COIL_OFFSET + COIL_SIZE], "little")
