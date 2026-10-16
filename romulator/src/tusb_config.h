@@ -17,12 +17,11 @@ extern "C" {
 #define CFG_TUSB_MEM_ALIGN          __attribute__((aligned(4)))
 #endif
 
-// The device exposes the ROM drive plus one small CDC ACM control port. The
-// control port accepts the "bootsel" command to enter the RP2040 boot ROM,
-// avoiding a physical press of the BOOTSEL button for later firmware updates.
+// The device exposes the ROM drive plus two CDC ACM ports. CDC 0 is the
+// small line-oriented control port; CDC 1 is reserved for binary LED frames.
 #define CFG_TUD_ENDPOINT0_SIZE      64
 
-#define CFG_TUD_CDC                 1
+#define CFG_TUD_CDC                 2
 #ifdef APERTURE_ONLY
 #define CFG_TUD_MSC                 0
 #else
@@ -33,7 +32,7 @@ extern "C" {
 #define CFG_TUD_VENDOR              0
 
 // MSC buffer: one 512-byte sector at a time is plenty for our tiny disk.
-#define CFG_TUD_CDC_RX_BUFSIZE       64
+#define CFG_TUD_CDC_RX_BUFSIZE      512
 #define CFG_TUD_CDC_TX_BUFSIZE       64
 #define CFG_TUD_CDC_EP_BUFSIZE       64
 #define CFG_TUD_MSC_EP_BUFSIZE      512

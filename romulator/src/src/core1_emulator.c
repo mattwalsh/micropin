@@ -27,6 +27,15 @@ volatile bool emu_aperture_enabled = false;
 #define CE4_BUFFER_APERTURE 0xfeu
 #define CE4_BUFFER_DISABLED 0xffu
 
+// The normal aperture uses the fifth decoded window ($2800). The compact
+// aperture-roundtrip program fits in ROM1, so the LED build instead uses the
+// unused third window ($1000), freeing CE4/GP26 for WS2812 output.
+#ifdef APERTURE_ON_CE2
+#define APERTURE_CHIP_INDEX 2
+#else
+#define APERTURE_CHIP_INDEX 4
+#endif
+
 static volatile uint8_t s_strobe_ring[STROBE_RING_SIZE];
 static volatile uint8_t s_strobe_head;
 static volatile uint8_t s_strobe_tail;
@@ -143,7 +152,9 @@ static void __scratch_x("core1_bus_loop") core1_main(void)
         else if (!(gpio_in & (1u << PIN_CE1)))  chip = 1;
         else if (!(gpio_in & (1u << PIN_CE2)))  chip = 2;
         else if (!(gpio_in & (1u << PIN_CE3)))  chip = 3;
+#ifndef WS2812_ON_CE4
         else if (!(gpio_in & (1u << PIN_CE4)))  chip = 4;
+#endif
 
         const uint32_t addr = gpio_in & ADDR_MASK;
 
@@ -154,7 +165,7 @@ static void __scratch_x("core1_bus_loop") core1_main(void)
         // lookup: 0/1 select a ROM buffer, fe is aperture, and ff is disabled.
         uint8_t buf = CE4_BUFFER_DISABLED;
         if (chip >= 0) buf = emu_active_buffer[chip];
-        if (chip >= 0 && (chip != 4 || buf < 2u)) {
+        if (chip >= 0 && (chip != APERTURE_CHIP_INDEX || buf < 2u)) {
             uint8_t data = emu_rom_image[chip][buf][addr];
 
             uint32_t data_bits = ((uint32_t)data) << PIN_DATA_BASE;
@@ -167,11 +178,11 @@ static void __scratch_x("core1_bus_loop") core1_main(void)
             sio_hw->gpio_clr = (1u << PIN_BUS_DRIVEN);
             // Do nonessential aperture bookkeeping only after the ROM byte is
             // safely present on the bus.
-            if (chip != 4) previous_strobe_addr = 0xffffffffu;
+            if (chip != APERTURE_CHIP_INDEX) previous_strobe_addr = 0xffffffffu;
             continue;
         }
 
-        const bool aperture_cycle = chip == 4 && buf == CE4_BUFFER_APERTURE;
+        const bool aperture_cycle = chip == APERTURE_CHIP_INDEX && buf == CE4_BUFFER_APERTURE;
         const bool aperture_strobe = aperture_cycle && addr >= APERTURE_INPUT_SIZE;
 
         // Mailbox reads are also timing-critical. Parse address-strobe frames
@@ -296,12 +307,24 @@ void core1_emulator_publish(unsigned chip, unsigned staging_buffer)
 void core1_emulator_set_ce4_mode(bool rom5_present, bool aperture_enabled)
 {
     emu_rom5_present = rom5_present;
+#ifdef APERTURE_ON_CE2
+    // In this variant CE2 remains an ordinary ROM3 in normal mode. Only an
+    // explicit aperture marker changes it into the mailbox; CE4 is free for
+    // the LED PIO program and never participates in this decision.
+    emu_aperture_enabled = aperture_enabled && !rom5_present;
+    if (emu_aperture_enabled) {
+        emu_active_buffer[APERTURE_CHIP_INDEX] = CE4_BUFFER_APERTURE;
+    } else if (emu_active_buffer[APERTURE_CHIP_INDEX] > 1u) {
+        emu_active_buffer[APERTURE_CHIP_INDEX] = 0;
+    }
+#else
     emu_aperture_enabled = aperture_enabled && !rom5_present;
     if (!rom5_present) {
-        emu_active_buffer[4] = emu_aperture_enabled ? CE4_BUFFER_APERTURE : CE4_BUFFER_DISABLED;
+        emu_active_buffer[APERTURE_CHIP_INDEX] = emu_aperture_enabled ? CE4_BUFFER_APERTURE : CE4_BUFFER_DISABLED;
     } else if (emu_active_buffer[4] > 1u) {
         emu_active_buffer[4] = 0;
     }
+#endif
 }
 
 size_t core1_emulator_read_strobes(uint8_t *destination, size_t capacity)

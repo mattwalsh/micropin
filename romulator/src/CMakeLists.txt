@@ -6,6 +6,8 @@ include(pico_sdk_import.cmake)
 project(pico_eprom_emulator C CXX ASM)
 
 option(APERTURE_ONLY "Build CDC-only firmware with CE4 permanently in aperture mode" OFF)
+option(WS2812_ON_CE4 "Use ROM5 /CE (GP26) as the WS2812B data pin" OFF)
+option(APERTURE_ON_CE2 "Serve the aperture from ROM3 /CE2 (GP21) instead of CE4" OFF)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
@@ -22,6 +24,7 @@ add_executable(pico_eprom_emulator
     src/msc_disk.c
     src/usb_control.c
     src/usb_descriptors.c
+    src/ws2812_frame.c
 )
 
 target_include_directories(pico_eprom_emulator PRIVATE
@@ -45,6 +48,17 @@ else()
     pico_set_program_name(pico_eprom_emulator "pico_eprom_emulator")
 endif()
 
+if(WS2812_ON_CE4)
+    # GP26 is the only ROMulator GPIO brought to the socket/header that can
+    # be repurposed without touching A0..A10, D0..D7, or reset. This build
+    # intentionally makes ROM5 / CE4 unavailable.
+    target_compile_definitions(pico_eprom_emulator PRIVATE WS2812_ON_CE4=1)
+endif()
+
+if(APERTURE_ON_CE2)
+    target_compile_definitions(pico_eprom_emulator PRIVATE APERTURE_ON_CE2=1)
+endif()
+
 target_link_libraries(pico_eprom_emulator PRIVATE
     pico_stdlib
     pico_multicore
@@ -53,7 +67,12 @@ target_link_libraries(pico_eprom_emulator PRIVATE
     hardware_flash
     hardware_sync
     hardware_gpio
+    hardware_pio
     tinyusb_device
+)
+
+pico_generate_pio_header(pico_eprom_emulator
+    ${CMAKE_CURRENT_LIST_DIR}/src/ws2812.pio
 )
 
 # Give the emulator a couple of ms of stack headroom on core1 for safety

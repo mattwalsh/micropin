@@ -41,7 +41,7 @@ code is deliberately kept in small, single-purpose files.
 | /CE4 | GP26 |
 | /BUS_DRIVEN (active low, asserted while data bus is driven) | GP27 |
 | /TARGET_RESET | GP28 |
-| Heartbeat LED | GP25 (onboard) |
+| WS2812B data out, LED build only | GP26 (physical Pico header pin 31; replaces ROM5 `/CE4`) |
 
 `pins.h` is the single source of truth for this — change it there if you
 need to move pins.
@@ -106,7 +106,7 @@ Concretely:
   presence/absence of `coin_5.bin` are persisted; every boot regenerates a
   clean boot sector/FAT/root directory from that state.
 
-The CDC ACM control port accepts `status` followed by a newline and replies
+The first CDC ACM port, **Romulator Control**, accepts `status` followed by a newline and replies
 with `mode rom5`, `mode four-rom`, or `mode aperture`. It also accepts `bootsel` to enter
 the Pico USB bootloader. In aperture mode, `rx` drains up to 16 bytes received
 from the experimental address-strobe channel. The 8085 sends one byte by
@@ -121,6 +121,25 @@ Pico constructs each host transaction in an inactive SRAM bank and atomically
 selects that immutable bank only after it is complete, preventing the target
 from observing a new sequence with the preceding payload. `stats` reports
 detected return-channel CRC failures and receive-ring drops.
+
+The second CDC ACM port, **Romulator LEDs**, accepts fixed-size 160-pixel RGB
+frames from `../pico_test/send_rainbow.py`. It is intentionally a separate
+serial device, so binary display frames cannot be mistaken for control commands
+such as `bootsel`. In the `WS2812_ON_CE4` build, connect the strip's data input
+to GP26 (through the planned
+3.3 V-to-5 V level shifter in the permanent installation); power the strip
+from its own fused 5 V supply and tie its ground to Pico ground. This deliberately
+repurposes ROM5 `/CE4`, so the fifth ROM socket and aperture are unavailable in
+that firmware. **Do not merely connect GP26 to the LED strip while its `/CE4`
+trace is still connected to the Micropin decoder:** the motherboard drives that
+net, so the LED firmware would create output contention. The permanent board
+needs a cut/jumper or buffer which disconnects GP26 from `/CE4` in LED mode.
+
+For the compact `aperture_roundtrip` firmware, the four program images contain
+live code only in ROM1. The `APERTURE_ON_CE2` build can therefore relocate the
+mailbox from `$2800`/CE4 to `$1000`/CE2, leaving GP26 free for LEDs. This mode
+is only compatible with ROM code assembled for the `$1000` mailbox map; stock
+four-ROM images continue to use ROM3 normally.
 
 For the round-trip test, `tx HEXBYTES` publishes up to 64 payload bytes at
 `$2803`; the complete transaction includes its length at `$2802` and sequence

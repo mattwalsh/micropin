@@ -37,7 +37,10 @@
 // drive and weak inactive pull-up policy.
 #define PIN_TARGET_RESET     28
 
-// Onboard LED, used as a heartbeat / USB-activity indicator.
+// GP25 drives only the onboard LED; it is not present on the Pico headers.
+// The LED firmware instead uses the exposed ROM5 /CE4 line (GP26, physical
+// header pin 31) and therefore deliberately gives up socket 5 in that build.
 #define PIN_LED              25
+#define PIN_WS2812_DATA      PIN_CE4
 
 #endif // PINS_H
