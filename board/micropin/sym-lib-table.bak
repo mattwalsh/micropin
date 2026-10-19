@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "micropin_reverse_engineering")(type "KiCad")(uri "${KIPRJMOD}/micropin_reverse_engineering.kicad_sym")(options "")(descr "Micropin reverse-engineering symbols"))
+)
