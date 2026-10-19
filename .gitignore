@@ -9,12 +9,11 @@ __pycache__/
 .DS_Store
 
 # no romulator build
-romulator/build-aperture/
 romulator/pico_test/build-arm14-complete
 romulator/pico_test/build-arm14
 romulator/pico_test/build-local
 romulator/pico_test/build-pico2
-
+romulator/build-*
 # Distribution / packaging
 .Python
 build/
