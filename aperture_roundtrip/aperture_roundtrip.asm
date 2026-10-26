@@ -1,26 +1,30 @@
 ; Host/Pico/8085 round-trip proof using no writable data-bus path.
 ;
 ; Host transaction at the Pico-served aperture:
-;   $2800 sequence (published last)
-;   $2801 Pico acknowledgement of the last complete response frame
-;   $2802 payload length, capped here at 64
-;   $2803... payload
+;   $1000 sequence (published last)
+;   $1001 Pico acknowledgement of the last complete response frame
+;   $1002 payload length, capped here at 64
+;   $1003... payload
 ;   immediately following payload: CRC-8 over sequence, length, and payload,
 ;   followed by its inverse
 ;
 ; Response frame uses address strobes:
-;   read $28e0 to start
+;   read $10e0 to start
 ;   transmit sequence, length (36), port 0, the RST 5.5-latched
 ;   Port-1 reflex events, cabinet Port 4, latched rollover edges, the 32 raw
 ;   playfield DMA samples at
 ;   $23e0-$23ff, and CRC-8 as paired high/low-nibble reads from
-;   $28c0+nibble and $28d0+nibble
-;   read $28e1 to finish and acknowledge the host sequence
+;   $10c0+nibble and $10d0+nibble
+;   read $10e1 to finish and acknowledge the host sequence
 
-HOST_SEQUENCE EQU #2800
-CPU_ACK EQU #2801
-HOST_LENGTH EQU #2802
-HOST_PAYLOAD EQU #2803
+; The mailbox occupies the otherwise-unused third 2 KB ROM window. The
+; program itself fits entirely in ROM1 ($0000-$07ff), leaving $1000-$17ff
+; free for Pico-served state and address-strobe writes. This preserves CE4
+; for the WS2812B output build.
+HOST_SEQUENCE EQU #1000
+CPU_ACK EQU #1001
+HOST_LENGTH EQU #1002
+HOST_PAYLOAD EQU #1003
 
 ; Diagnostic shadows placed at locations used as ordinary state by the original
 ; ROM ($2191 CONTROL_FLAGS and $2192 GAME_STATE2). Real-hardware tests show that
@@ -475,7 +479,7 @@ CAPTURE_SWITCH_DMA:
         MOV C,A
 
 TRANSMIT_RESPONSE:
-        LDA #28e0
+        LDA #10e0
         MVI D,#00
         MOV A,C
         CALL SEND_BYTE
@@ -519,7 +523,7 @@ SEND_SWITCH_DMA:
 FINISH_RESPONSE:
         MOV A,D
         CALL SEND_RAW_BYTE
-        LDA #28e1
+        LDA #10e1
         JMP POLL_HOST
 
 ; Retained temporarily for comparison, but unreachable in the echo-only test.
@@ -1075,7 +1079,7 @@ SEND_RAW_BYTE:
         RRC
         ORI #c0
         MOV L,A
-        MVI H,#28
+        MVI H,#10
         MOV A,M
         POP PSW
         POP H
@@ -1084,7 +1088,7 @@ SEND_RAW_BYTE:
         ANI #0f
         ORI #d0
         MOV L,A
-        MVI H,#28
+        MVI H,#10
         MOV A,M
         POP H
         RET
@@ -1357,8 +1361,8 @@ DISPLAY_COMMAND_DONE:
         RET
 
 ; The final two bytes of a current command are logical pitch and duration. The
-; original board ports are active-low. ff/00 leaves sound unchanged; other
-; zero-duration commands silence via port 9 only, leaving port A untouched.
+; original board ports are active-low. ff/00 leaves sound unchanged and 00/00
+; explicitly stops sound without touching the pitch port.
 MANIFEST_SOUND_COMMANDS:
         PUSH B
         PUSH D
@@ -1394,13 +1398,23 @@ VALIDATE_SOUND_SIGNATURE:
         ORA A
         JZ SOUND_COMMAND_DONE
 APPLY_SOUND_COMMAND:
-; Duration zero is an explicit stop. Do not rewrite pitch while silencing:
-; the stock stop path writes only raw fe to port 9, preserving port A.
+; Real hardware testing found that logical pitches 00-0a poison the analog
+; sound path: subsequent ordinary notes remain silent until a sufficiently
+; high recovery pitch is played.  Preserve exact 00/00 as explicit stop, but
+; reject every other low-pitch tuple as if it were the ff/00 no-op.
+        MOV A,M
+        ORA A
+        JNZ CHECK_MINIMUM_SOUND_PITCH
         INX H
         MOV A,M
         DCX H
         ORA A
         JZ STOP_SOUND_COMMAND
+        JMP SOUND_COMMAND_DONE
+CHECK_MINIMUM_SOUND_PITCH:
+        CPI #0b
+        JC SOUND_COMMAND_DONE
+WRITE_SOUND_COMMAND:
         MVI A,#ff
         OUT #09
         MOV A,M
@@ -1408,6 +1422,9 @@ APPLY_SOUND_COMMAND:
         OUT #0a
         INX H
         MOV A,M
+; Bits 1 and 4 select dangerously loud modes on the physical board.  Strip
+; both at the final hardware boundary even if a raw/buggy host requests them.
+        ANI #ed
         CMA
         OUT #09
         JMP SOUND_COMMAND_DONE
