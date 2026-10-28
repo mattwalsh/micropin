@@ -14,6 +14,13 @@ romulator/pico_test/build-arm14
 romulator/pico_test/build-local
 romulator/pico_test/build-pico2
 romulator/build-*
+romulator/tooling/picotool/
+romulator/micropin_game.nvram.json
+uf2_tmp/
+
+# junk
+junk
+
 # Distribution / packaging
 .Python
 build/
