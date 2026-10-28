@@ -24,17 +24,13 @@ static void init_bus_gpio(void)
         gpio_set_dir(PIN_DATA_BASE + i, GPIO_IN);
     }
 
-    // Chip selects: inputs with weak pull-ups, so an unconnected/undriven
-    // CE line defaults to "not selected" rather than floating.
-    const uint8_t ce_pins[] = { PIN_CE0, PIN_CE1, PIN_CE2, PIN_CE3,
-#ifndef WS2812_ON_CE4
-        PIN_CE4,
-#endif
-    };
-    for (unsigned i = 0; i < sizeof ce_pins / sizeof ce_pins[0]; i++) {
-        gpio_init(ce_pins[i]);
-        gpio_set_dir(ce_pins[i], GPIO_IN);
-        gpio_pull_up(ce_pins[i]);
+    // U31 page decode inputs: CPU A11, A12, A13. These are actively driven
+    // by the target, so unlike the old /CE inputs they need no idle pull-up.
+    const uint8_t page_pins[] = { PIN_PAGE_A11, PIN_PAGE_A12, PIN_PAGE_A13 };
+    for (unsigned i = 0; i < sizeof page_pins / sizeof page_pins[0]; i++) {
+        gpio_init(page_pins[i]);
+        gpio_set_dir(page_pins[i], GPIO_IN);
+        gpio_disable_pulls(page_pins[i]);
     }
 
     // Bus-driven flag: push-pull output, idle high (active low = asserted).
@@ -58,16 +54,16 @@ int main(void)
     // 2. Configure the bus-facing GPIO (data bus starts tristated).
     init_bus_gpio();
 
-    // 3. Build the fake FAT12 system area and load all five images from
+    // 3. Build the fake FAT12 system area and load all ROM images from
     //    flash into RAM *before* core1 starts touching those buffers.
     msc_disk_init();
 #ifdef APERTURE_ONLY
     // The dedicated diagnostic firmware has no USB mass-storage interface
     // and never changes modes at runtime. ROMs 1-4 still come from the same
-    // persisted flash slots, while CE4 is unconditionally the aperture.
-    core1_emulator_set_ce4_mode(false, true);
+    // persisted flash slots, while the aperture is unconditionally enabled.
+    core1_emulator_set_aperture_mode(true);
 #else
-    core1_emulator_set_ce4_mode(msc_disk_rom5_present(), msc_disk_aperture_enabled());
+    core1_emulator_set_aperture_mode(msc_disk_mode() == MSC_DISK_MODE_APERTURE);
 #endif
 
     // 4. Start the timing-critical emulation loop on core1.

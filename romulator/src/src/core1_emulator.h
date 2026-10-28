@@ -14,7 +14,6 @@
 // old and new bytes.
 extern uint8_t emu_rom_image[NUM_CHIPS][2][IMAGE_SIZE_BYTES];
 extern volatile uint8_t emu_active_buffer[NUM_CHIPS];
-extern volatile bool emu_rom5_present;
 extern volatile bool emu_aperture_enabled;
 
 // Called once from core0 at boot, after emu_rom_image[*][0] has been loaded
@@ -29,9 +28,9 @@ void core1_emulator_task(void);
 // emu_rom_image[chip][staging_buffer] to make it live.
 void core1_emulator_publish(unsigned chip, unsigned staging_buffer);
 
-// Configure CE4 independently: a fifth ROM drives it in ROM mode, an explicit
-// aperture marker enables the mailbox, and otherwise it remains tristated.
-void core1_emulator_set_ce4_mode(bool rom5_present, bool aperture_enabled);
+// Select the explicit ROMulator personality.  In normal builds aperture mode
+// reserves the $2800 page; ROM mode exposes its ordinary ROM image instead.
+void core1_emulator_set_aperture_mode(bool aperture_enabled);
 
 // Drain bytes received through the aperture-mode address-strobe channel.
 // The 8085 transmits a byte as high/low address nibbles at $28c0/$28d0 between

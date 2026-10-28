@@ -70,7 +70,7 @@ static void publish_test_transaction(const char *hex_payload)
 
     uint8_t sequence;
     if (!core1_emulator_publish_aperture(payload, length, &sequence)) {
-        reply("error busy-or-rom5\r\n");
+        reply("error busy-or-not-aperture\r\n");
         return;
     }
     char response[] = "tx 00\r\n";
@@ -133,6 +133,19 @@ static void reply_strobe_diagnostics(void)
     reply(response);
 }
 
+#ifndef APERTURE_ONLY
+static void set_mode(msc_disk_mode_t mode)
+{
+    // The page can change from executable ROM to mailbox data. Hold the
+    // target before changing it, persist the choice, then restart the 8085
+    // into ROMs assembled for the new personality.
+    reset_control_notify_write();
+    msc_disk_set_mode(mode);
+    reset_control_pulse();
+    reply(mode == MSC_DISK_MODE_APERTURE ? "mode aperture ok\r\n" : "mode rom ok\r\n");
+}
+#endif
+
 static void process_command(void)
 {
     s_command[s_command_len] = '\0';
@@ -147,6 +160,10 @@ static void process_command(void)
         reset_control_pulse();
         reply("reset ok\r\n");
 #ifndef APERTURE_ONLY
+    } else if (strcmp(s_command, "setmode rom") == 0) {
+        set_mode(MSC_DISK_MODE_ROM);
+    } else if (strcmp(s_command, "setmode aperture") == 0) {
+        set_mode(MSC_DISK_MODE_APERTURE);
     } else if (strcmp(s_command, "eject") == 0) {
         msc_disk_set_ejected(true);
         reply("eject ok\r\n");
@@ -154,9 +171,7 @@ static void process_command(void)
         msc_disk_set_ejected(false);
         reply("mount ok\r\n");
     } else if (strcmp(s_command, "status") == 0) {
-        if (msc_disk_rom5_present()) reply("mode rom5\r\n");
-        else if (msc_disk_aperture_enabled()) reply("mode aperture\r\n");
-        else reply("mode four-rom\r\n");
+        reply(msc_disk_mode() == MSC_DISK_MODE_APERTURE ? "mode aperture\r\n" : "mode rom\r\n");
 #else
     } else if (strcmp(s_command, "status") == 0) {
         reply("mode aperture-only\r\n");

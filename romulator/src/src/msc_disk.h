@@ -3,8 +3,13 @@
 
 #include <stdbool.h>
 
+typedef enum {
+    MSC_DISK_MODE_ROM = 0,
+    MSC_DISK_MODE_APERTURE = 1,
+} msc_disk_mode_t;
+
 // Builds the (RAM-only, regenerated-every-boot) FAT12 system area and loads
-// all five chip images from flash into emu_rom_image[*][0]. Call this before
+// all chip images from flash into emu_rom_image[*][0]. Call this before
 // core1_emulator_launch() and before tud_init().
 void msc_disk_init(void);
 
@@ -13,10 +18,10 @@ void msc_disk_init(void);
 // but hasn't been synced yet.
 void msc_disk_task(void);
 
-// Persisted CE4 configuration. Aperture mode is deliberately independent of
-// ROM count so an ordinary four-ROM game leaves the empty socket tristated.
-bool msc_disk_rom5_present(void);
-bool msc_disk_aperture_enabled(void);
+// Explicit, persisted personality.  It is intentionally independent of the
+// set of ROM images stored on the USB volume.
+msc_disk_mode_t msc_disk_mode(void);
+void msc_disk_set_mode(msc_disk_mode_t mode);
 
 // Hide or restore the virtual mass-storage medium without disturbing CDC or
 // the running ROM emulator. Ejection persists until an explicit mount or a

@@ -7,7 +7,6 @@
 
 uint8_t emu_rom_image[NUM_CHIPS][2][IMAGE_SIZE_BYTES];
 volatile uint8_t emu_active_buffer[NUM_CHIPS];
-volatile bool emu_rom5_present = true;
 volatile bool emu_aperture_enabled = false;
 
 #define STROBE_RING_SIZE 256u
@@ -110,11 +109,6 @@ static inline void __not_in_flash_func(strobe_event_push)(uint16_t event)
     s_strobe_event_head = next;
 }
 
-// Precomputed per-chip CE bit position within sio_hw->gpio_in, in priority
-// order. If more than one CE is asserted at once (shouldn't happen on real
-// hardware, but wiring glitches happen), the lowest-numbered chip wins.
-static const uint8_t ce_pin[NUM_CHIPS] = { PIN_CE0, PIN_CE1, PIN_CE2, PIN_CE3, PIN_CE4 };
-
 // -----------------------------------------------------------------------
 // This entire function (and everything it calls) is forced into RAM with
 // __not_in_flash_func. That guarantees core1 never fetches an instruction
@@ -147,14 +141,13 @@ static void __scratch_x("core1_bus_loop") core1_main(void)
     while (true) {
         uint32_t gpio_in = sio_hw->gpio_in;
 
-        int chip = -1;
-        if (!(gpio_in & (1u << PIN_CE0)))      chip = 0;
-        else if (!(gpio_in & (1u << PIN_CE1)))  chip = 1;
-        else if (!(gpio_in & (1u << PIN_CE2)))  chip = 2;
-        else if (!(gpio_in & (1u << PIN_CE3)))  chip = 3;
-#ifndef WS2812_ON_CE4
-        else if (!(gpio_in & (1u << PIN_CE4)))  chip = 4;
-#endif
+        // U31 decodes CPU A11..A13 into eight 2 KiB windows. Page 4 is the
+        // motherboard's $2000-$27ff RAM and must never be driven by us. The
+        // remaining seven pages map compactly to ROM image slots 0..6.
+        uint8_t page = (uint8_t)(((gpio_in >> PIN_PAGE_A11) & 1u) |
+            (((gpio_in >> PIN_PAGE_A12) & 1u) << 1u) |
+            (((gpio_in >> PIN_PAGE_A13) & 1u) << 2u));
+        int chip = page == 4u ? -1 : (page < 4u ? (int)page : (int)page - 1);
 
         const uint32_t addr = gpio_in & ADDR_MASK;
 
@@ -304,24 +297,23 @@ void core1_emulator_publish(unsigned chip, unsigned staging_buffer)
     emu_active_buffer[chip] = (uint8_t)staging_buffer;
 }
 
-void core1_emulator_set_ce4_mode(bool rom5_present, bool aperture_enabled)
+void core1_emulator_set_aperture_mode(bool aperture_enabled)
 {
-    emu_rom5_present = rom5_present;
 #ifdef APERTURE_ON_CE2
-    // In this variant CE2 remains an ordinary ROM3 in normal mode. Only an
-    // explicit aperture marker changes it into the mailbox; CE4 is free for
+    // In this variant CE2 remains an ordinary ROM3 in ROM mode. Aperture mode
+    // changes it into the mailbox; CE4 is free for
     // the LED PIO program and never participates in this decision.
-    emu_aperture_enabled = aperture_enabled && !rom5_present;
+    emu_aperture_enabled = aperture_enabled;
     if (emu_aperture_enabled) {
         emu_active_buffer[APERTURE_CHIP_INDEX] = CE4_BUFFER_APERTURE;
     } else if (emu_active_buffer[APERTURE_CHIP_INDEX] > 1u) {
         emu_active_buffer[APERTURE_CHIP_INDEX] = 0;
     }
 #else
-    emu_aperture_enabled = aperture_enabled && !rom5_present;
-    if (!rom5_present) {
-        emu_active_buffer[APERTURE_CHIP_INDEX] = emu_aperture_enabled ? CE4_BUFFER_APERTURE : CE4_BUFFER_DISABLED;
-    } else if (emu_active_buffer[4] > 1u) {
+    emu_aperture_enabled = aperture_enabled;
+    if (emu_aperture_enabled) {
+        emu_active_buffer[APERTURE_CHIP_INDEX] = CE4_BUFFER_APERTURE;
+    } else if (emu_active_buffer[APERTURE_CHIP_INDEX] > 1u) {
         emu_active_buffer[4] = 0;
     }
 #endif

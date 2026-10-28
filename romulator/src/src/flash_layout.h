@@ -13,7 +13,7 @@
 // which is trivial against the Pico's 2MB.
 #define IMAGE_SECTOR_SIZE       FLASH_SECTOR_SIZE   // 4096
 
-// Reserve the top 64KB of flash for our five images, well clear of the
+// Reserve the top 64KB of flash for our ROM images, well clear of the
 // program itself.
 #define FLASH_TARGET_OFFSET     (PICO_FLASH_SIZE_BYTES - (64 * 1024))
 
@@ -22,9 +22,8 @@ static inline uint32_t flash_offset_for_chip(unsigned chip)
     return FLASH_TARGET_OFFSET + (chip * IMAGE_SECTOR_SIZE);
 }
 
-// One additional sector records facts which cannot be inferred from the raw
-// ROM images.  In particular, deleting coin_5.bin selects aperture mode and
-// must survive the synthetic FAT volume being rebuilt on the next boot.
+// One additional sector stores the explicitly selected ROMulator personality.
+// It is deliberately independent of the raw ROM images.
 #define FLASH_METADATA_OFFSET (FLASH_TARGET_OFFSET + (NUM_CHIPS * IMAGE_SECTOR_SIZE))
 
 #endif // FLASH_LAYOUT_H
