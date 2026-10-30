@@ -8,10 +8,11 @@
 #include "flash_layout.h"
 
 // Double-buffered RAM image per chip: core0 stages a freshly-flashed image
-// into the *inactive* buffer, then flips emu_active_buffer[chip] once the
-// copy is complete. Core1 only ever reads emu_active_buffer[chip] to decide
-// which buffer to serve from, so a chip's data bus output is never a mix of
-// old and new bytes.
+// into the *inactive* buffer, then calls core1_emulator_publish(), which
+// records the buffer index (always 0 or 1) in emu_active_buffer[chip] and
+// retargets that page's entry in core1's page table with one 32-bit store.
+// Core1 never reads emu_active_buffer[] itself, so a chip's data bus output is
+// never a mix of old and new bytes, and aperture mode no longer overloads it.
 extern uint8_t emu_rom_image[NUM_CHIPS][2][IMAGE_SIZE_BYTES];
 extern volatile uint8_t emu_active_buffer[NUM_CHIPS];
 extern volatile bool emu_aperture_enabled;

@@ -8,6 +8,8 @@ project(pico_eprom_emulator C CXX ASM)
 option(APERTURE_ONLY "Build CDC-only firmware with CE4 permanently in aperture mode" OFF)
 option(WS2812_ON_CE4 "Use ROM5 /CE (GP26) as the WS2812B data pin" OFF)
 option(APERTURE_ON_CE2 "Serve the aperture from ROM3 /CE2 (GP21) instead of CE4" OFF)
+set(ROMULATOR_SYS_CLOCK_KHZ 0 CACHE STRING
+    "Optional RP2040 system-clock override for ROM timing diagnostics (0 = default)")
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
@@ -59,12 +61,18 @@ if(APERTURE_ON_CE2)
     target_compile_definitions(pico_eprom_emulator PRIVATE APERTURE_ON_CE2=1)
 endif()
 
+if(ROMULATOR_SYS_CLOCK_KHZ)
+    target_compile_definitions(pico_eprom_emulator PRIVATE
+        ROMULATOR_SYS_CLOCK_KHZ=${ROMULATOR_SYS_CLOCK_KHZ})
+endif()
+
 target_link_libraries(pico_eprom_emulator PRIVATE
     pico_stdlib
     pico_multicore
     pico_bootrom
     pico_unique_id
     hardware_flash
+    hardware_clocks
     hardware_sync
     hardware_gpio
     hardware_pio

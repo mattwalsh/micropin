@@ -1,5 +1,6 @@
 #include "pico/stdlib.h"
 #include "hardware/gpio.h"
+#include "hardware/clocks.h"
 #include "tusb.h"
 
 #include "pins.h"
@@ -43,6 +44,13 @@ static void init_bus_gpio(void)
 int main(void)
 {
     // ---- Boot ordering matters here; keep this sequence intact. ----
+
+#ifdef ROMULATOR_SYS_CLOCK_KHZ
+    // This is deliberately a build-time diagnostic, not a runtime setting.
+    // A faster core shortens the interval before core1 notices a new U31 page
+    // value and serves its byte, making it useful for testing page-wire skew.
+    set_sys_clock_khz(ROMULATOR_SYS_CLOCK_KHZ, true);
+#endif
 
     // 1. Hold the target CPU in reset before anything else runs. From
     //    power-up until this line, PIN_TARGET_RESET was high-impedance;
