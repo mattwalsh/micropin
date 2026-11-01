@@ -18,9 +18,9 @@
 ;   read $10e1 to finish and acknowledge the host sequence
 
 ; The mailbox occupies the otherwise-unused third 2 KB ROM window. The
-; program itself fits entirely in ROM1 ($0000-$07ff), leaving $1000-$17ff
-; free for Pico-served state and address-strobe writes. This preserves CE4
-; for the WS2812B output build.
+; program occupies ROM1 and the start of ROM2 ($0000-$0fff), leaving the third
+; 2 KB window at $1000-$17ff free for Pico-served state and address-strobe
+; writes. This preserves CE4 for the WS2812B output build.
 HOST_SEQUENCE EQU #1000
 CPU_ACK EQU #1001
 HOST_LENGTH EQU #1002
@@ -69,11 +69,13 @@ CONTROL_LENGTH EQU #08
 DISPLAY_BYTE_COUNT EQU #20
 LEGACY_DISPLAY_COMMAND_LENGTH EQU #26
 DISPLAY_COMMAND_LENGTH EQU #28
-DISPLAY_LAMP_BITMAP_COMMAND_LENGTH EQU #2d
+DISPLAY_LAMP_BITMAP_COMMAND_LENGTH EQU #2b
+AY_COMMAND_MIN_LENGTH EQU #2d
+AY_COMMAND_MAX_PLUS_ONE EQU #3c
 DISPLAY_PAYLOAD EQU LOCAL_PAYLOAD+#06
-SHORT_SOUND_PAYLOAD EQU LOCAL_PAYLOAD+#06
-DISPLAY_SOUND_PAYLOAD EQU LOCAL_PAYLOAD+#26
-LAMP_BITMAP_PAYLOAD EQU LOCAL_PAYLOAD+#28
+LAMP_BITMAP_PAYLOAD EQU LOCAL_PAYLOAD+#26
+AY_MASK_PAYLOAD EQU LOCAL_PAYLOAD+#2b
+AY_VALUES_PAYLOAD EQU LOCAL_PAYLOAD+#2d
 STACK_TOP EQU #23c0
 
         ORG #0000
@@ -161,6 +163,10 @@ START:
         OUT #06
         OUT #07
         OUT #08
+; Initialize the optional AY-3-8912 muted, then enable its shared downstream
+; audio path once. Host register diffs can subsequently control R0-R13 without
+; touching the legacy 566 pitch port.
+        CALL INITIALIZE_AY
 ; Match the original initialization reached from both reset and TRAP ($0069).
 ; Ports $0d/$0e also acknowledge the two interrupt-source encoders, so walking
 ; their selector values from seven through zero may reset more than lamp state.
@@ -429,13 +435,26 @@ VERIFY_HOST_CRC_AGAIN:
         CMP M
         JNZ POLL_HOST
 
-; Switch-capture de-ablation test: manifest byte zero as a lamp selector, then
-; capture and return the validated payload plus one coherent 36-byte switch
-; snapshot. The 8085-side acknowledgement/retry loop remains bypassed.
+; A compact "AY" command changes sound registers without disturbing any lamp,
+; display, mechanism, or reflex state. Full game frames retain their established
+; manifestation order and may append the same AY mask/value representation.
+        LDA LOCAL_LENGTH
+        CPI #04
+        JC MANIFEST_FULL_GAME_FRAME
+        LDA LOCAL_PAYLOAD
+        CPI #41
+        JNZ MANIFEST_FULL_GAME_FRAME
+        LDA LOCAL_PAYLOAD+#01
+        CPI #59
+        JNZ MANIFEST_FULL_GAME_FRAME
+        CALL MANIFEST_AY_COMMANDS
+        JMP CAPTURE_HOST_RESPONSE
+
+MANIFEST_FULL_GAME_FRAME:
         CALL MANIFEST_LAMP_COMMAND
         CALL MANIFEST_CONTROL_COMMANDS
         CALL MANIFEST_DISPLAY_COMMANDS
-        CALL MANIFEST_SOUND_COMMANDS
+        CALL MANIFEST_AY_COMMANDS
         JMP CAPTURE_HOST_RESPONSE
 
 CAPTURE_HOST_RESPONSE:
@@ -1109,11 +1128,19 @@ CLEAR_LOCAL_LAMPS:
         DCR B
         JNZ CLEAR_LOCAL_LAMPS
 
-; The signed 45-byte frame appends five logical lamp-mask bytes after sound.
-; Preserve the legacy one-hot selector for diagnostic and soak-test clients.
+; The signed 43-byte frame appends five logical lamp-mask bytes after display.
+; AY-aware game frames append a two-byte mask and zero to fourteen register
+; values, making them 45 through 59 bytes long. Both layouts carry the lamp
+; bitmap at the same offset.  Preserve the legacy one-hot selector for
+; diagnostic and soak-test clients, and reject the unused 46-byte length.
         LDA LOCAL_LENGTH
         CPI DISPLAY_LAMP_BITMAP_COMMAND_LENGTH
-        JNZ LEGACY_ONE_HOT_LAMP
+        JZ VALIDATE_LAMP_BITMAP_SIGNATURE
+        CPI AY_COMMAND_MIN_LENGTH
+        JC LEGACY_ONE_HOT_LAMP
+        CPI AY_COMMAND_MAX_PLUS_ONE
+        JNC LEGACY_ONE_HOT_LAMP
+VALIDATE_LAMP_BITMAP_SIGNATURE:
         LDA LOCAL_PAYLOAD+#01
         CPI #4d
         JNZ LEGACY_ONE_HOT_LAMP
@@ -1197,8 +1224,8 @@ OUTPUT_LOCAL_LAMPS:
 ;   byte 0 lamp, bytes 1-2 "MP", byte 3 reflex-enable bit,
 ;   byte 4 cup bits 0-5, byte 5 launcher bit 0.
 ; The current basic form is eight bytes. The display form inserts a raw copy of
-; the 32-byte motherboard display window before the final pitch/duration pair.
-; Accept the older six- and 38-byte forms during this protocol transition.
+; the 32-byte motherboard display window followed by five lamp-mask bytes.
+; The old pitch/duration fields are retired: aperture mode is AY-only.
 ; Cup and launcher requests are rising-edge, non-renewing bounded pulses.
 MANIFEST_CONTROL_COMMANDS:
         PUSH B
@@ -1215,7 +1242,12 @@ MANIFEST_CONTROL_COMMANDS:
         CPI DISPLAY_COMMAND_LENGTH
         JZ VALIDATE_CONTROL_SIGNATURE
         CPI DISPLAY_LAMP_BITMAP_COMMAND_LENGTH
-        JNZ NO_CONTROL_COMMAND
+        JZ VALIDATE_CONTROL_SIGNATURE
+        CPI AY_COMMAND_MIN_LENGTH
+        JC NO_CONTROL_COMMAND
+        CPI AY_COMMAND_MAX_PLUS_ONE
+        JNC NO_CONTROL_COMMAND
+        JMP VALIDATE_CONTROL_SIGNATURE
 VALIDATE_CONTROL_SIGNATURE:
         LDA LOCAL_PAYLOAD+#01
         CPI #4d
@@ -1334,7 +1366,12 @@ MANIFEST_DISPLAY_COMMANDS:
         CPI DISPLAY_COMMAND_LENGTH
         JZ VALIDATE_DISPLAY_SIGNATURE
         CPI DISPLAY_LAMP_BITMAP_COMMAND_LENGTH
-        JNZ DISPLAY_COMMAND_DONE
+        JZ VALIDATE_DISPLAY_SIGNATURE
+        CPI AY_COMMAND_MIN_LENGTH
+        JC DISPLAY_COMMAND_DONE
+        CPI AY_COMMAND_MAX_PLUS_ONE
+        JNC DISPLAY_COMMAND_DONE
+        JMP VALIDATE_DISPLAY_SIGNATURE
 VALIDATE_DISPLAY_SIGNATURE:
         LDA LOCAL_PAYLOAD+#01
         CPI #4d
@@ -1360,82 +1397,169 @@ DISPLAY_COMMAND_DONE:
         POP B
         RET
 
-; The final two bytes of a current command are logical pitch and duration. The
-; original board ports are active-low. ff/00 leaves sound unchanged and 00/00
-; explicitly stops sound without touching the pitch port.
-MANIFEST_SOUND_COMMANDS:
+; AY commands contain a little-endian 14-bit dirty mask followed by one value
+; for each set bit in R0-R13 order. They are either compact "AY"-prefixed
+; sound-only frames or suffixes on the complete 45-byte game frame. Validate
+; the variable length before touching the chip. R14/R15 are intentionally
+; rejected because their general-purpose I/O is not connected.
+MANIFEST_AY_COMMANDS:
         PUSH B
         PUSH D
         PUSH H
 
+; Compact layout: "AY", mask low/high, packed values (4-18 bytes total).
         LDA LOCAL_LENGTH
-        CPI CONTROL_LENGTH
-        JZ SHORT_SOUND_COMMAND
-        CPI DISPLAY_COMMAND_LENGTH
-        JZ FULL_SOUND_COMMAND
-        CPI DISPLAY_LAMP_BITMAP_COMMAND_LENGTH
-        JNZ SOUND_COMMAND_DONE
-FULL_SOUND_COMMAND:
-        LXI H,DISPLAY_SOUND_PAYLOAD
-        JMP VALIDATE_SOUND_SIGNATURE
-SHORT_SOUND_COMMAND:
-        LXI H,SHORT_SOUND_PAYLOAD
-VALIDATE_SOUND_SIGNATURE:
+        CPI #04
+        JC AY_COMMAND_DONE
+        CPI #13
+        JNC CHECK_FULL_AY_COMMAND
+        LDA LOCAL_PAYLOAD
+        CPI #41
+        JNZ CHECK_FULL_AY_COMMAND
+        LDA LOCAL_PAYLOAD+#01
+        CPI #59
+        JNZ AY_COMMAND_DONE
+        LXI H,LOCAL_PAYLOAD+#02
+        MVI C,#04
+        JMP VALIDATE_AY_MASK
+
+; Full layout: 43-byte game frame, mask low/high, packed values.
+CHECK_FULL_AY_COMMAND:
+        LDA LOCAL_LENGTH
+        CPI AY_COMMAND_MIN_LENGTH
+        JC AY_COMMAND_DONE
+        CPI AY_COMMAND_MAX_PLUS_ONE
+        JNC AY_COMMAND_DONE
         LDA LOCAL_PAYLOAD+#01
         CPI #4d
-        JNZ SOUND_COMMAND_DONE
+        JNZ AY_COMMAND_DONE
         LDA LOCAL_PAYLOAD+#02
         CPI #50
-        JNZ SOUND_COMMAND_DONE
+        JNZ AY_COMMAND_DONE
+        LXI H,AY_MASK_PAYLOAD
+        MVI C,AY_COMMAND_MIN_LENGTH
 
-; Logical ff/00 is no new sound command. Leave both sound ports untouched.
+; Verify the high two mask bits are clear and that the payload contains exactly
+; one value per dirty bit. This prevents a valid-CRC but malformed command from
+; consuming bytes beyond the received frame.
+VALIDATE_AY_MASK:
         MOV A,M
-        CPI #ff
-        JNZ APPLY_SOUND_COMMAND
+        MOV E,A
         INX H
         MOV A,M
+        MOV D,A
+        ANI #c0
+        JNZ AY_COMMAND_DONE
+        INX H
+        LDA LOCAL_LENGTH
+        SUB C
+        MOV C,A
+        MVI B,#0e
+COUNT_AY_VALUES:
+        MOV A,E
+        ANI #01
+        JZ SHIFT_AY_COUNT_MASK
+        DCR C
+        JM AY_COMMAND_DONE
+SHIFT_AY_COUNT_MASK:
+        MOV A,D
+        ORA A
+        RAR
+        MOV D,A
+        MOV A,E
+        RAR
+        MOV E,A
+        DCR B
+        JNZ COUNT_AY_VALUES
+        MOV A,C
+        ORA A
+        JNZ AY_COMMAND_DONE
+
+; H still points at the packed values. Step back over the two-byte mask to
+; reload it for the write pass, then restore H to the first value.
         DCX H
-        ORA A
-        JZ SOUND_COMMAND_DONE
-APPLY_SOUND_COMMAND:
-; Real hardware testing found that logical pitches 00-0a poison the analog
-; sound path: subsequent ordinary notes remain silent until a sufficiently
-; high recovery pitch is played.  Preserve exact 00/00 as explicit stop, but
-; reject every other low-pitch tuple as if it were the ff/00 no-op.
+        DCX H
         MOV A,M
-        ORA A
-        JNZ CHECK_MINIMUM_SOUND_PITCH
+        MOV E,A
         INX H
         MOV A,M
-        DCX H
-        ORA A
-        JZ STOP_SOUND_COMMAND
-        JMP SOUND_COMMAND_DONE
-CHECK_MINIMUM_SOUND_PITCH:
-        CPI #0b
-        JC SOUND_COMMAND_DONE
-WRITE_SOUND_COMMAND:
+        MOV D,A
+        INX H
+        MVI C,#00
+        MVI B,#0e
+; Port $09 is a required trigger for the shared audio path. Bracket each
+; nonempty AY transaction with its observed legacy gate sequence.
+        MOV A,E
+        ORA D
+        JZ AY_COMMAND_DONE
         MVI A,#ff
         OUT #09
+WRITE_AY_REGISTERS:
+        MOV A,E
+        ANI #01
+        JZ SHIFT_AY_WRITE_MASK
+        MOV A,C
+        CALL AY_SELECT
         MOV A,M
-        CMA
-        OUT #0a
+        CALL AY_WRITE
         INX H
-        MOV A,M
-; Bits 1 and 4 select dangerously loud modes on the physical board.  Strip
-; both at the final hardware boundary even if a raw/buggy host requests them.
-        ANI #ed
-        CMA
+SHIFT_AY_WRITE_MASK:
+        MOV A,D
+        ORA A
+        RAR
+        MOV D,A
+        MOV A,E
+        RAR
+        MOV E,A
+        INR C
+        DCR B
+        JNZ WRITE_AY_REGISTERS
+; Return the shared path to its quieter usable steady state after the trigger.
+        MVI A,#12
         OUT #09
-        JMP SOUND_COMMAND_DONE
-STOP_SOUND_COMMAND:
-        MVI A,#fe
-        OUT #09
-
-SOUND_COMMAND_DONE:
+AY_COMMAND_DONE:
         POP H
         POP D
         POP B
+        RET
+
+; Desired AY bytes are complemented because the motherboard inverts the data
+; bus between the 8085 and the sound chip.
+AY_SELECT:
+        CMA
+        OUT #0b
+        RET
+
+AY_WRITE:
+        CMA
+        OUT #0c
+        RET
+
+INITIALIZE_AY:
+; Keep the still-installed legacy 566 at its observed silent pitch.  The AY
+; shares its downstream audio path, and port-9 gate writes must not revive a
+; stale 566 tone before the host sends its first AY transaction.
+        MVI A,#ff
+        OUT #0a
+; Disable all tone/noise sources and clear fixed/envelope volume on A/B/C.
+        MVI A,#07
+        CALL AY_SELECT
+        MVI A,#3f
+        CALL AY_WRITE
+        MVI B,#08
+CLEAR_AY_VOLUMES:
+        MOV A,B
+        CALL AY_SELECT
+        XRA A
+        CALL AY_WRITE
+        INR B
+        MOV A,B
+        CPI #0b
+        JNZ CLEAR_AY_VOLUMES
+; $12 is the measured quieter usable shared audio-path mode. The transaction
+; handler reasserts it after each required port-$09 trigger.
+        MVI A,#12
+        OUT #09
         RET
 
 ; Each raw DMA byte's $10 bit is high when its inductive contact is open.
