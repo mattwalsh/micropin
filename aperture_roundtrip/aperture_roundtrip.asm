@@ -47,8 +47,9 @@ LOCAL_CRC_COMPLEMENT EQU #228e
 REFLEX_EVENT_LATCH EQU #228f
 CABINET_EVENT_LATCH EQU #2290
 REFLEX_COIL_TIMERS EQU #2291
-; Bumper/slingshot lease in board-periodic timer ticks (formerly 9).
-REFLEX_PULSE_TICKS EQU #0a
+; Bumper/slingshot lease in board-periodic timer ticks (formerly 9).  Twelve
+; ticks gives the pop bumpers a conservative 20% longer pull than the prior 10.
+REFLEX_PULSE_TICKS EQU #0c
 CUP_COIL_TIMERS EQU #2297
 CUP_COMMAND_BYTE EQU #229d
 PREVIOUS_CUP_COMMAND EQU #229f
@@ -1069,23 +1070,19 @@ SEND_BYTE:
         POP PSW
         JMP SEND_RAW_BYTE
 
-; Update CRC-8/ATM D with A, preserving B. A is scratch on return.
+; Update CRC-8/ATM D with A, preserving B and H.  CRC-8 is linear, so the
+; next value is CRC_TABLE[old_crc XOR input].  The original bit-at-a-time
+; implementation cost roughly 400 cycles per protected byte; this lookup is
+; deliberately placed on an aligned ROM page so L can be the table index.
+; A remains scratch on return.
 CRC_UPDATE:
         XRA D
+        PUSH H
+        LXI H,CRC_TABLE
+        MOV L,A
+        MOV A,M
         MOV D,A
-        PUSH B
-        MVI B,#08
-CRC_BIT:
-        MOV A,D
-        ADD A
-        MOV D,A
-        JNC CRC_NO_POLY
-        XRI #07
-        MOV D,A
-CRC_NO_POLY:
-        DCR B
-        JNZ CRC_BIT
-        POP B
+        POP H
         RET
 
 SEND_RAW_BYTE:
@@ -1636,5 +1633,27 @@ ROLLOVER_7_OPEN:
         STA ROLLOVER_HIT_LATCH
         POP B
         RET
+
+; CRC-8/ATM table: entry n is the result of shifting byte n through the
+; x^8 + x^2 + x + 1 polynomial.  CRC_TABLE starts at $0900 intentionally;
+; CRC_UPDATE replaces only L after loading the table page into HL.
+        ORG #0900
+CRC_TABLE:
+        DB #00,#07,#0e,#09,#1c,#1b,#12,#15,#38,#3f,#36,#31,#24,#23,#2a,#2d
+        DB #70,#77,#7e,#79,#6c,#6b,#62,#65,#48,#4f,#46,#41,#54,#53,#5a,#5d
+        DB #e0,#e7,#ee,#e9,#fc,#fb,#f2,#f5,#d8,#df,#d6,#d1,#c4,#c3,#ca,#cd
+        DB #90,#97,#9e,#99,#8c,#8b,#82,#85,#a8,#af,#a6,#a1,#b4,#b3,#ba,#bd
+        DB #c7,#c0,#c9,#ce,#db,#dc,#d5,#d2,#ff,#f8,#f1,#f6,#e3,#e4,#ed,#ea
+        DB #b7,#b0,#b9,#be,#ab,#ac,#a5,#a2,#8f,#88,#81,#86,#93,#94,#9d,#9a
+        DB #27,#20,#29,#2e,#3b,#3c,#35,#32,#1f,#18,#11,#16,#03,#04,#0d,#0a
+        DB #57,#50,#59,#5e,#4b,#4c,#45,#42,#6f,#68,#61,#66,#73,#74,#7d,#7a
+        DB #89,#8e,#87,#80,#95,#92,#9b,#9c,#b1,#b6,#bf,#b8,#ad,#aa,#a3,#a4
+        DB #f9,#fe,#f7,#f0,#e5,#e2,#eb,#ec,#c1,#c6,#cf,#c8,#dd,#da,#d3,#d4
+        DB #69,#6e,#67,#60,#75,#72,#7b,#7c,#51,#56,#5f,#58,#4d,#4a,#43,#44
+        DB #19,#1e,#17,#10,#05,#02,#0b,#0c,#21,#26,#2f,#28,#3d,#3a,#33,#34
+        DB #4e,#49,#40,#47,#52,#55,#5c,#5b,#76,#71,#78,#7f,#6a,#6d,#64,#63
+        DB #3e,#39,#30,#37,#22,#25,#2c,#2b,#06,#01,#08,#0f,#1a,#1d,#14,#13
+        DB #ae,#a9,#a0,#a7,#b2,#b5,#bc,#bb,#96,#91,#98,#9f,#8a,#8d,#84,#83
+        DB #de,#d9,#d0,#d7,#c2,#c5,#cc,#cb,#e6,#e1,#e8,#ef,#fa,#fd,#f4,#f3
 
         ORG #2000
