@@ -15,6 +15,9 @@ MAME_TARGETS = {
 # they have an otherwise ordinary ROM count.  In particular, arb needs the
 # $2800-$28ff Pico-facing aperture, which is not present on pencup2d/pencup2c.
 MAME_VARIANT_TARGETS = {
+    # MAME's pencup2c definition has five ROM sockets.  This hardware build
+    # also creates ROM 6 for the physical ROMulator; MAME simply ignores it.
+    "ppm_hold_pwm_ay": ("pencup2c", "coin"),
     "bridge": ("pencupx", "x"),
     "arb": ("pencupx", "x"),
     "aperture_test": ("pencupx", "x"),
