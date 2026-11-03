@@ -665,13 +665,21 @@
         "uuid": "75e3dd82-1c82-4987-8f9d-b8c67fce50a0"
       }
     ],
-    "used_designators": "#PWR1-3,C1,J1,R1,U1-6",
+    "used_designators": "#PWR1-6,C1,J1,R1,U1-7,U28,U51-52,U54-58,U76-78,U87",
     "variants": []
   },
   "sheets": [
     [
       "75e3dd82-1c82-4987-8f9d-b8c67fce50a0",
       "micropin"
+    ],
+    [
+      "ddde7c94-f839-4308-9490-a7b29386d7b5",
+      "flipflops"
+    ],
+    [
+      "292ab598-1a99-4804-ad48-df44ccb2cc1f",
+      "U50-U53"
     ]
   ],
   "text_variables": {},
