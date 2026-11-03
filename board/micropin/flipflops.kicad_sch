@@ -1,0 +1,1795 @@
+(kicad_sch
+	(version 20260306)
+	(generator "eeschema")
+	(generator_version "10.0")
+	(uuid "ae1f58d5-5ee1-4713-b681-86164c3dbb8e")
+	(paper "A4")
+	(lib_symbols
+		(symbol "74xx:74LS74"
+			(pin_names
+				(offset 1.016)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "U"
+				(at -7.62 8.89 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "74LS74"
+				(at -7.62 -8.89 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" "https://www.ti.com/lit/ds/symlink/sn74ls74a.pdf"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "Dual D Flip-flop, Set & Reset"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_locked" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_keywords" "TTL DFF"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_fp_filters" "DIP*W7.62mm*"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "74LS74_1_0"
+				(pin input line
+					(at 0 -7.62 90)
+					(length 2.54)
+					(name "~{R}"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -7.62 2.54 0)
+					(length 2.54)
+					(name "D"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input clock
+					(at -7.62 0 0)
+					(length 2.54)
+					(name "C"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at 0 7.62 270)
+					(length 2.54)
+					(name "~{S}"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "4"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 7.62 2.54 180)
+					(length 2.54)
+					(name "Q"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "5"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 7.62 -2.54 180)
+					(length 2.54)
+					(name "~{Q}"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "6"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(symbol "74LS74_1_1"
+				(rectangle
+					(start -5.08 5.08)
+					(end 5.08 -5.08)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+			)
+			(symbol "74LS74_2_0"
+				(pin output line
+					(at 7.62 -2.54 180)
+					(length 2.54)
+					(name "~{Q}"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "8"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 7.62 2.54 180)
+					(length 2.54)
+					(name "Q"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "9"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at 0 7.62 270)
+					(length 2.54)
+					(name "~{S}"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "10"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input clock
+					(at -7.62 0 0)
+					(length 2.54)
+					(name "C"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "11"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -7.62 2.54 0)
+					(length 2.54)
+					(name "D"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "12"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at 0 -7.62 90)
+					(length 2.54)
+					(name "~{R}"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "13"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(symbol "74LS74_2_1"
+				(rectangle
+					(start -5.08 5.08)
+					(end 5.08 -5.08)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+			)
+			(symbol "74LS74_3_0"
+				(pin power_in line
+					(at 0 -10.16 90)
+					(length 2.54)
+					(name "GND"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "7"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin power_in line
+					(at 0 10.16 270)
+					(length 2.54)
+					(name "VCC"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "14"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(symbol "74LS74_3_1"
+				(rectangle
+					(start -5.08 7.62)
+					(end 5.08 -7.62)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "power:VCC"
+			(power global)
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0)
+				(hide yes)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "#PWR"
+				(at 0 -3.81 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "VCC"
+				(at 0 3.556 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "Power symbol creates a global label with name \"VCC\""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_keywords" "global power"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "VCC_0_1"
+				(polyline
+					(pts
+						(xy -0.762 1.27) (xy 0 2.54)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0 2.54) (xy 0.762 1.27)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0 0) (xy 0 2.54)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "VCC_1_1"
+				(pin power_in line
+					(at 0 0 90)
+					(length 0)
+					(name ""
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+	)
+	(junction
+		(at 54.61 29.21)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "733a992d-288a-43f3-91ce-e643e7b75d7d")
+	)
+	(wire
+		(pts
+			(xy 76.2 35.56) (xy 76.2 33.02)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "236e1544-0f11-45db-9662-e7e25df7e1d3")
+	)
+	(wire
+		(pts
+			(xy 80.01 29.21) (xy 78.74 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "5e107f38-6325-4079-9b76-32fa4b02e7fd")
+	)
+	(wire
+		(pts
+			(xy 54.61 29.21) (xy 63.5 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "70dc5d5c-fc0f-4488-a819-7baaa70b9dee")
+	)
+	(wire
+		(pts
+			(xy 63.5 68.58) (xy 54.61 68.58)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "bdf9638d-2eca-4565-8433-c33331b49ae2")
+	)
+	(wire
+		(pts
+			(xy 54.61 68.58) (xy 54.61 29.21)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "d549a91f-8a99-437b-8655-271a420e1509")
+	)
+	(hierarchical_label "FlipFlops_Q:7"
+		(shape bidirectional)
+		(at 187.96 68.58 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "09717808-a3af-44c2-b41e-1f85112aeeb2")
+	)
+	(hierarchical_label "FlipFlops_Q:4"
+		(shape bidirectional)
+		(at 121.92 69.85 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "1e1a52a9-66ae-468b-8f01-5fa66178d1b1")
+	)
+	(hierarchical_label "FlipFlops_R:1"
+		(shape bidirectional)
+		(at 71.12 78.74 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "26f4c14a-18dd-44f7-9532-d41f4434ce4f")
+	)
+	(hierarchical_label "FlipFlops_Q:1"
+		(shape bidirectional)
+		(at 78.74 68.58 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "2a7ddf2c-0f94-41f3-b2a3-0508f525dc52")
+	)
+	(hierarchical_label "FlipFlops_R:5"
+		(shape bidirectional)
+		(at 180.34 38.1 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "2de3f0d8-9342-423a-bfae-52cf9660fd08")
+	)
+	(hierarchical_label "FlipFlops_Q:0"
+		(shape bidirectional)
+		(at 80.01 29.21 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "3311ea5d-10c4-425f-a2d2-3734892c46d2")
+	)
+	(hierarchical_label "FlipFlops_Q:5"
+		(shape bidirectional)
+		(at 187.96 27.94 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "3e20b6aa-25ed-4b2c-bc11-0908f7abb103")
+	)
+	(hierarchical_label "FlipFlops_Q:3"
+		(shape bidirectional)
+		(at 156.21 68.58 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "45ce3601-b148-4c32-9b6f-1da3dcb6ce35")
+	)
+	(hierarchical_label "FlipFlops_Q:2"
+		(shape bidirectional)
+		(at 121.92 27.94 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "4c8e7df2-0eba-4531-be1d-f17ae5701230")
+	)
+	(hierarchical_label "FlipFlops_R:3"
+		(shape bidirectional)
+		(at 148.59 78.74 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "6014ea4b-21ee-461e-a383-492c2b190f1d")
+	)
+	(hierarchical_label "FlipFlops_R:4"
+		(shape bidirectional)
+		(at 114.3 80.01 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "7ec7d5e9-5726-4db2-925b-fb25f37298dc")
+	)
+	(hierarchical_label "FlipFlops_R:7"
+		(shape bidirectional)
+		(at 180.34 78.74 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "86f037f4-19f7-47c2-b483-a56c6a9bb0db")
+	)
+	(hierarchical_label "FlipFlops_R:0"
+		(shape bidirectional)
+		(at 71.12 39.37 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "9c2150db-a788-4249-ab0e-472dfc5a413e")
+	)
+	(hierarchical_label "FlipFlops_R:6"
+		(shape bidirectional)
+		(at 147.32 38.1 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "a90b91bd-cdb1-4137-b958-12f375171558")
+	)
+	(hierarchical_label "FlipFlops_R:2"
+		(shape bidirectional)
+		(at 114.3 38.1 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "d6098722-5a6e-4508-8e6a-60faf7e2ef36")
+	)
+	(hierarchical_label "FlipFlops_Q:6"
+		(shape bidirectional)
+		(at 154.94 27.94 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "ee980c34-28e8-4a0d-a9d5-2b55dfed0d8e")
+	)
+	(symbol
+		(lib_id "74xx:74LS74")
+		(at 114.3 30.48 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "36d0055a-1d5d-4324-8621-5ad62b365cd8")
+		(property "Reference" "U77"
+			(at 116.4433 20.32 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "74LS74"
+			(at 116.4433 22.86 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 114.3 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/sn74ls74a.pdf"
+			(at 114.3 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Dual D Flip-flop, Set & Reset"
+			(at 114.3 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "7"
+			(uuid "dec23134-3462-488d-a998-a07fb94beb97")
+		)
+		(pin "4"
+			(uuid "9880f55c-93be-4dca-a52b-349136392438")
+		)
+		(pin "14"
+			(uuid "334c6d28-eadc-4081-baa4-6d56167c04ef")
+		)
+		(pin "9"
+			(uuid "c70ad6bb-46a9-4aa9-94ef-5ae984ca7300")
+		)
+		(pin "8"
+			(uuid "9113c11e-1145-4dc7-9b93-16431ef96049")
+		)
+		(pin "10"
+			(uuid "d5877876-0e50-448d-9728-bac93ec95c31")
+		)
+		(pin "6"
+			(uuid "d794c787-980c-43cb-ad51-0297d772b98d")
+		)
+		(pin "5"
+			(uuid "e8250193-017f-482e-8661-10c7b8879d1e")
+		)
+		(pin "2"
+			(uuid "3aa718dd-3d44-4c4c-a77b-b62a9b6bc510")
+		)
+		(pin "11"
+			(uuid "4f02f7d9-8229-453c-9dda-b8932807a078")
+		)
+		(pin "12"
+			(uuid "7f2b7c6e-ac54-4fd2-8294-3719c8ee8898")
+		)
+		(pin "13"
+			(uuid "ef3696b8-e858-46b6-9918-9e51f67248f3")
+		)
+		(pin "3"
+			(uuid "96df0d2f-535a-4b02-9298-8c8d04c8940a")
+		)
+		(pin "1"
+			(uuid "6f1b4539-1df3-4569-9a68-a011bf74baf4")
+		)
+		(instances
+			(project "micropin"
+				(path "/75e3dd82-1c82-4987-8f9d-b8c67fce50a0/ddde7c94-f839-4308-9490-a7b29386d7b5"
+					(reference "U77")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "74xx:74LS74")
+		(at 147.32 30.48 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "40fb33d9-9cfb-4617-bbdf-8a22c255254b")
+		(property "Reference" "U87"
+			(at 149.4633 20.32 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "74LS74"
+			(at 149.4633 22.86 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 147.32 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/sn74ls74a.pdf"
+			(at 147.32 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Dual D Flip-flop, Set & Reset"
+			(at 147.32 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "7"
+			(uuid "dec23134-3462-488d-a998-a07fb94beb9a")
+		)
+		(pin "4"
+			(uuid "e8018508-ccf1-415c-8c77-8559a3f95fa8")
+		)
+		(pin "14"
+			(uuid "334c6d28-eadc-4081-baa4-6d56167c04f2")
+		)
+		(pin "9"
+			(uuid "c70ad6bb-46a9-4aa9-94ef-5ae984ca7302")
+		)
+		(pin "8"
+			(uuid "9113c11e-1145-4dc7-9b93-16431ef9604b")
+		)
+		(pin "10"
+			(uuid "d5877876-0e50-448d-9728-bac93ec95c33")
+		)
+		(pin "6"
+			(uuid "1b8f8ab2-85c2-4e01-8c8b-6c1ab18ca18e")
+		)
+		(pin "5"
+			(uuid "4f1b6a70-50ff-4bbb-9641-2b98614e275f")
+		)
+		(pin "2"
+			(uuid "68936356-3f46-4f7c-b213-f255c14d2275")
+		)
+		(pin "11"
+			(uuid "4f02f7d9-8229-453c-9dda-b8932807a07a")
+		)
+		(pin "12"
+			(uuid "7f2b7c6e-ac54-4fd2-8294-3719c8ee889a")
+		)
+		(pin "13"
+			(uuid "ef3696b8-e858-46b6-9918-9e51f67248f5")
+		)
+		(pin "3"
+			(uuid "ed796669-64a3-4c19-95e0-f216eff6462f")
+		)
+		(pin "1"
+			(uuid "e51f19d7-fad2-4976-bf94-c54d2532fda2")
+		)
+		(instances
+			(project "micropin"
+				(path "/75e3dd82-1c82-4987-8f9d-b8c67fce50a0/ddde7c94-f839-4308-9490-a7b29386d7b5"
+					(reference "U87")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "74xx:74LS74")
+		(at 71.12 71.12 0)
+		(unit 2)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "4735c7ce-050d-401e-b3fb-d669e1fe137d")
+		(property "Reference" "U76"
+			(at 73.2633 60.96 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "74LS74"
+			(at 73.2633 63.5 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 71.12 71.12 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/sn74ls74a.pdf"
+			(at 71.12 71.12 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Dual D Flip-flop, Set & Reset"
+			(at 71.12 71.12 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "7"
+			(uuid "dec23134-3462-488d-a998-a07fb94beb98")
+		)
+		(pin "4"
+			(uuid "a1e0a31d-651e-4f1f-aa22-4707294af022")
+		)
+		(pin "14"
+			(uuid "334c6d28-eadc-4081-baa4-6d56167c04f0")
+		)
+		(pin "9"
+			(uuid "2da229de-f5ec-45a8-9640-dd07b599c00b")
+		)
+		(pin "8"
+			(uuid "d66b9feb-eeb2-4b25-b036-31f5d61c2218")
+		)
+		(pin "10"
+			(uuid "faa9689f-0e10-40b3-badc-7ceeb1cfd513")
+		)
+		(pin "6"
+			(uuid "1ad5a38c-8ac0-4d79-a34e-8d888a0df33b")
+		)
+		(pin "5"
+			(uuid "48d8bcde-fe78-4c3c-8b34-6795da6f37c2")
+		)
+		(pin "2"
+			(uuid "a7323917-e742-4591-af06-dbe460115873")
+		)
+		(pin "11"
+			(uuid "512113cc-e126-4006-ae04-41c851fbdfba")
+		)
+		(pin "12"
+			(uuid "d82ec2fa-8005-428e-92d6-ebe6dbf04677")
+		)
+		(pin "13"
+			(uuid "06cbcc2c-bc7a-4485-81a1-0afa7edfa855")
+		)
+		(pin "3"
+			(uuid "b8267b6a-425d-4515-968f-f0c97dd04d14")
+		)
+		(pin "1"
+			(uuid "9130843d-54c7-4552-b576-27b498bf0b38")
+		)
+		(instances
+			(project "micropin"
+				(path "/75e3dd82-1c82-4987-8f9d-b8c67fce50a0/ddde7c94-f839-4308-9490-a7b29386d7b5"
+					(reference "U76")
+					(unit 2)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:VCC")
+		(at 54.61 29.21 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "77aa9a87-1fa4-4303-acaf-01ba2099e2a7")
+		(property "Reference" "#PWR04"
+			(at 54.61 33.02 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "VCC"
+			(at 54.61 24.13 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 54.61 29.21 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 54.61 29.21 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"VCC\""
+			(at 54.61 29.21 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "eb5e1005-c545-4809-b629-3668e51aef53")
+		)
+		(instances
+			(project "micropin"
+				(path "/75e3dd82-1c82-4987-8f9d-b8c67fce50a0/ddde7c94-f839-4308-9490-a7b29386d7b5"
+					(reference "#PWR04")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "74xx:74LS74")
+		(at 148.59 71.12 0)
+		(unit 2)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "7de4ff8d-ca5b-41d4-bf7e-2abe2f00a775")
+		(property "Reference" "U87"
+			(at 150.7333 60.96 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "74LS74"
+			(at 150.7333 63.5 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 148.59 71.12 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/sn74ls74a.pdf"
+			(at 148.59 71.12 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Dual D Flip-flop, Set & Reset"
+			(at 148.59 71.12 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "7"
+			(uuid "dec23134-3462-488d-a998-a07fb94beb9b")
+		)
+		(pin "4"
+			(uuid "a1e0a31d-651e-4f1f-aa22-4707294af024")
+		)
+		(pin "14"
+			(uuid "334c6d28-eadc-4081-baa4-6d56167c04f3")
+		)
+		(pin "9"
+			(uuid "a447f160-d32f-43e8-aa32-0151e4a37e31")
+		)
+		(pin "8"
+			(uuid "b7f265b2-5d42-4d79-85c2-4afb8c26330f")
+		)
+		(pin "10"
+			(uuid "6d297555-05c5-4fb7-bd49-071e3238ead0")
+		)
+		(pin "6"
+			(uuid "1ad5a38c-8ac0-4d79-a34e-8d888a0df33d")
+		)
+		(pin "5"
+			(uuid "48d8bcde-fe78-4c3c-8b34-6795da6f37c4")
+		)
+		(pin "2"
+			(uuid "a7323917-e742-4591-af06-dbe460115875")
+		)
+		(pin "11"
+			(uuid "c8fa79e2-c806-493d-8e3e-a549d8300655")
+		)
+		(pin "12"
+			(uuid "74a13d51-9f87-4d2c-af97-ae9f63e8a95c")
+		)
+		(pin "13"
+			(uuid "c4af3bac-9780-4c21-887d-56c3920fdc89")
+		)
+		(pin "3"
+			(uuid "b8267b6a-425d-4515-968f-f0c97dd04d16")
+		)
+		(pin "1"
+			(uuid "9130843d-54c7-4552-b576-27b498bf0b3a")
+		)
+		(instances
+			(project "micropin"
+				(path "/75e3dd82-1c82-4987-8f9d-b8c67fce50a0/ddde7c94-f839-4308-9490-a7b29386d7b5"
+					(reference "U87")
+					(unit 2)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "74xx:74LS74")
+		(at 114.3 72.39 0)
+		(unit 2)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "a0f70011-7dad-4fc9-99dd-f71838763614")
+		(property "Reference" "U77"
+			(at 116.4433 62.23 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "74LS74"
+			(at 116.4433 64.77 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 114.3 72.39 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/sn74ls74a.pdf"
+			(at 114.3 72.39 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Dual D Flip-flop, Set & Reset"
+			(at 114.3 72.39 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "7"
+			(uuid "dec23134-3462-488d-a998-a07fb94beb96")
+		)
+		(pin "4"
+			(uuid "a1e0a31d-651e-4f1f-aa22-4707294af021")
+		)
+		(pin "14"
+			(uuid "334c6d28-eadc-4081-baa4-6d56167c04ee")
+		)
+		(pin "9"
+			(uuid "429d4a10-6980-492c-b328-5df0d160f2d3")
+		)
+		(pin "8"
+			(uuid "fe8025b0-0657-4bdb-9022-814e0733bad7")
+		)
+		(pin "10"
+			(uuid "e7ffe80c-a986-4fca-ac83-6381382b36d7")
+		)
+		(pin "6"
+			(uuid "1ad5a38c-8ac0-4d79-a34e-8d888a0df33a")
+		)
+		(pin "5"
+			(uuid "48d8bcde-fe78-4c3c-8b34-6795da6f37c1")
+		)
+		(pin "2"
+			(uuid "a7323917-e742-4591-af06-dbe460115872")
+		)
+		(pin "11"
+			(uuid "374f6963-24a5-4202-aead-b6bbf3e6ca8b")
+		)
+		(pin "12"
+			(uuid "8a9c0df8-614a-457d-857a-a705d76e8dd1")
+		)
+		(pin "13"
+			(uuid "fe5531c3-a6f6-441f-bb98-20ee09dd44c8")
+		)
+		(pin "3"
+			(uuid "b8267b6a-425d-4515-968f-f0c97dd04d13")
+		)
+		(pin "1"
+			(uuid "9130843d-54c7-4552-b576-27b498bf0b37")
+		)
+		(instances
+			(project "micropin"
+				(path "/75e3dd82-1c82-4987-8f9d-b8c67fce50a0/ddde7c94-f839-4308-9490-a7b29386d7b5"
+					(reference "U77")
+					(unit 2)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "74xx:74LS74")
+		(at 180.34 30.48 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "a9455cbc-f5a8-47c7-979c-236c32371c6e")
+		(property "Reference" "U75"
+			(at 182.4833 20.32 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "74LS74"
+			(at 182.4833 22.86 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 180.34 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/sn74ls74a.pdf"
+			(at 180.34 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Dual D Flip-flop, Set & Reset"
+			(at 180.34 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "7"
+			(uuid "dec23134-3462-488d-a998-a07fb94beb97")
+		)
+		(pin "4"
+			(uuid "e5d7def1-4531-4f66-b207-4202c31995bc")
+		)
+		(pin "14"
+			(uuid "334c6d28-eadc-4081-baa4-6d56167c04ef")
+		)
+		(pin "9"
+			(uuid "c70ad6bb-46a9-4aa9-94ef-5ae984ca7300")
+		)
+		(pin "8"
+			(uuid "9113c11e-1145-4dc7-9b93-16431ef96049")
+		)
+		(pin "10"
+			(uuid "d5877876-0e50-448d-9728-bac93ec95c31")
+		)
+		(pin "6"
+			(uuid "a1be2496-0079-44a3-9a95-99a8a3e93953")
+		)
+		(pin "5"
+			(uuid "17db0019-384b-469c-801c-2a89d805f2fb")
+		)
+		(pin "2"
+			(uuid "99a657a0-0a44-4aaf-9ec3-145f12ffc289")
+		)
+		(pin "11"
+			(uuid "4f02f7d9-8229-453c-9dda-b8932807a078")
+		)
+		(pin "12"
+			(uuid "7f2b7c6e-ac54-4fd2-8294-3719c8ee8898")
+		)
+		(pin "13"
+			(uuid "ef3696b8-e858-46b6-9918-9e51f67248f3")
+		)
+		(pin "3"
+			(uuid "382bad2f-20d6-4e61-99ae-44050fb39778")
+		)
+		(pin "1"
+			(uuid "08425f36-0d88-4ef6-af29-5a41a7d21530")
+		)
+		(instances
+			(project "micropin"
+				(path "/75e3dd82-1c82-4987-8f9d-b8c67fce50a0/ddde7c94-f839-4308-9490-a7b29386d7b5"
+					(reference "U75")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "74xx:74LS74")
+		(at 71.12 31.75 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "c07fa310-8fa1-40b7-8d20-74ac1a20088b")
+		(property "Reference" "U76"
+			(at 73.2633 21.59 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "74LS74"
+			(at 73.2633 24.13 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 71.12 31.75 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/sn74ls74a.pdf"
+			(at 71.12 31.75 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Dual D Flip-flop, Set & Reset"
+			(at 71.12 31.75 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "7"
+			(uuid "dec23134-3462-488d-a998-a07fb94beb99")
+		)
+		(pin "4"
+			(uuid "1a7de3e5-ca40-450c-a008-daadcd321819")
+		)
+		(pin "14"
+			(uuid "334c6d28-eadc-4081-baa4-6d56167c04f1")
+		)
+		(pin "9"
+			(uuid "c70ad6bb-46a9-4aa9-94ef-5ae984ca7301")
+		)
+		(pin "8"
+			(uuid "9113c11e-1145-4dc7-9b93-16431ef9604a")
+		)
+		(pin "10"
+			(uuid "d5877876-0e50-448d-9728-bac93ec95c32")
+		)
+		(pin "6"
+			(uuid "052bda68-6783-4050-87d0-2ade0a8f6ef7")
+		)
+		(pin "5"
+			(uuid "4c14142f-3f73-47f7-848f-7c027449c3ba")
+		)
+		(pin "2"
+			(uuid "0d1f04b9-6b54-4e38-b078-6197e0cbe6a8")
+		)
+		(pin "11"
+			(uuid "4f02f7d9-8229-453c-9dda-b8932807a079")
+		)
+		(pin "12"
+			(uuid "7f2b7c6e-ac54-4fd2-8294-3719c8ee8899")
+		)
+		(pin "13"
+			(uuid "ef3696b8-e858-46b6-9918-9e51f67248f4")
+		)
+		(pin "3"
+			(uuid "2e14dc1b-5d40-4e22-be72-08388ee537b8")
+		)
+		(pin "1"
+			(uuid "195c580a-fffc-4829-a1a2-f0b8e87b19e3")
+		)
+		(instances
+			(project "micropin"
+				(path "/75e3dd82-1c82-4987-8f9d-b8c67fce50a0/ddde7c94-f839-4308-9490-a7b29386d7b5"
+					(reference "U76")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "74xx:74LS74")
+		(at 180.34 71.12 0)
+		(unit 2)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "f347c685-8050-4524-a536-926b510c7404")
+		(property "Reference" "U75"
+			(at 182.4833 60.96 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "74LS74"
+			(at 182.4833 63.5 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 180.34 71.12 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/sn74ls74a.pdf"
+			(at 180.34 71.12 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Dual D Flip-flop, Set & Reset"
+			(at 180.34 71.12 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "7"
+			(uuid "dec23134-3462-488d-a998-a07fb94beb96")
+		)
+		(pin "4"
+			(uuid "a1e0a31d-651e-4f1f-aa22-4707294af021")
+		)
+		(pin "14"
+			(uuid "334c6d28-eadc-4081-baa4-6d56167c04ee")
+		)
+		(pin "9"
+			(uuid "2a76931e-8d33-40e3-87a4-d7ff3fdf15be")
+		)
+		(pin "8"
+			(uuid "d5f805b6-2148-4544-8258-c5791104171d")
+		)
+		(pin "10"
+			(uuid "a5914e88-32c9-4ac6-99d2-8d1a2b08af4b")
+		)
+		(pin "6"
+			(uuid "1ad5a38c-8ac0-4d79-a34e-8d888a0df33a")
+		)
+		(pin "5"
+			(uuid "48d8bcde-fe78-4c3c-8b34-6795da6f37c1")
+		)
+		(pin "2"
+			(uuid "a7323917-e742-4591-af06-dbe460115872")
+		)
+		(pin "11"
+			(uuid "75ee9648-9fce-481d-bd30-5b0f27f00fad")
+		)
+		(pin "12"
+			(uuid "c32084f9-4d58-4cce-8e44-70c37d3e665e")
+		)
+		(pin "13"
+			(uuid "e3f9bd81-9aec-4907-b048-2d99cc33d8d8")
+		)
+		(pin "3"
+			(uuid "b8267b6a-425d-4515-968f-f0c97dd04d13")
+		)
+		(pin "1"
+			(uuid "9130843d-54c7-4552-b576-27b498bf0b37")
+		)
+		(instances
+			(project "micropin"
+				(path "/75e3dd82-1c82-4987-8f9d-b8c67fce50a0/ddde7c94-f839-4308-9490-a7b29386d7b5"
+					(reference "U75")
+					(unit 2)
+				)
+			)
+		)
+	)
+)
