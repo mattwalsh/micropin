@@ -47,8 +47,8 @@ LOCAL_CRC_COMPLEMENT EQU #228e
 REFLEX_EVENT_LATCH EQU #228f
 CABINET_EVENT_LATCH EQU #2290
 REFLEX_COIL_TIMERS EQU #2291
-; Bumper/slingshot lease in board-periodic timer ticks (formerly 9).  Twelve
-; ticks gives the pop bumpers a conservative 20% longer pull than the prior 10.
+; Bumper/slingshot lease in board-periodic timer ticks.  Twelve ticks gives
+; the pop bumpers a slightly stronger, more satisfying real-machine pull.
 REFLEX_PULSE_TICKS EQU #0c
 CUP_COIL_TIMERS EQU #2297
 CUP_COMMAND_BYTE EQU #229d
@@ -474,27 +474,45 @@ CAPTURE_HOST_RESPONSE:
         STA REFLEX_EVENT_LATCH
 ; Cabinet controls do not need interrupt latency; sample Port 4 once per host
 ; transaction. Port 5 contains DIP switches and is intentionally omitted in
-; aperture mode. The former reserved byte now carries rising closure edges for
-; the eight rollovers, preserving the established 36-byte switch trailer.
+; aperture mode. The fourth event byte carries rising closure edges for the
+; eight rollovers; the separate packed-contact trailer follows below.
         IN #04
         STA LOCAL_SWITCH_4
         LDA ROLLOVER_HIT_LATCH
         STA LOCAL_SWITCH_5
         XRA A
         STA ROLLOVER_HIT_LATCH
-; Keep the timing-sensitive response transmitter at its previously tested ROM
-; addresses. Replacing LDA+RIM with IN+XRA made this block one byte shorter.
-        NOP
-        LXI H,SWITCH_DMA_SOURCE
-        LXI D,LOCAL_SWITCH_DMA
-        MVI B,#20
-CAPTURE_SWITCH_DMA:
+; The motherboard's 32-byte scan image stores one meaningful state bit ($10)
+; per contact. Pack all 32 contacts into four bytes for the aperture response,
+; rather than transporting 28 legacy padding bytes. Work backward within each
+; group: CPI #10 puts Carry=1 for a closed (clear-$10) contact, then RAL puts
+; it in its natural contact-number bit position (slot 24 in bit 0 through
+; slot 31 in bit 7, and likewise for the other groups).
+        LXI H,SWITCH_DMA_SOURCE+#1f
+        LXI D,LOCAL_SWITCH_DMA+#03
+        MVI B,#04
+PACK_SWITCH_GROUP:
+; DE is the output pointer, so keep the packed byte in C rather than E.
+; Save the four-group count while B becomes this group's eight-bit counter.
+        PUSH B
+        MVI C,#00
+        MVI B,#08
+PACK_SWITCH_BIT:
         MOV A,M
-        STAX D
-        INX H
-        INX D
+        ANI #10
+        CPI #10
+        MOV A,C
+        RAL
+        MOV C,A
+        DCX H
         DCR B
-        JNZ CAPTURE_SWITCH_DMA
+        JNZ PACK_SWITCH_BIT
+        MOV A,C
+        STAX D
+        DCX D
+        POP B
+        DCR B
+        JNZ PACK_SWITCH_GROUP
         LDA LOCAL_PENDING_SEQUENCE
         MOV C,A
 
@@ -503,8 +521,10 @@ TRANSMIT_RESPONSE:
         MVI D,#00
         MOV A,C
         CALL SEND_BYTE
-; Compact response: sequence plus 36 switch bytes, without payload echo.
-        MVI A,#24
+; Compact response: sequence plus 4 event bytes and 4 packed switch bytes,
+; without payload echo. The Python host expands the packed contacts back to
+; its established 32-entry DMA image.
+        MVI A,#08
         NOP
         NOP
         NOP
@@ -531,7 +551,7 @@ SEND_SWITCH_SNAPSHOT:
         CALL SEND_BYTE
         LDA LOCAL_SWITCH_5
         CALL SEND_BYTE
-        MVI B,#20
+        MVI B,#04
         LXI H,LOCAL_SWITCH_DMA
 SEND_SWITCH_DMA:
         MOV A,M
