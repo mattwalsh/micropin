@@ -295,9 +295,6 @@ CABINET_SAMPLE_WINDOW:
         DCR A
         JNZ CABINET_SAMPLE_WINDOW
         DI
-; Refresh the short-lived rollover/standup latches at the ~1 ms idle cadence,
-; independently of the much slower host transaction rate.
-        CALL LATCH_SENSITIVE_SWITCHES
         LDA HOST_SEQUENCE
         MOV B,A
         LDA HOST_SEQUENCE
@@ -474,7 +471,6 @@ CAPTURE_HOST_RESPONSE:
 ; reuse these bytes rather than changing the response underneath its sequence.
 ; Atomically consume the Port-0 and Port-1 events accumulated by their ISRs.
         DI
-        CALL LATCH_SENSITIVE_SWITCHES
         LDA CABINET_EVENT_LATCH
         STA LOCAL_SWITCH_0
         XRA A
