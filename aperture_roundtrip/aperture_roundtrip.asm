@@ -10,9 +10,9 @@
 ;
 ; Response frame uses address strobes:
 ;   read $10e0 to start
-;   transmit sequence, length (36), port 0, the RST 5.5-latched
-;   Port-1 reflex events, cabinet Port 4, latched rollover edges, the 32 raw
-;   playfield DMA samples at
+;   transmit sequence, length (8), Port-0 events, RST 5.5-latched Port-1
+;   reflex events, cabinet Port 4, per-frame rollover events, and four packed
+;   playfield-contact bytes at
 ;   $23e0-$23ff, and CRC-8 as paired high/low-nibble reads from
 ;   $10c0+nibble and $10d0+nibble
 ;   read $10e1 to finish and acknowledge the host sequence
@@ -60,8 +60,13 @@ FLIPPER_COIL_TIMERS EQU #22a3
 LAUNCHER_COIL_TIMER EQU #22a5
 PREVIOUS_LAUNCH_COMMAND EQU #22a6
 FLIPPER_PWM_MASK EQU #22a7
-ROLLOVER_PREVIOUS EQU #22a8
-ROLLOVER_HIT_LATCH EQU #22a9
+; Thirteen $00/$10 active-low latches for the eight rollovers followed by the
+; five standups.  The DMA-update ISR ANDs each raw source into its latch; a
+; closure therefore survives until the next host response consumes it.
+; The standup bar is not in DMA RAM: Port-1 bit 6 is already retained in
+; REFLEX_EVENT_LATCH by REFLEX_SWITCH_ISR.
+SENSITIVE_SWITCH_SHADOW EQU #22a8
+SENSITIVE_SWITCH_COUNT EQU #0d
 SWITCH_DMA_SOURCE EQU #23e0
 SWITCH_CHANGE_DISPLAY EQU #23d3
 MAX_PAYLOAD EQU #40
@@ -240,11 +245,17 @@ INITIALIZE_SWITCH_BASELINE:
         INX D
         DCR B
         JNZ INITIALIZE_SWITCH_BASELINE
-; Establish the eight rollover contact levels without reporting a hit merely
-; because a ball was already resting on one when power came up.
-        CALL SCAN_ROLLOVERS
-        XRA A
-        STA ROLLOVER_HIT_LATCH
+; Clear the selected-contact sticky latches to their active-low "not seen"
+; state, then establish their first DMA sample before entering the game loop.
+        MVI A,#10
+        LXI H,SENSITIVE_SWITCH_SHADOW
+        MVI B,SENSITIVE_SWITCH_COUNT
+CLEAR_SENSITIVE_SWITCH_SHADOW:
+        MOV M,A
+        INX H
+        DCR B
+        JNZ CLEAR_SENSITIVE_SWITCH_SHADOW
+        CALL LATCH_SENSITIVE_SWITCHES
 ; Acknowledge stale sources, then unmask RST 5.5 and RST 6.5 while leaving
 ; RST 7.5 masked. RST 5.5 drives the six local reflex coils; RST 6.5 supplies
 ; their bounded expiration cadence.
@@ -284,9 +295,9 @@ CABINET_SAMPLE_WINDOW:
         DCR A
         JNZ CABINET_SAMPLE_WINDOW
         DI
-; Poll the eight short-lived rollover contacts at the ~1 ms idle cadence,
+; Refresh the short-lived rollover/standup latches at the ~1 ms idle cadence,
 ; independently of the much slower host transaction rate.
-        CALL SCAN_ROLLOVERS
+        CALL LATCH_SENSITIVE_SWITCHES
         LDA HOST_SEQUENCE
         MOV B,A
         LDA HOST_SEQUENCE
@@ -463,7 +474,7 @@ CAPTURE_HOST_RESPONSE:
 ; reuse these bytes rather than changing the response underneath its sequence.
 ; Atomically consume the Port-0 and Port-1 events accumulated by their ISRs.
         DI
-        CALL SCAN_ROLLOVERS
+        CALL LATCH_SENSITIVE_SWITCHES
         LDA CABINET_EVENT_LATCH
         STA LOCAL_SWITCH_0
         XRA A
@@ -474,14 +485,12 @@ CAPTURE_HOST_RESPONSE:
         STA REFLEX_EVENT_LATCH
 ; Cabinet controls do not need interrupt latency; sample Port 4 once per host
 ; transaction. Port 5 contains DIP switches and is intentionally omitted in
-; aperture mode. The fourth event byte carries rising closure edges for the
-; eight rollovers; the separate packed-contact trailer follows below.
+; aperture mode. The fourth event byte is rebuilt from the eight rollover
+; latches below; the separate packed-contact trailer follows below.
         IN #04
         STA LOCAL_SWITCH_4
-        LDA ROLLOVER_HIT_LATCH
-        STA LOCAL_SWITCH_5
         XRA A
-        STA ROLLOVER_HIT_LATCH
+        STA LOCAL_SWITCH_5
 ; The motherboard's 32-byte scan image stores one meaningful state bit ($10)
 ; per contact. Pack all 32 contacts into four bytes for the aperture response,
 ; rather than transporting 28 legacy padding bytes. Work backward within each
@@ -513,6 +522,11 @@ PACK_SWITCH_BIT:
         POP B
         DCR B
         JNZ PACK_SWITCH_GROUP
+; Overlay the thirteen per-frame closure latches on the ordinary instantaneous
+; packed snapshot, then reset them.  Thus a short selected-switch hit that
+; opened again before this response is still visible to Python.  The first
+; eight entries also recreate the established rollover-event byte.
+        CALL MERGE_SENSITIVE_SWITCH_SHADOW
         LDA LOCAL_PENDING_SEQUENCE
         MOV C,A
 
@@ -625,13 +639,14 @@ CABINET_BIT_FOUND:
 ; latency-sensitive coil action. Fire a bounded local impulse before doing
 ; ordinary event bookkeeping for the host.
         CALL FIRE_FLIPPER_COIL
-; Port-0 source bit 1 announces a playfield-DMA update. Capture rollover
-; closure edges immediately, rather than waiting for the next host frame.
+; Port-0 source bit 1 announces a playfield-DMA update. Latch the eight
+; rollovers and five standups immediately, rather than waiting for the next
+; host frame.
         MOV A,B
         CPI #01
-        JNZ CABINET_ROLLOVER_SCAN_DONE
-        CALL SCAN_ROLLOVERS
-CABINET_ROLLOVER_SCAN_DONE:
+        JNZ CABINET_SENSITIVE_SCAN_DONE
+        CALL LATCH_SENSITIVE_SWITCHES
+CABINET_SENSITIVE_SCAN_DONE:
 ; Port-0 bit zero is the board's periodic source and supplies the expiration
 ; cadence. Acknowledge it before doing the timer work, and do not burden the
 ; higher-priority RST 6.5 path for DMA/cabinet events with a timer scan.
@@ -1580,84 +1595,237 @@ CLEAR_AY_VOLUMES:
         RET
 
 ; Each raw DMA byte's $10 bit is high when its inductive contact is open.
-; Sample only the eight 500-point rollover contacts and retain 0->1 closure
-; edges until CAPTURE_HOST_RESPONSE consumes the latch. Low-nibble measurement
-; jitter cannot manufacture a hit. Preserve BC: C owns the mailbox sequence.
-SCAN_ROLLOVERS:
+; Retain any closure of the eight 500-point rollovers and the five standups
+; until MERGE_SENSITIVE_SWITCH_SHADOW consumes the latch at host-response
+; time.  A shadow byte begins at $10 and is only ever ANDed with a raw byte,
+; so it remains exactly $10 (never closed) or $00 (seen closed).  That means
+; the shadow itself masks all irrelevant DMA bits: no explicit ANI is needed.
+; Preserve BC because C owns the mailbox sequence in POLL_HOST.
+LATCH_SENSITIVE_SWITCHES:
         PUSH B
-        MVI B,#00
-        LDA #23f3              ; contact 20, rollover NW
-        ANI #10
-        JNZ ROLLOVER_0_OPEN
-        MOV A,B
-        ORI #01
-        MOV B,A
-ROLLOVER_0_OPEN:
-        LDA #23e9              ; contact 10, rollover W
-        ANI #10
-        JNZ ROLLOVER_1_OPEN
-        MOV A,B
-        ORI #02
-        MOV B,A
-ROLLOVER_1_OPEN:
-        LDA #23ea              ; contact 11, rollover N
-        ANI #10
-        JNZ ROLLOVER_2_OPEN
-        MOV A,B
-        ORI #04
-        MOV B,A
-ROLLOVER_2_OPEN:
-        LDA #23ec              ; contact 13, rollover SE
-        ANI #10
-        JNZ ROLLOVER_3_OPEN
-        MOV A,B
-        ORI #08
-        MOV B,A
-ROLLOVER_3_OPEN:
-        LDA #23ed              ; contact 14, rollover NE
-        ANI #10
-        JNZ ROLLOVER_4_OPEN
-        MOV A,B
-        ORI #10
-        MOV B,A
-ROLLOVER_4_OPEN:
-        LDA #23eb              ; contact 12, rollover E
-        ANI #10
-        JNZ ROLLOVER_5_OPEN
-        MOV A,B
-        ORI #20
-        MOV B,A
-ROLLOVER_5_OPEN:
-        LDA #23f0              ; contact 17, rollover SW
-        ANI #10
-        JNZ ROLLOVER_6_OPEN
-        MOV A,B
-        ORI #40
-        MOV B,A
-ROLLOVER_6_OPEN:
-        LDA #23f1              ; contact 18, rollover S
-        ANI #10
-        JNZ ROLLOVER_7_OPEN
-        MOV A,B
-        ORI #80
-        MOV B,A
-ROLLOVER_7_OPEN:
-        LDA ROLLOVER_PREVIOUS
-        CMA
-        ANA B
-        MOV C,A
-        MOV A,B
-        STA ROLLOVER_PREVIOUS
-        LDA ROLLOVER_HIT_LATCH
-        ORA C
-        STA ROLLOVER_HIT_LATCH
+; rollovers: c20, c10, c11, c13, c14, c12, c17, c18
+        LXI H,SENSITIVE_SWITCH_SHADOW+#00
+        LDA #23f3
+        ANA M
+        MOV M,A
+        LXI H,SENSITIVE_SWITCH_SHADOW+#01
+        LDA #23e9
+        ANA M
+        MOV M,A
+        LXI H,SENSITIVE_SWITCH_SHADOW+#02
+        LDA #23ea
+        ANA M
+        MOV M,A
+        LXI H,SENSITIVE_SWITCH_SHADOW+#03
+        LDA #23ec
+        ANA M
+        MOV M,A
+        LXI H,SENSITIVE_SWITCH_SHADOW+#04
+        LDA #23ed
+        ANA M
+        MOV M,A
+        LXI H,SENSITIVE_SWITCH_SHADOW+#05
+        LDA #23eb
+        ANA M
+        MOV M,A
+        LXI H,SENSITIVE_SWITCH_SHADOW+#06
+        LDA #23f0
+        ANA M
+        MOV M,A
+        LXI H,SENSITIVE_SWITCH_SHADOW+#07
+        LDA #23f1
+        ANA M
+        MOV M,A
+; standups: c29, c27, c22, c23, c24
+        LXI H,SENSITIVE_SWITCH_SHADOW+#08
+        LDA #23fc
+        ANA M
+        MOV M,A
+        LXI H,SENSITIVE_SWITCH_SHADOW+#09
+        LDA #23fa
+        ANA M
+        MOV M,A
+        LXI H,SENSITIVE_SWITCH_SHADOW+#0a
+        LDA #23f5
+        ANA M
+        MOV M,A
+        LXI H,SENSITIVE_SWITCH_SHADOW+#0b
+        LDA #23f6
+        ANA M
+        MOV M,A
+        LXI H,SENSITIVE_SWITCH_SHADOW+#0c
+        LDA #23f7
+        ANA M
+        MOV M,A
         POP B
         RET
 
+; Fold selected per-frame closures into LOCAL_SWITCH_DMA.  The output's packed
+; bit n represents contact n closed.  Shadow zero means that contact closed at
+; least once since the preceding accepted host transaction.  Reset every entry
+; to $10 immediately after consuming it; interrupts are already disabled for
+; this coherent response capture.
+MERGE_SENSITIVE_SWITCH_SHADOW:
+; rollover c20 -> packed byte 2, bit 3; event bit 0
+        LDA SENSITIVE_SWITCH_SHADOW+#00
+        ORA A
+        JNZ MERGE_ROLLOVER_0_CLEAR
+        LDA LOCAL_SWITCH_DMA+#02
+        ORI #08
+        STA LOCAL_SWITCH_DMA+#02
+        LDA LOCAL_SWITCH_5
+        ORI #01
+        STA LOCAL_SWITCH_5
+MERGE_ROLLOVER_0_CLEAR:
+        MVI A,#10
+        STA SENSITIVE_SWITCH_SHADOW+#00
+; rollover c10 -> packed byte 1, bit 1; event bit 1
+        LDA SENSITIVE_SWITCH_SHADOW+#01
+        ORA A
+        JNZ MERGE_ROLLOVER_1_CLEAR
+        LDA LOCAL_SWITCH_DMA+#01
+        ORI #02
+        STA LOCAL_SWITCH_DMA+#01
+        LDA LOCAL_SWITCH_5
+        ORI #02
+        STA LOCAL_SWITCH_5
+MERGE_ROLLOVER_1_CLEAR:
+        MVI A,#10
+        STA SENSITIVE_SWITCH_SHADOW+#01
+; rollover c11 -> packed byte 1, bit 2; event bit 2
+        LDA SENSITIVE_SWITCH_SHADOW+#02
+        ORA A
+        JNZ MERGE_ROLLOVER_2_CLEAR
+        LDA LOCAL_SWITCH_DMA+#01
+        ORI #04
+        STA LOCAL_SWITCH_DMA+#01
+        LDA LOCAL_SWITCH_5
+        ORI #04
+        STA LOCAL_SWITCH_5
+MERGE_ROLLOVER_2_CLEAR:
+        MVI A,#10
+        STA SENSITIVE_SWITCH_SHADOW+#02
+; rollover c13 -> packed byte 1, bit 4; event bit 3
+        LDA SENSITIVE_SWITCH_SHADOW+#03
+        ORA A
+        JNZ MERGE_ROLLOVER_3_CLEAR
+        LDA LOCAL_SWITCH_DMA+#01
+        ORI #10
+        STA LOCAL_SWITCH_DMA+#01
+        LDA LOCAL_SWITCH_5
+        ORI #08
+        STA LOCAL_SWITCH_5
+MERGE_ROLLOVER_3_CLEAR:
+        MVI A,#10
+        STA SENSITIVE_SWITCH_SHADOW+#03
+; rollover c14 -> packed byte 1, bit 5; event bit 4
+        LDA SENSITIVE_SWITCH_SHADOW+#04
+        ORA A
+        JNZ MERGE_ROLLOVER_4_CLEAR
+        LDA LOCAL_SWITCH_DMA+#01
+        ORI #20
+        STA LOCAL_SWITCH_DMA+#01
+        LDA LOCAL_SWITCH_5
+        ORI #10
+        STA LOCAL_SWITCH_5
+MERGE_ROLLOVER_4_CLEAR:
+        MVI A,#10
+        STA SENSITIVE_SWITCH_SHADOW+#04
+; rollover c12 -> packed byte 1, bit 3; event bit 5
+        LDA SENSITIVE_SWITCH_SHADOW+#05
+        ORA A
+        JNZ MERGE_ROLLOVER_5_CLEAR
+        LDA LOCAL_SWITCH_DMA+#01
+        ORI #08
+        STA LOCAL_SWITCH_DMA+#01
+        LDA LOCAL_SWITCH_5
+        ORI #20
+        STA LOCAL_SWITCH_5
+MERGE_ROLLOVER_5_CLEAR:
+        MVI A,#10
+        STA SENSITIVE_SWITCH_SHADOW+#05
+; rollover c17 -> packed byte 2, bit 0; event bit 6
+        LDA SENSITIVE_SWITCH_SHADOW+#06
+        ORA A
+        JNZ MERGE_ROLLOVER_6_CLEAR
+        LDA LOCAL_SWITCH_DMA+#02
+        ORI #01
+        STA LOCAL_SWITCH_DMA+#02
+        LDA LOCAL_SWITCH_5
+        ORI #40
+        STA LOCAL_SWITCH_5
+MERGE_ROLLOVER_6_CLEAR:
+        MVI A,#10
+        STA SENSITIVE_SWITCH_SHADOW+#06
+; rollover c18 -> packed byte 2, bit 1; event bit 7
+        LDA SENSITIVE_SWITCH_SHADOW+#07
+        ORA A
+        JNZ MERGE_ROLLOVER_7_CLEAR
+        LDA LOCAL_SWITCH_DMA+#02
+        ORI #02
+        STA LOCAL_SWITCH_DMA+#02
+        LDA LOCAL_SWITCH_5
+        ORI #80
+        STA LOCAL_SWITCH_5
+MERGE_ROLLOVER_7_CLEAR:
+        MVI A,#10
+        STA SENSITIVE_SWITCH_SHADOW+#07
+; standup c29 -> packed byte 3, bit 4
+        LDA SENSITIVE_SWITCH_SHADOW+#08
+        ORA A
+        JNZ MERGE_STANDUP_0_CLEAR
+        LDA LOCAL_SWITCH_DMA+#03
+        ORI #10
+        STA LOCAL_SWITCH_DMA+#03
+MERGE_STANDUP_0_CLEAR:
+        MVI A,#10
+        STA SENSITIVE_SWITCH_SHADOW+#08
+; standup c27 -> packed byte 3, bit 2
+        LDA SENSITIVE_SWITCH_SHADOW+#09
+        ORA A
+        JNZ MERGE_STANDUP_1_CLEAR
+        LDA LOCAL_SWITCH_DMA+#03
+        ORI #04
+        STA LOCAL_SWITCH_DMA+#03
+MERGE_STANDUP_1_CLEAR:
+        MVI A,#10
+        STA SENSITIVE_SWITCH_SHADOW+#09
+; standup c22 -> packed byte 2, bit 5
+        LDA SENSITIVE_SWITCH_SHADOW+#0a
+        ORA A
+        JNZ MERGE_STANDUP_2_CLEAR
+        LDA LOCAL_SWITCH_DMA+#02
+        ORI #20
+        STA LOCAL_SWITCH_DMA+#02
+MERGE_STANDUP_2_CLEAR:
+        MVI A,#10
+        STA SENSITIVE_SWITCH_SHADOW+#0a
+; standup c23 -> packed byte 2, bit 6
+        LDA SENSITIVE_SWITCH_SHADOW+#0b
+        ORA A
+        JNZ MERGE_STANDUP_3_CLEAR
+        LDA LOCAL_SWITCH_DMA+#02
+        ORI #40
+        STA LOCAL_SWITCH_DMA+#02
+MERGE_STANDUP_3_CLEAR:
+        MVI A,#10
+        STA SENSITIVE_SWITCH_SHADOW+#0b
+; standup c24 -> packed byte 2, bit 7
+        LDA SENSITIVE_SWITCH_SHADOW+#0c
+        ORA A
+        JNZ MERGE_STANDUP_4_CLEAR
+        LDA LOCAL_SWITCH_DMA+#02
+        ORI #80
+        STA LOCAL_SWITCH_DMA+#02
+MERGE_STANDUP_4_CLEAR:
+        MVI A,#10
+        STA SENSITIVE_SWITCH_SHADOW+#0c
+        RET
+
 ; CRC-8/ATM table: entry n is the result of shifting byte n through the
-; x^8 + x^2 + x + 1 polynomial.  CRC_TABLE starts at $0900 intentionally;
+; x^8 + x^2 + x + 1 polynomial.  CRC_TABLE starts at $0d00 intentionally;
 ; CRC_UPDATE replaces only L after loading the table page into HL.
-        ORG #0900
+        ORG #0d00
 CRC_TABLE:
         DB #00,#07,#0e,#09,#1c,#1b,#12,#15,#38,#3f,#36,#31,#24,#23,#2a,#2d
         DB #70,#77,#7e,#79,#6c,#6b,#62,#65,#48,#4f,#46,#41,#54,#53,#5a,#5d
