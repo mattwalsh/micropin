@@ -1,0 +1,93 @@
+import unittest
+
+from led_controller import (
+    BLACK_RGB,
+    GameLedRenderer,
+    LAUNCH_FLIPPER_PULSE_PIXELS,
+    LAUNCH_FLIPPER_PULSE_RGB,
+    LAUNCH_FLIPPER_PULSE_SECONDS,
+    StripGeometry,
+    WAITING_WIPE_RGB,
+    WAITING_WIPE_ROWS,
+    WAITING_WIPE_SECONDS,
+)
+
+
+class LedGeometryTests(unittest.TestCase):
+    def test_front_back_pairs_are_mirrored(self) -> None:
+        geometry = StripGeometry(160)
+        self.assertEqual(geometry.rows, 75)
+        self.assertEqual(geometry.physical_pair(0), (0, 154))
+        self.assertEqual(geometry.physical_pair(74), (74, 80))
+
+    def test_row_colors_land_on_both_halves(self) -> None:
+        geometry = StripGeometry(8, ignored_pixels=frozenset())
+        pixels = geometry.rows_to_pixels([(1, 2, 3)] * 4)
+        self.assertEqual(pixels[:3], bytes((1, 2, 3)))
+        self.assertEqual(pixels[-3:], bytes((1, 2, 3)))
+
+    def test_game_strip_uses_the_calibrated_75_row_spans(self) -> None:
+        geometry = StripGeometry(160)
+        pixels = geometry.rows_to_pixels([(1, 2, 3)] * geometry.rows)
+        self.assertEqual(pixels[75 * 3 : 80 * 3], b"\0" * 15)
+        self.assertEqual(pixels[155 * 3 : 160 * 3], b"\0" * 15)
+
+    def test_normal_playfield_is_uniform_and_sound_does_not_change_it(self) -> None:
+        renderer = GameLedRenderer(StripGeometry(160))
+        quiet = renderer.frame(b"\0" * 5, 0xFF, 0)
+        lit = renderer.frame(b"\x01" + b"\0" * 4, 0xFF, 0)
+        tone = renderer.frame(b"\0" * 5, 0x80, 4)
+        self.assertEqual(quiet, lit)
+        self.assertEqual(quiet, tone)
+
+    def test_waiting_wipe_is_ten_rows_blackout_and_moves_toward_the_back(self) -> None:
+        geometry = StripGeometry(160)
+        renderer = GameLedRenderer(geometry)
+        pixels = renderer.frame(b"\0" * 5, 0xFF, 0, waiting_for_launch=True, now=0.0)
+        # At the start, a full ten-row band starts at the front and every
+        # non-band row is black, independent of ordinary lamp state.
+        self.assertEqual(pixels[:3], bytes(WAITING_WIPE_RGB))
+        row_9_left, _ = geometry.physical_pair(WAITING_WIPE_ROWS - 1)
+        row_10_left, _ = geometry.physical_pair(WAITING_WIPE_ROWS)
+        self.assertEqual(pixels[row_9_left * 3 : row_9_left * 3 + 3], bytes(WAITING_WIPE_RGB))
+        self.assertEqual(pixels[row_10_left * 3 : row_10_left * 3 + 3], bytes(BLACK_RGB))
+        later = renderer.frame(
+            b"\0" * 5, 0xFF, 0,
+            waiting_for_launch=True,
+            now=WAITING_WIPE_SECONDS / 2,
+        )
+        # Halfway through, the ten-row band has moved toward the middle.
+        left, right = geometry.physical_pair(37)
+        self.assertEqual(later[left * 3 : left * 3 + 3], bytes(WAITING_WIPE_RGB))
+        self.assertEqual(later[right * 3 : right * 3 + 3], bytes(WAITING_WIPE_RGB))
+
+    def test_named_launch_wipe_matches_waiting_renderer(self) -> None:
+        renderer = GameLedRenderer(StripGeometry(160))
+        self.assertEqual(
+            renderer.effect_frame("launch_wipe", now=0.5),
+            renderer.frame(b"\0" * 5, 0, 0, waiting_for_launch=True, now=0.5),
+        )
+
+    def test_launch_flipper_pulse_only_uses_the_final_ten_pixels(self) -> None:
+        geometry = StripGeometry(160)
+        renderer = GameLedRenderer(geometry)
+        # One half-cycle is the bright point of the cosine-shaped breath.
+        pixels = renderer.effect_frame(
+            "launch_flipper_pulse", now=LAUNCH_FLIPPER_PULSE_SECONDS / 2
+        )
+        start = geometry.count - LAUNCH_FLIPPER_PULSE_PIXELS
+        self.assertEqual(pixels[:start * 3], b"\0" * (start * 3))
+        self.assertEqual(pixels[start * 3:], bytes(LAUNCH_FLIPPER_PULSE_RGB) * 10)
+        self.assertEqual(
+            renderer.effect_frame("launch_flipper_pulse", now=0),
+            b"\0" * (geometry.count * 3),
+        )
+
+    def test_vivid_rainbow_starts_with_saturated_red(self) -> None:
+        renderer = GameLedRenderer(StripGeometry(160))
+        frame = renderer.effect_frame("rainbow_vivid", now=0)
+        self.assertEqual(frame[:3], bytes((255, 0, 0)))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -313,7 +313,7 @@ class MicropinGameTests(unittest.TestCase):
         frame = game.initial_output()
         self.assertEqual(self.lit_rollover_lamps(game), set(ROLLOVER_LAMPS))
         payload = frame.to_payload()
-        self.assertEqual(len(payload), 45)
+        self.assertEqual(len(payload), 43)
         self.assertEqual(payload[:3], b"\xffMP")
         self.assertEqual(payload[-5:], frame.lamp_bitmap)
 
