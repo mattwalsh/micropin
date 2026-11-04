@@ -4,7 +4,8 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass, field
+from contextlib import nullcontext
+from dataclasses import dataclass, field, replace
 from enum import Enum, IntEnum
 import json
 import os
@@ -16,7 +17,30 @@ import tomllib
 from collections.abc import Callable, Iterable
 
 from aperture_stress import SerialLines, drain_received, find_device, parse_state
-from micropin_protocol import DisplayFrame, build_control_payload
+from led_controller import (
+    LED_EFFECT_NAMES,
+    GameLedRenderer,
+    LedTransport,
+    ROLLOVER_CHASE_SECONDS,
+    StripGeometry,
+    boot_pulse,
+)
+from midi_ay import (
+    MidiAySequencer,
+    MidiSongConfig,
+    MidiTrack,
+    MidiVoiceConfig,
+    load_midi,
+    load_midi_song_config,
+)
+from micropin_protocol import (
+    AyRegisterImage,
+    AyRegisterUpdate,
+    DisplayFrame,
+    build_ay_payload,
+    build_control_payload,
+    legacy_pitch_to_ay_period,
+)
 from random_lamp_test import ResponseMismatch, send_and_verify
 
 
@@ -91,8 +115,8 @@ SAME_PLAYER_AGAIN_SECONDS = 2.0
 SAME_PLAYER_AGAIN_FLASH_HZ = 4.0
 SAME_PLAYER_AGAIN_LAMP = 6
 WAITING_PLAYER_FLASH_HZ = 2.0
-GRACE_SECONDS = 4.0
-GRACE_FLASH_EARLY_OFF_SECONDS = 0.5
+DEFAULT_BALL_SAVE_SECONDS = 4.0
+DEFAULT_BALL_SAVE_GRACE_SECONDS = 0.5
 DEFAULT_CONFIG_PATH = Path(__file__).with_name("micropin_game.toml")
 
 REFLEX_EVENT_NAMES = (
@@ -112,6 +136,9 @@ class SoundMode(IntEnum):
     SHORT = 0x04
     MEDIUM = 0x08
     LONG = 0x0C
+
+
+DEFAULT_SOUND_MODE = SoundMode.MEDIUM
 
 
 @dataclass(frozen=True)
@@ -142,12 +169,151 @@ class SongNote:
     interval_seconds: float
 
 
+@dataclass(frozen=True)
+class CueBinding:
+    """A named, one-shot presentation cue.
+
+    A cue has exactly one audio source.  ``sequence`` is rendered by the game
+    rules immediately; ``midi`` is retained as structured host-side metadata
+    so the transport layer can schedule it through the AY without teaching the
+    8085 game rules about MIDI files.  ``light_effect`` is likewise a host
+    presentation concern.
+    """
+
+    name: str
+    sequence: tuple[SongNote, ...] = ()
+    midi: str | None = None
+    start_measure: int = 1
+    end_measure: int | None = None
+    light_effect: str | None = None
+    duration_seconds: float = 0.0
+
+
 class _Forever:
     def __repr__(self) -> str:
         return "FOREVER"
 
 
 FOREVER = _Forever()
+
+
+@dataclass(frozen=True)
+class SoundSequence:
+    """A timed melody; note intervals determine onset spacing, not sustain."""
+
+    name: str
+    notes: tuple[SongNote, ...]
+    repeat: int | _Forever | None = None
+    priority: int = 0
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "notes", tuple(self.notes))
+        if not self.notes:
+            raise ValueError("sound sequence must contain at least one note")
+        if any(note.interval_seconds <= 0 for note in self.notes):
+            raise ValueError("sound sequence note intervals must be positive")
+        if self.repeat is not None and self.repeat is not FOREVER:
+            if (
+                not isinstance(self.repeat, int)
+                or isinstance(self.repeat, bool)
+                or self.repeat < 1
+            ):
+                raise ValueError(
+                    "sound sequence repeat must be a positive integer, FOREVER, or None"
+                )
+
+
+@dataclass
+class _ActiveSoundSequence:
+    sequence: SoundSequence
+    next_note_at: float
+    order: int
+    note_index: int = 0
+    passes: int = 0
+    cancelled: bool = False
+    finished: bool = False
+
+
+class SoundSequenceHandle:
+    def __init__(
+        self, controller: "SoundController", active: _ActiveSoundSequence
+    ) -> None:
+        self._controller = controller
+        self._active = active
+
+    def cancel(self) -> None:
+        self._active.cancelled = True
+
+    @property
+    def finished(self) -> bool:
+        return self._active.cancelled or self._active.finished
+
+
+class SoundController:
+    """Advances concurrent melodies and emits at most one note per frame."""
+
+    def __init__(self, *, clock: Callable[[], float] = time.monotonic) -> None:
+        self._clock = clock
+        self._active: list[_ActiveSoundSequence] = []
+        self._next_order = 0
+
+    def play(
+        self,
+        sequence: SoundSequence,
+        *,
+        delay_seconds: float = 0.0,
+    ) -> SoundSequenceHandle:
+        if delay_seconds < 0:
+            raise ValueError("sound sequence delay cannot be negative")
+        active = _ActiveSoundSequence(
+            sequence=sequence,
+            next_note_at=self._clock() + delay_seconds,
+            order=self._next_order,
+        )
+        self._next_order += 1
+        self._active.append(active)
+        return SoundSequenceHandle(self, active)
+
+    def cancel_all(self) -> None:
+        for active in self._active:
+            active.cancelled = True
+
+    @staticmethod
+    def _starts_another_pass(active: _ActiveSoundSequence) -> bool:
+        repeat = active.sequence.repeat
+        if repeat is FOREVER:
+            return True
+        passes = 1 if repeat is None else repeat
+        return active.passes < passes
+
+    def advance(self, *, now: float | None = None) -> Tone | None:
+        now = self._clock() if now is None else now
+        candidates: list[tuple[int, int, Tone]] = []
+        sequence_ended = False
+        for active in self._active:
+            if active.cancelled or active.finished or now < active.next_note_at:
+                continue
+            if active.note_index >= len(active.sequence.notes):
+                active.passes += 1
+                if not self._starts_another_pass(active):
+                    active.finished = True
+                    sequence_ended = True
+                    continue
+                active.note_index = 0
+            note = active.sequence.notes[active.note_index]
+            active.note_index += 1
+            active.next_note_at = now + note.interval_seconds
+            candidates.append(
+                (active.sequence.priority, active.order, note.tone)
+            )
+        self._active = [
+            active
+            for active in self._active
+            if not active.cancelled and not active.finished
+        ]
+        if not candidates:
+            return Tone(0, SoundMode.SILENCE) if sequence_ended else None
+        return max(candidates, key=lambda item: (item[0], item[1]))[2]
 
 
 class LampMode(Enum):
@@ -501,14 +667,14 @@ ATTRACT_LAMP_ANIMATIONS = (
 
 
 DEFAULT_MATCH_WIN_SONG = tuple(
-    SongNote(Tone(pitch, SoundMode.LONG), 0.14)
+    SongNote(Tone(pitch, DEFAULT_SOUND_MODE), 0.14)
     for pitch in (0xf1, 0xd6, 0xf1, 0xb4, 0x8f, 0xb4, 0x78)
 )
 
 # Hoisted from ppm/ppm.asm's Funkytown phrase; 00/00 pairs are rests.
 DEFAULT_FUNKYTOWN_SONG = tuple(
     SongNote(
-        Tone(pitch, SoundMode.LONG if pitch else SoundMode.SILENCE), 0.14
+        Tone(pitch, DEFAULT_SOUND_MODE if pitch else SoundMode.SILENCE), 0.14
     )
     for pitch in (0x87, 0x87, 0x78, 0x87, 0, 0x65, 0, 0x65,
                   0x87, 0xbf, 0xaa, 0x87)
@@ -517,42 +683,42 @@ DEFAULT_FUNKYTOWN_SONG = tuple(
 # Approximate semitone steps using the emulator's current pitch conversion.
 # These remain configurable pending measurements of the actual oscillator.
 DEFAULT_LAUNCH_SONG = tuple(
-    SongNote(Tone(pitch, SoundMode.LONG), 0.07)
+    SongNote(Tone(pitch, DEFAULT_SOUND_MODE), 0.07)
     for pitch in (0x78, 0x7e, 0x85, 0x8c, 0x94)
 )
 DEFAULT_OUTLANE_SONG = tuple(reversed(DEFAULT_LAUNCH_SONG))
 DEFAULT_OUTLANE_SAVE_SONG = (
-    SongNote(Tone(0x78, SoundMode.LONG), 0.07),
-    SongNote(Tone(0xae, SoundMode.LONG), 0.07),
+    SongNote(Tone(0x78, DEFAULT_SOUND_MODE), 0.07),
+    SongNote(Tone(0xae, DEFAULT_SOUND_MODE), 0.07),
 )
 DEFAULT_CHARGE_SONG = tuple(
-    SongNote(Tone(pitch, SoundMode.LONG), 0.09)
+    SongNote(Tone(pitch, DEFAULT_SOUND_MODE), 0.09)
     for pitch in (0x78, 0x94, 0xae, 0xe4, 0xae, 0xe4)
 )
-DEFAULT_ADD_CREDIT_SONG = (SongNote(Tone(0x78, SoundMode.LONG), 0.14),)
+DEFAULT_ADD_CREDIT_SONG = (SongNote(Tone(0x78, DEFAULT_SOUND_MODE), 0.14),)
 DEFAULT_MUTE_ON_SONG = (
-    SongNote(Tone(0x94, SoundMode.LONG), 0.10),
-    SongNote(Tone(0x78, SoundMode.LONG), 0.10),
+    SongNote(Tone(0x94, DEFAULT_SOUND_MODE), 0.10),
+    SongNote(Tone(0x78, DEFAULT_SOUND_MODE), 0.10),
 )
 DEFAULT_MUTE_OFF_SONG = tuple(reversed(DEFAULT_MUTE_ON_SONG))
 DEFAULT_STANDUP_COMPLETE_SONG = (
-    SongNote(Tone(0xae, SoundMode.LONG), 0.14),
+    SongNote(Tone(0xae, DEFAULT_SOUND_MODE), 0.14),
 )
 DEFAULT_BONUS_2X_SONG = (
-    SongNote(Tone(0x78, SoundMode.LONG), 0.10),
-    SongNote(Tone(0xae, SoundMode.LONG), 0.10),
+    SongNote(Tone(0x78, DEFAULT_SOUND_MODE), 0.10),
+    SongNote(Tone(0xae, DEFAULT_SOUND_MODE), 0.10),
 )
 DEFAULT_BONUS_3X_SONG = (
-    SongNote(Tone(0x78, SoundMode.LONG), 0.08),
-    SongNote(Tone(0x94, SoundMode.LONG), 0.08),
-    SongNote(Tone(0xca, SoundMode.LONG), 0.08),
+    SongNote(Tone(0x78, DEFAULT_SOUND_MODE), 0.08),
+    SongNote(Tone(0x94, DEFAULT_SOUND_MODE), 0.08),
+    SongNote(Tone(0xca, DEFAULT_SOUND_MODE), 0.08),
 )
 DEFAULT_SIDE_BONUS_HOLE_SONG = tuple(
-    SongNote(Tone(pitch, SoundMode.LONG), 0.10)
+    SongNote(Tone(pitch, DEFAULT_SOUND_MODE), 0.10)
     for pitch in (0x78, 0x94, 0xae)
 )
 DEFAULT_TILT_SONG = tuple(
-    SongNote(Tone(pitch, SoundMode.LONG), interval)
+    SongNote(Tone(pitch, DEFAULT_SOUND_MODE), interval)
     for pitch, interval in (
         (0x3c, 0.30), (0x3c, 0.30), (0x57, 0.70),
         (0x3c, 0.30), (0x57, 0.30), (0x6e, 0.70),
@@ -562,9 +728,13 @@ DEFAULT_TILT_SONG = tuple(
 
 @dataclass(frozen=True)
 class GameConfig:
+    default_sound_mode: SoundMode = DEFAULT_SOUND_MODE
     balls_per_game: int = 4
     hole_settle_seconds: float = 0.5
     credit_long_press_seconds: float = 3.0
+    ball_save_seconds: float = DEFAULT_BALL_SAVE_SECONDS
+    ball_save_grace_seconds: float = DEFAULT_BALL_SAVE_GRACE_SECONDS
+    match_percentage: float = 0.1
     inlane_bonus_points: int = 1000
     bonus_tick_seconds: float = 0.10
     bonus_pause_seconds: float = 0.75
@@ -572,26 +742,32 @@ class GameConfig:
     bonus_multiplier_pause_seconds: float = 0.5
     reflex_points: tuple[int, ...] = (25, 50, 100, 10, 5, 5)
     reflex_sounds: tuple[Tone, ...] = (
-        Tone(0xca, SoundMode.LONG),
-        Tone(0xaa, SoundMode.LONG),
-        Tone(0x87, SoundMode.LONG),
-        Tone(0x65, SoundMode.LONG),
-        Tone(0x33, SoundMode.LONG),
-        Tone(0x3c, SoundMode.LONG),
+        Tone(0xca, DEFAULT_SOUND_MODE),
+        Tone(0xaa, DEFAULT_SOUND_MODE),
+        Tone(0x87, DEFAULT_SOUND_MODE),
+        Tone(0x65, DEFAULT_SOUND_MODE),
+        Tone(0x33, DEFAULT_SOUND_MODE),
+        Tone(0x3c, DEFAULT_SOUND_MODE),
     )
-    match_sound: Tone = Tone(0x78, SoundMode.LONG)
-    bonus_add_sound: Tone = Tone(0x87, SoundMode.LONG)
-    bonus_payout_sound: Tone = Tone(0x87, SoundMode.LONG)
-    end_ball_sound: Tone = Tone(0x15, SoundMode.LONG)
-    standup_sound: Tone = Tone(0x87, SoundMode.LONG)
-    rollover_sound: Tone = Tone(0x54, SoundMode.LONG)
-    rollover_complete_sound: Tone = Tone(0xf1, SoundMode.LONG)
-    cup_lit_sound: Tone = Tone(0x65, SoundMode.LONG)
-    cup_unlit_sound: Tone = Tone(0x33, SoundMode.LONG)
-    cups_complete_sound: Tone = Tone(0xf1, SoundMode.LONG)
+    match_sound: Tone = Tone(0x78, DEFAULT_SOUND_MODE)
+    bonus_add_sound: Tone = Tone(0x87, DEFAULT_SOUND_MODE)
+    bonus_payout_sound: Tone = Tone(0x87, DEFAULT_SOUND_MODE)
+    end_ball_sound: Tone = Tone(0x15, DEFAULT_SOUND_MODE)
+    standup_sound: Tone = Tone(0x87, DEFAULT_SOUND_MODE)
+    rollover_sound: Tone = Tone(0x54, DEFAULT_SOUND_MODE)
+    rollover_complete_sound: Tone = Tone(0xf1, DEFAULT_SOUND_MODE)
+    cup_lit_sound: Tone = Tone(0x65, DEFAULT_SOUND_MODE)
+    cup_unlit_sound: Tone = Tone(0x33, DEFAULT_SOUND_MODE)
+    cups_complete_sound: Tone = Tone(0xf1, DEFAULT_SOUND_MODE)
     match_win_song: tuple[SongNote, ...] = DEFAULT_MATCH_WIN_SONG
     boot_song: tuple[SongNote, ...] = ()
     start_song: tuple[SongNote, ...] = ()
+    gameplay_song: tuple[SongNote, ...] = ()
+    # Named [midi_songs.<name>] entries used for host-side gameplay music.
+    # One entry is fixed; several entries are chosen per gameplay launch.
+    gameplay_midi_songs: tuple[str, ...] = ()
+    # Fixed AY level for the game’s short legacy sound effects on channel A.
+    effects_volume: int = 1
     launch_song: tuple[SongNote, ...] = DEFAULT_LAUNCH_SONG
     outlane_song: tuple[SongNote, ...] = DEFAULT_OUTLANE_SONG
     outlane_save_song: tuple[SongNote, ...] = DEFAULT_OUTLANE_SAVE_SONG
@@ -606,6 +782,26 @@ class GameConfig:
     mute_on_song: tuple[SongNote, ...] = DEFAULT_MUTE_ON_SONG
     mute_off_song: tuple[SongNote, ...] = DEFAULT_MUTE_OFF_SONG
     default_high_scores: tuple[int, ...] = DEFAULT_HIGH_SCORES
+    song_library: tuple[tuple[str, tuple[SongNote, ...]], ...] = ()
+    # New presentation-facing binding table.  The legacy named song fields
+    # above remain the rules engine's compact fast path during migration.
+    cue_bindings: tuple[CueBinding, ...] = ()
+    waiting_for_launch_light_effect: str | None = None
+    lighting_base_rgb: tuple[int, int, int] = (255, 255, 255)
+    lighting_match_rgb: tuple[int, int, int] = (0, 0, 0)
+    lighting_tilt_rgb: tuple[int, int, int] = (255, 0, 0)
+    lighting_fade_seconds: float = 0.35
+
+    def cue(self, name: str) -> CueBinding:
+        for binding in self.cue_bindings:
+            if binding.name == name:
+                return binding
+        # Unit tests and small embedders may construct GameConfig directly.
+        # Preserve the historic defaults without forcing them to declare the
+        # presentation-only cue table.
+        if name == "high_score":
+            return CueBinding(name=name, sequence=self.high_score_song)
+        raise KeyError(f"unknown cue {name!r}")
 
 
 def load_game_config(path: Path) -> GameConfig:
@@ -631,6 +827,23 @@ def load_game_config(path: Path) -> GameConfig:
     hole_settle_seconds = float(holes.get("settle_seconds", 0.5))
     if not 0 <= hole_settle_seconds <= 5.0:
         raise ValueError("holes.settle_seconds must be between 0 and 5 seconds")
+
+    ball_save = data.get("ball_save", {})
+    ball_save_seconds = float(ball_save.get("relaunch_seconds", 4.0))
+    ball_save_grace_seconds = float(ball_save.get("grace_seconds", 0.5))
+    if not 0 <= ball_save_seconds <= 30.0:
+        raise ValueError(
+            "ball_save.relaunch_seconds must be between 0 and 30 seconds"
+        )
+    if not 0 <= ball_save_grace_seconds <= ball_save_seconds:
+        raise ValueError(
+            "ball_save.grace_seconds must be between 0 and relaunch_seconds"
+        )
+
+    match = data.get("match", {})
+    match_percentage = float(match.get("percentage", 0.1))
+    if not 0 <= match_percentage <= 1.0:
+        raise ValueError("match.percentage must be between 0.0 and 1.0")
 
     bonus_config = data.get("bonus", {})
     inlane_bonus_points = int(bonus_config.get("inlane_points", 1000))
@@ -665,7 +878,9 @@ def load_game_config(path: Path) -> GameConfig:
         raise ValueError("reflex-switch point values cannot be negative")
 
     def load_sound_mode(source: dict, default: SoundMode) -> SoundMode:
-        raw_mode = source.get("mode", source.get("duration", default))
+        raw_mode = source.get(
+            "mode", source.get("default_mode", source.get("duration", default))
+        )
         try:
             if isinstance(raw_mode, str):
                 return SoundMode[raw_mode.strip().upper()]
@@ -675,11 +890,15 @@ def load_game_config(path: Path) -> GameConfig:
                 "sound mode must be silence, short, medium, or long"
             ) from exc
 
+    default_sound_mode = load_sound_mode(
+        data.get("sound", {}), DEFAULT_SOUND_MODE
+    )
+
     def load_tone(name: str, default: Tone) -> Tone:
         source = sounds.get(name, {})
         tone = Tone(
             int(source.get("pitch", default.pitch)),
-            load_sound_mode(source, default.mode),
+            load_sound_mode(source, default_sound_mode),
         )
         if tone.mode is SoundMode.SILENCE:
             raise ValueError(f"sounds.{name} must use short, medium, or long")
@@ -687,70 +906,273 @@ def load_game_config(path: Path) -> GameConfig:
 
     songs = data.get("songs", {})
 
+    default_songs = {
+        "match_win": DEFAULT_MATCH_WIN_SONG,
+        "launch": DEFAULT_LAUNCH_SONG,
+        "outlane": DEFAULT_OUTLANE_SONG,
+        "outlane_save": DEFAULT_OUTLANE_SAVE_SONG,
+        "charge": DEFAULT_CHARGE_SONG,
+        "funkytown": DEFAULT_FUNKYTOWN_SONG,
+        "add_credit": DEFAULT_ADD_CREDIT_SONG,
+        "mute_on": DEFAULT_MUTE_ON_SONG,
+        "mute_off": DEFAULT_MUTE_OFF_SONG,
+        "standup_complete": DEFAULT_STANDUP_COMPLETE_SONG,
+        "bonus_2x": DEFAULT_BONUS_2X_SONG,
+        "bonus_3x": DEFAULT_BONUS_3X_SONG,
+        "side_bonus_hole": DEFAULT_SIDE_BONUS_HOLE_SONG,
+        "tilt": DEFAULT_TILT_SONG,
+    }
+
+    def apply_default_mode(notes: tuple[SongNote, ...]) -> tuple[SongNote, ...]:
+        return tuple(
+            SongNote(
+                Tone(
+                    note.tone.pitch,
+                    SoundMode.SILENCE
+                    if note.tone.pitch == 0
+                    else default_sound_mode,
+                ),
+                note.interval_seconds,
+            )
+            for note in notes
+        )
+
     def load_song(name: str) -> tuple[SongNote, ...]:
         if name == "none":
             return ()
         source = songs.get(name)
-        if source is None and name == "match_win":
-            return DEFAULT_MATCH_WIN_SONG
-        if source is None and name == "launch":
-            return DEFAULT_LAUNCH_SONG
-        if source is None and name == "outlane":
-            return DEFAULT_OUTLANE_SONG
-        if source is None and name == "outlane_save":
-            return DEFAULT_OUTLANE_SAVE_SONG
-        if source is None and name == "charge":
-            return DEFAULT_CHARGE_SONG
-        if source is None and name == "funkytown":
-            return DEFAULT_FUNKYTOWN_SONG
-        if source is None and name == "add_credit":
-            return DEFAULT_ADD_CREDIT_SONG
-        if source is None and name == "mute_on":
-            return DEFAULT_MUTE_ON_SONG
-        if source is None and name == "mute_off":
-            return DEFAULT_MUTE_OFF_SONG
-        if source is None and name == "standup_complete":
-            return DEFAULT_STANDUP_COMPLETE_SONG
-        if source is None and name == "bonus_2x":
-            return DEFAULT_BONUS_2X_SONG
-        if source is None and name == "bonus_3x":
-            return DEFAULT_BONUS_3X_SONG
-        if source is None and name == "side_bonus_hole":
-            return DEFAULT_SIDE_BONUS_HOLE_SONG
-        if source is None and name == "tilt":
-            return DEFAULT_TILT_SONG
-        if not isinstance(source, list) or not source:
+        if source is None:
+            try:
+                return apply_default_mode(default_songs[name])
+            except KeyError as exc:
+                raise ValueError(f"unknown song {name!r}") from exc
+
+        # Legacy [[songs.NAME]] arrays remain readable, while the compact
+        # [songs.NAME] form supplies a sequence-level mode and a notes array.
+        if isinstance(source, list):
+            raw_notes = source
+            sequence_mode = default_sound_mode
+            speedup = 1.0
+        elif isinstance(source, dict):
+            raw_notes = source.get("notes")
+            sequence_mode = load_sound_mode(source, default_sound_mode)
+            speedup = float(source.get("speedup", 1.0))
+        else:
+            raw_notes = None
+            sequence_mode = default_sound_mode
+            speedup = 1.0
+        if not isinstance(raw_notes, list) or not raw_notes:
             raise ValueError(f"songs.{name} must contain at least one note")
-        result = tuple(
-            SongNote(
-                Tone(
-                    int(note["pitch"]),
-                    load_sound_mode(note, SoundMode.SILENCE),
-                ),
-                float(note["interval_seconds"]),
+        if not speedup > 0:
+            raise ValueError(f"songs.{name}.speedup must be greater than zero")
+
+        result: list[SongNote] = []
+        for note in raw_notes:
+            if not isinstance(note, dict) or "pitch" not in note:
+                raise ValueError(f"songs.{name}.notes entries require pitch")
+            pitch = int(note["pitch"])
+            mode = (
+                SoundMode.SILENCE
+                if pitch == 0 and "mode" not in note and "duration" not in note
+                else load_sound_mode(note, sequence_mode)
             )
-            for note in source
-        )
+            seconds = note.get("seconds", note.get("interval_seconds"))
+            if seconds is None:
+                raise ValueError(
+                    f"songs.{name}.notes entries require seconds"
+                )
+            result.append(
+                SongNote(Tone(pitch, mode), float(seconds) / speedup)
+            )
+        loaded = tuple(result)
         if any(
             (note.tone.mode is SoundMode.SILENCE and note.tone.pitch != 0)
             or not 0.01 <= note.interval_seconds <= 5.0
-            for note in result
+            for note in loaded
         ):
             raise ValueError(
                 f"songs.{name} requires an audible mode, or pitch 0 with "
                 "silence, and a 0.01..5-second interval"
             )
-        return result
+        return loaded
 
+    # ``music`` is the original compact configuration surface.  Keep it as a
+    # compatibility layer while ``audio``, ``cues`` and ``backgrounds`` take
+    # over their distinct jobs.
     music = data.get("music", {})
+    if not isinstance(music, dict):
+        raise ValueError("music must be a table")
+    audio = data.get("audio", {})
+    if not isinstance(audio, dict):
+        raise ValueError("audio must be a table")
+    raw_cues = data.get("cues", {})
+    if not isinstance(raw_cues, dict):
+        raise ValueError("cues must be a table")
+    backgrounds = data.get("backgrounds", {})
+    if not isinstance(backgrounds, dict):
+        raise ValueError("backgrounds must be a table")
+    lighting = data.get("lighting", {})
+    if not isinstance(lighting, dict):
+        raise ValueError("lighting must be a table")
+
+    def load_hex_color(name: str, default: tuple[int, int, int]) -> tuple[int, int, int]:
+        raw = str(lighting.get(name, "#{:02x}{:02x}{:02x}".format(*default)))
+        if len(raw) != 7 or not raw.startswith("#"):
+            raise ValueError(f"lighting.{name} must be #aabbcc")
+        try:
+            return tuple(int(raw[index:index + 2], 16) for index in (1, 3, 5))  # type: ignore[return-value]
+        except ValueError as error:
+            raise ValueError(f"lighting.{name} must be #aabbcc") from error
+
+    lighting_base_rgb = load_hex_color("base", (255, 255, 255))
+    lighting_match_rgb = load_hex_color("match", (0, 0, 0))
+    lighting_tilt_rgb = load_hex_color("tilt", (255, 0, 0))
+    lighting_fade_seconds = float(lighting.get("fade_seconds", 0.35))
+    if not 0 <= lighting_fade_seconds <= 5:
+        raise ValueError("lighting.fade_seconds must be 0..5")
     boot_song = load_song(str(music.get("boot", "none")))
     start_song = load_song(str(music.get("start", "none")))
+    gameplay_background = backgrounds.get("gameplay", {})
+    if gameplay_background and not isinstance(gameplay_background, dict):
+        raise ValueError("backgrounds.gameplay must be a table")
+    gameplay_choice = str(
+        gameplay_background.get("sequence", music.get("gameplay", "none"))
+    )
+    midi_songs = data.get("midi_songs", {})
+    midi_name = gameplay_choice.removeprefix("midi_songs.")
+    fixed_gameplay_midi_song = (
+        midi_name
+        if isinstance(midi_songs, dict) and midi_name in midi_songs
+        else None
+    )
+    raw_gameplay_midi_songs = gameplay_background.get(
+        "midi_playlist", music.get("gameplay_midi_songs", [])
+    )
+    if not isinstance(raw_gameplay_midi_songs, list):
+        raise ValueError("music.gameplay_midi_songs must be a list of MIDI song names")
+    gameplay_midi_songs = tuple(str(item) for item in raw_gameplay_midi_songs)
+    # A playlist is itself an unambiguous declaration of a random background;
+    # requiring a redundant ``sequence = 'random'`` buys nothing.
+    if gameplay_midi_songs and gameplay_choice == "none":
+        gameplay_choice = "random"
+    if len(gameplay_midi_songs) != len(set(gameplay_midi_songs)):
+        raise ValueError("music.gameplay_midi_songs must not contain duplicates")
+    if any(not isinstance(midi_songs, dict) or name not in midi_songs for name in gameplay_midi_songs):
+        raise ValueError("music.gameplay_midi_songs contains an unknown MIDI song")
+    if gameplay_choice == "random":
+        if not gameplay_midi_songs:
+            raise ValueError("music.gameplay = 'random' requires gameplay_midi_songs")
+    elif gameplay_midi_songs:
+        raise ValueError("music.gameplay_midi_songs requires music.gameplay = 'random'")
+    elif fixed_gameplay_midi_song is not None:
+        gameplay_midi_songs = (fixed_gameplay_midi_song,)
+    gameplay_song = () if gameplay_midi_songs else load_song(gameplay_choice)
+    effects_volume = int(audio.get("effects_volume", music.get("effects_volume", 1)))
+    if not 1 <= effects_volume <= 0x0f:
+        raise ValueError("audio.effects_volume must be 1-15")
+
+    legacy_cue_names = (
+        "boot", "start", "launch", "outlane", "outlane_save",
+        "standup_special", "standup_complete", "bonus_2x", "bonus_3x",
+        "side_bonus_hole", "tilt", "high_score", "add_credit", "mute_on",
+        "mute_off",
+    )
+
+    def load_cue(name: str, legacy_sequence: str) -> CueBinding:
+        source = raw_cues.get(name)
+        if source is None:
+            return CueBinding(name=name, sequence=load_song(legacy_sequence))
+        if not isinstance(source, dict):
+            raise ValueError(f"cues.{name} must be a table")
+        sequence_name = source.get("sequence")
+        midi_name = source.get("midi")
+        if (sequence_name is None) == (midi_name is None):
+            raise ValueError(
+                f"cues.{name} must specify exactly one of sequence or midi"
+            )
+        if midi_name is not None:
+            midi_name = str(midi_name).removeprefix("midi_songs.")
+            if not isinstance(midi_songs, dict) or midi_name not in midi_songs:
+                raise ValueError(f"cues.{name}.midi names an unknown MIDI song")
+        start_measure = int(source.get("start_measure", 1))
+        end_raw = source.get("end_measure")
+        end_measure = None if end_raw is None else int(end_raw)
+        if start_measure < 1 or (end_measure is not None and end_measure < start_measure):
+            raise ValueError(
+                f"cues.{name} requires start_measure >= 1 and end_measure >= start_measure"
+            )
+        light_effect = source.get("light_effect")
+        if light_effect is not None:
+            light_effect = str(light_effect)
+            if light_effect not in LED_EFFECT_NAMES:
+                raise ValueError(
+                    f"cues.{name}.light_effect must be one of "
+                    + ", ".join(LED_EFFECT_NAMES)
+                )
+        duration_seconds = 0.0
+        if midi_name is not None:
+            midi_config = load_midi_song_config(path, midi_name)
+            midi_file = load_midi(midi_config.path)
+            start_seconds = midi_file.seconds_at_measure(start_measure)
+            end_seconds = (
+                midi_file.seconds_at_measure(end_measure + 1)
+                if end_measure is not None
+                else max((track.duration_seconds for track in midi_file.tracks), default=start_seconds)
+            )
+            duration_seconds = max(0.01, end_seconds - start_seconds)
+        return CueBinding(
+            name=name,
+            sequence=() if midi_name is not None else load_song(str(sequence_name)),
+            midi=midi_name,
+            start_measure=start_measure,
+            end_measure=end_measure,
+            light_effect=light_effect,
+            duration_seconds=duration_seconds,
+        )
+
+    legacy_sequences = {
+        "boot": str(music.get("boot", "none")),
+        "start": str(music.get("start", "none")),
+        "launch": str(music.get("launch", "launch")),
+        "outlane": str(music.get("outlane", "outlane")),
+        "outlane_save": str(music.get("outlane_save", "outlane_save")),
+        "standup_special": str(music.get("standup_special", "charge")),
+        "standup_complete": str(music.get("standup_complete", "standup_complete")),
+        "bonus_2x": str(music.get("bonus_2x", "bonus_2x")),
+        "bonus_3x": str(music.get("bonus_3x", "bonus_3x")),
+        "side_bonus_hole": str(music.get("side_bonus_hole", "side_bonus_hole")),
+        "tilt": str(music.get("tilt", "tilt")),
+        "high_score": str(music.get("high_score", "funkytown")),
+        "add_credit": str(music.get("add_credit", "add_credit")),
+        "mute_on": str(music.get("mute_on", "mute_on")),
+        "mute_off": str(music.get("mute_off", "mute_off")),
+    }
+    cue_bindings = {name: load_cue(name, legacy_sequences[name]) for name in legacy_cue_names}
+    waiting_background = backgrounds.get("waiting_for_launch", {})
+    if waiting_background and not isinstance(waiting_background, dict):
+        raise ValueError("backgrounds.waiting_for_launch must be a table")
+    waiting_for_launch_light_effect = waiting_background.get("light_effect")
+    if waiting_for_launch_light_effect is not None:
+        waiting_for_launch_light_effect = str(waiting_for_launch_light_effect)
+        if waiting_for_launch_light_effect not in LED_EFFECT_NAMES:
+            raise ValueError(
+                "backgrounds.waiting_for_launch.light_effect must be one of "
+                + ", ".join(LED_EFFECT_NAMES)
+            )
 
     return GameConfig(
+        default_sound_mode=default_sound_mode,
         default_high_scores=tuple(sorted(high_scores, reverse=True)),
+        song_library=tuple(
+            (name, load_song(name))
+            for name in sorted(default_songs.keys() | songs.keys())
+        ),
         balls_per_game=balls_per_game,
         hole_settle_seconds=hole_settle_seconds,
         credit_long_press_seconds=credit_long_press_seconds,
+        ball_save_seconds=ball_save_seconds,
+        ball_save_grace_seconds=ball_save_grace_seconds,
+        match_percentage=match_percentage,
         inlane_bonus_points=inlane_bonus_points,
         bonus_tick_seconds=bonus_tick_seconds,
         bonus_pause_seconds=bonus_pause_seconds,
@@ -762,51 +1184,56 @@ def load_game_config(path: Path) -> GameConfig:
             for name, default in zip(
                 REFLEX_EVENT_NAMES,
                 (
-                    Tone(0xca, SoundMode.LONG),
-                    Tone(0xaa, SoundMode.LONG),
-                    Tone(0x87, SoundMode.LONG),
-                    Tone(0x65, SoundMode.LONG),
-                    Tone(0x33, SoundMode.LONG),
-                    Tone(0x3c, SoundMode.LONG),
+                    Tone(0xca, DEFAULT_SOUND_MODE),
+                    Tone(0xaa, DEFAULT_SOUND_MODE),
+                    Tone(0x87, DEFAULT_SOUND_MODE),
+                    Tone(0x65, DEFAULT_SOUND_MODE),
+                    Tone(0x33, DEFAULT_SOUND_MODE),
+                    Tone(0x3c, DEFAULT_SOUND_MODE),
                 ),
             )
         ),
-        match_sound=load_tone("match", Tone(0x78, SoundMode.LONG)),
-        bonus_add_sound=load_tone("bonus_add", Tone(0x87, SoundMode.LONG)),
+        match_sound=load_tone("match", Tone(0x78, DEFAULT_SOUND_MODE)),
+        bonus_add_sound=load_tone("bonus_add", Tone(0x87, DEFAULT_SOUND_MODE)),
         bonus_payout_sound=load_tone(
-            "bonus_payout", Tone(0x87, SoundMode.LONG)
+            "bonus_payout", Tone(0x87, DEFAULT_SOUND_MODE)
         ),
-        end_ball_sound=load_tone("end_ball", Tone(0x15, SoundMode.LONG)),
-        standup_sound=load_tone("standup", Tone(0x87, SoundMode.LONG)),
-        rollover_sound=load_tone("rollover", Tone(0x54, SoundMode.LONG)),
+        end_ball_sound=load_tone("end_ball", Tone(0x15, DEFAULT_SOUND_MODE)),
+        standup_sound=load_tone("standup", Tone(0x87, DEFAULT_SOUND_MODE)),
+        rollover_sound=load_tone("rollover", Tone(0x54, DEFAULT_SOUND_MODE)),
         rollover_complete_sound=load_tone(
-            "rollover_complete", Tone(0xf1, SoundMode.LONG)
+            "rollover_complete", Tone(0xf1, DEFAULT_SOUND_MODE)
         ),
-        cup_lit_sound=load_tone("cup_lit", Tone(0x65, SoundMode.LONG)),
-        cup_unlit_sound=load_tone("cup_unlit", Tone(0x33, SoundMode.LONG)),
+        cup_lit_sound=load_tone("cup_lit", Tone(0x65, DEFAULT_SOUND_MODE)),
+        cup_unlit_sound=load_tone("cup_unlit", Tone(0x33, DEFAULT_SOUND_MODE)),
         cups_complete_sound=load_tone(
-            "cups_complete", Tone(0xf1, SoundMode.LONG)
+            "cups_complete", Tone(0xf1, DEFAULT_SOUND_MODE)
         ),
         match_win_song=load_song("match_win"),
-        boot_song=boot_song,
-        start_song=start_song,
-        launch_song=load_song(str(music.get("launch", "launch"))),
-        outlane_song=load_song(str(music.get("outlane", "outlane"))),
-        outlane_save_song=load_song(str(music.get("outlane_save", "outlane_save"))),
-        standup_special_song=load_song(str(music.get("standup_special", "charge"))),
-        standup_complete_song=load_song(
-            str(music.get("standup_complete", "standup_complete"))
-        ),
-        bonus_2x_song=load_song(str(music.get("bonus_2x", "bonus_2x"))),
-        bonus_3x_song=load_song(str(music.get("bonus_3x", "bonus_3x"))),
-        side_bonus_hole_song=load_song(
-            str(music.get("side_bonus_hole", "side_bonus_hole"))
-        ),
-        tilt_song=load_song(str(music.get("tilt", "tilt"))),
-        high_score_song=load_song(str(music.get("high_score", "funkytown"))),
-        add_credit_song=load_song(str(music.get("add_credit", "add_credit"))),
-        mute_on_song=load_song(str(music.get("mute_on", "mute_on"))),
-        mute_off_song=load_song(str(music.get("mute_off", "mute_off"))),
+        boot_song=cue_bindings["boot"].sequence,
+        start_song=cue_bindings["start"].sequence,
+        gameplay_song=gameplay_song,
+        gameplay_midi_songs=gameplay_midi_songs,
+        effects_volume=effects_volume,
+        launch_song=cue_bindings["launch"].sequence,
+        outlane_song=cue_bindings["outlane"].sequence,
+        outlane_save_song=cue_bindings["outlane_save"].sequence,
+        standup_special_song=cue_bindings["standup_special"].sequence,
+        standup_complete_song=cue_bindings["standup_complete"].sequence,
+        bonus_2x_song=cue_bindings["bonus_2x"].sequence,
+        bonus_3x_song=cue_bindings["bonus_3x"].sequence,
+        side_bonus_hole_song=cue_bindings["side_bonus_hole"].sequence,
+        tilt_song=cue_bindings["tilt"].sequence,
+        high_score_song=cue_bindings["high_score"].sequence,
+        add_credit_song=cue_bindings["add_credit"].sequence,
+        mute_on_song=cue_bindings["mute_on"].sequence,
+        mute_off_song=cue_bindings["mute_off"].sequence,
+        cue_bindings=tuple(cue_bindings.values()),
+        waiting_for_launch_light_effect=waiting_for_launch_light_effect,
+        lighting_base_rgb=lighting_base_rgb,
+        lighting_match_rgb=lighting_match_rgb,
+        lighting_tilt_rgb=lighting_tilt_rgb,
+        lighting_fade_seconds=lighting_fade_seconds,
     )
 
 
@@ -1035,6 +1462,7 @@ class GameContext:
     bonus_completed_at: float | None = None
     match_step: int = 0
     match_digit: int = 0
+    match_sequence: tuple[int, ...] = ()
     last_match_digit: int | None = None
     next_match_time: float = 0.0
 
@@ -1049,8 +1477,14 @@ class OutputFrame:
     lamp_bitmap: bytes | None = None
     tone_pitch: int = 0
     tone_duration: int = 0
+    # A host-rendered, finite presentation effect requested this frame.
+    led_effect: str | None = None
+    # A direct rule event occurred this frame.  It may intentionally repeat
+    # the preceding pitch, but Micropin's shared port-9 sound gate still needs
+    # a fresh AY transaction to make it audible.
+    tone_trigger: bool = False
 
-    def to_payload(self) -> bytes:
+    def to_payload(self, ay_update: AyRegisterUpdate | None = None) -> bytes:
         return build_control_payload(
             lamp=self.lamp,
             lamp_bitmap=self.lamp_bitmap,
@@ -1058,9 +1492,240 @@ class OutputFrame:
             cup_mask=self.cup_mask,
             launch=self.launch,
             display_window=self.display,
-            tone_pitch=self.tone_pitch,
-            tone_duration=self.tone_duration,
+            ay_update=ay_update,
         )
+
+
+class AySoundAdapter:
+    """Translate game sounds plus optional host-side MIDI into AY diffs.
+
+    Game effects have first claim on channel A.  A configured gameplay MIDI
+    song otherwise owns any of A/B/C and resumes its A voice after an effect.
+    """
+
+    def __init__(self, *, volume: int = 1) -> None:
+        if not 1 <= volume <= 0x0f:
+            raise ValueError("AY fixed volume must be 1-15")
+        self.volume = volume
+        self.registers = AyRegisterImage()
+        # Channel A tone only. Disable B/C tone and every noise source.
+        self.registers.set_register(7, 0x3e)
+        self.registers.set_volume(1, 0)
+        self.registers.set_volume(2, 0)
+        self._midi: MidiAySequencer | None = None
+        self._midi_song: MidiSongConfig | None = None
+        self._midi_song_sources: tuple[tuple[MidiVoiceConfig, MidiAySequencer], ...] = ()
+        self._midi_song_positions: tuple[float, ...] | None = None
+        self._midi_song_active = False
+        self._midi_selection: list[tuple[int, ...] | None] = [None, None, None]
+        self._midi_mixer = 0x3f
+        self._effect_was_active = False
+
+    def start_midi(
+        self,
+        track: MidiTrack,
+        *,
+        channel: int = 1,
+        volume: int = 2,
+        loop: bool = False,
+        a4_period: int = 142,
+        now: float | None = None,
+    ) -> None:
+        if channel not in (1, 2):
+            raise ValueError("MIDI must use AY channel B (1) or C (2)")
+        if not 1 <= volume <= 0x0f:
+            raise ValueError("MIDI AY volume must be 1-15")
+        if not track.notes:
+            raise ValueError(f"MIDI track {track.name!r} contains no notes")
+        tone_disable = sum(1 << item for item in range(3) if item not in (0, channel))
+        self.registers.set_register(7, 0x38 | tone_disable)
+        self.registers.set_volume(channel, 0)
+        self._midi = MidiAySequencer(
+            track,
+            channel=channel,
+            volume=volume,
+            loop=loop,
+            a4_period=a4_period,
+            started_at=time.monotonic() if now is None else now,
+        )
+
+    def configure_gameplay_midi(self, song: MidiSongConfig) -> None:
+        """Install a named multi-voice song; playback starts with gameplay."""
+        if self._midi is not None:
+            raise ValueError("--midi cannot be combined with music.gameplay MIDI")
+        self._midi_song = song
+        # A newly selected ball song starts at its configured measure, not at
+        # a position retained from the previous ball.
+        self._midi_song_positions = None
+
+    def set_gameplay_midi_active(self, active: bool, *, now: float | None = None) -> None:
+        """Start, pause, or resume the configured gameplay song on a state change."""
+        if self._midi_song is None or active == self._midi_song_active:
+            return
+        now = time.monotonic() if now is None else now
+        self._midi_song_active = active
+        self._midi_selection = [None, None, None]
+        self._midi_mixer = 0x3f
+        if not active:
+            # A side-bonus payout is a pause, not a fresh song.  Keep each
+            # source independently: looping tracks may have different lengths.
+            self._midi_song_positions = tuple(
+                max(0.0, now - sequencer.started_at)
+                for _voice, sequencer in self._midi_song_sources
+            )
+            # Return to the ordinary game-effect arrangement: A tone enabled,
+            # B/C muted and every noise source disabled.  Otherwise the next
+            # legacy cue after a ball drains would have volume but no mixer
+            # path and appear mysteriously silent.
+            self.registers.set_volume(0, 0)
+            self.registers.set_volume(1, 0)
+            self.registers.set_volume(2, 0)
+            self.registers.set_register(7, 0x3e)
+            return
+
+        song = self._midi_song
+        midi = load_midi(song.path)
+        window_start = midi.seconds_at_measure(song.start_measure)
+        window_end = (
+            midi.seconds_at_measure(song.end_measure + 1)
+            if song.end_measure is not None
+            else None
+        )
+        resume_positions = self._midi_song_positions
+        self._midi_song_sources = tuple(
+            (
+                voice,
+                MidiAySequencer(
+                    midi.select_track(voice.track),
+                    channel=voice.channel,
+                    volume=voice.volume,
+                    loop=song.loop,
+                    a4_period=voice.a4_period,
+                    use_envelope=voice.use_envelope,
+                    envelope_shape=song.envelope_shape,
+                    started_at=now - (
+                        resume_positions[index]
+                        if resume_positions is not None and index < len(resume_positions)
+                        else 0.0
+                    ),
+                    window_start_seconds=window_start,
+                    window_end_seconds=window_end,
+                ),
+            )
+            for index, voice in enumerate(song.voices)
+        )
+        self._midi_song_positions = None
+        self.registers.set_register(7, 0x3f)
+        for channel in range(3):
+            self.registers.set_volume(channel, 0)
+        if song.noise_period is not None:
+            self.registers.set_register(6, song.noise_period)
+        if song.envelope_period is not None:
+            self.registers.set_envelope_period(song.envelope_period)
+            self.registers.trigger_envelope(song.envelope_shape)
+
+    def _advance_gameplay_midi(self, *, now: float, effect_active: bool) -> None:
+        if not self._midi_song_active:
+            return
+        for _voice, sequencer in self._midi_song_sources:
+            sequencer.advance_timeline(now=now)
+
+        # (source index, voice-pool slot, AY period), one winner per AY voice.
+        winners: list[tuple[int, int, int] | None] = [None, None, None]
+        for index, (voice, sequencer) in enumerate(self._midi_song_sources):
+            for slot, period in enumerate(sequencer.active_periods[:len(voice.channels)]):
+                channel = voice.channels[slot]
+                current = winners[channel]
+                if (
+                    current is None
+                    or voice.priority < self._midi_song_sources[current[0]][0].priority
+                ):
+                    winners[channel] = (index, slot, period)
+
+        mixer = 0x3f
+        for channel, winner in enumerate(winners):
+            if winner is None:
+                continue
+            source_index, _slot, _period = winner
+            voice, _sequencer = self._midi_song_sources[source_index]
+            if voice.use_tone:
+                mixer &= ~(1 << channel)
+            if voice.use_noise:
+                mixer &= ~(1 << (channel + 3))
+        # An ordinary game effect must remain audible even while its background
+        # A voice happens to be resting.
+        if effect_active:
+            mixer &= ~0x01
+            mixer |= 0x08
+        if mixer != self._midi_mixer:
+            self.registers.set_register(7, mixer)
+            self._midi_mixer = mixer
+
+        if effect_active != self._effect_was_active:
+            # Once an effect releases A, replay the selected MIDI A state.
+            self._midi_selection[0] = None
+            self._effect_was_active = effect_active
+        for channel, winner in enumerate(winners):
+            if effect_active and channel == 0:
+                continue
+            signature = None
+            if winner is not None:
+                source_index, slot, period = winner
+                signature = (
+                    source_index,
+                    self._midi_song_sources[source_index][1].voice_state.generation,
+                    slot,
+                    period,
+                )
+            if signature == self._midi_selection[channel]:
+                continue
+            if winner is None:
+                self.registers.set_volume(channel, 0)
+            else:
+                source_index, _slot, period = winner
+                voice, _sequencer = self._midi_song_sources[source_index]
+                if voice.use_tone:
+                    self.registers.set_tone_period(channel, period)
+                self.registers.set_volume(channel, 0x10 if voice.use_envelope else voice.volume)
+                if voice.use_envelope:
+                    self.registers.trigger_envelope(self._midi_song.envelope_shape)
+            self._midi_selection[channel] = signature
+
+    def update_for(
+        self, output: OutputFrame, *, now: float | None = None
+    ) -> AyRegisterUpdate:
+        now = time.monotonic() if now is None else now
+        command = (output.tone_pitch, output.tone_duration)
+        effect_active = command != (0xff, 0) and output.tone_pitch != 0 and output.tone_duration != 0
+        self._advance_gameplay_midi(now=now, effect_active=effect_active)
+        if command == (0xff, 0):
+            pass  # No new sound command; retain the current AY state.
+        elif not effect_active:
+            if not self._midi_song_active:
+                self.registers.set_volume(0, 0)
+        else:
+            self.registers.set_tone_period(
+                0, legacy_pitch_to_ay_period(output.tone_pitch)
+            )
+            self.registers.set_volume(0, self.volume)
+            if output.tone_trigger:
+                # R8 is stateful to the AY, but an unchanged write here is
+                # useful: the aperture firmware brackets every AY packet with
+                # the board's port-9 gate.  Direct events such as bonus ticks
+                # therefore need this write even when their pitch repeats.
+                self.registers.write_register(8, self.volume)
+        if self._midi is not None:
+            self._midi.advance(self.registers, now=now)
+        return self.registers.pending_update()
+
+    def silence(self) -> AyRegisterUpdate:
+        self.registers.set_volume(0, 0)
+        self.registers.set_volume(1, 0)
+        self.registers.set_volume(2, 0)
+        return self.registers.pending_update()
+
+    def acknowledge(self, update: AyRegisterUpdate) -> None:
+        self.registers.acknowledge(update)
 
 
 @dataclass(frozen=True)
@@ -1109,12 +1774,11 @@ class MicropinGame:
         self.muted = False
         self._credit_press_started: float | None = None
         self._credit_long_handled = False
-        self._mute_feedback_active = False
+        self.sounds = SoundController(clock=clock)
+        self._mute_feedback_handle: SoundSequenceHandle | None = None
+        self._background_sound: SoundSequenceHandle | None = None
         self._load_nvram()
         self._hole_timer = HoleDwellTimer(OUTHOLE_CONTACT + 1, self.config.hole_settle_seconds)
-        self._song: tuple[SongNote, ...] = ()
-        self._song_index = 0
-        self._next_song_time = 0.0
         self._sound_until: float | None = None
         if not self.muted:
             self._start_song(self.config.boot_song)
@@ -1123,11 +1787,31 @@ class MicropinGame:
     def initial_output(self) -> OutputFrame:
         return self._render_output()
 
+    @property
+    def _song(self) -> tuple[SongNote, ...]:
+        """Most recently started active melody (legacy diagnostic view)."""
+        active = [
+            item
+            for item in self.sounds._active
+            if not item.cancelled and not item.finished
+        ]
+        return max(active, key=lambda item: item.order).sequence.notes if active else ()
+
+    @property
+    def _song_index(self) -> int:
+        active = [
+            item
+            for item in self.sounds._active
+            if not item.cancelled and not item.finished
+        ]
+        return max(active, key=lambda item: item.order).note_index if active else 0
+
     def step(self, inputs: HardwareSnapshot) -> StepResult:
         messages: list[str] = []
         launch = False
         cup_mask = 0
         sound: Tone | None = None
+        led_effect: str | None = None
         newly_closed_outlanes = inputs.closed_outlane_mask & ~self.context.previous_outlane_mask
         self.context.previous_outlane_mask = inputs.closed_outlane_mask
         newly_closed_playfield = inputs.closed_playfield_mask & ~self.context.previous_playfield_mask
@@ -1234,7 +1918,8 @@ class MicropinGame:
                 grace_available = (
                     not self.context.grace_save_used
                     and self.context.grace_started is not None
-                    and 0 <= now - self.context.grace_started < GRACE_SECONDS
+                    and 0 <= now - self.context.grace_started
+                    < self.config.ball_save_seconds
                 )
                 if grace_available or self.context.outlane_save_pending:
                     self.context.outlane_save_pending = True
@@ -1307,15 +1992,14 @@ class MicropinGame:
                     self.context.standups_completed_this_ball = True
                     self._maybe_qualify_extra_ball(messages)
                     self._start_song(self.config.standup_complete_song)
+                    sound = None
                     messages.append(
                         f"standups complete: +{STANDUP_COMPLETE_POINTS} points; "
                         f"bonus {self.context.bonus_multiplier}x; reset solid"
                     )
                 elif flashing_hits:
                     self._start_song(self.config.standup_special_song)
-                else:
-                    # Give a normal target beep priority over an older song.
-                    self._song = ()
+                    sound = None
                 messages.append(f"standup: targets={standup_hits:02x}; +{points} points, +{bonus} bonus")
 
             closed_rollovers = inputs.closed_rollover_mask
@@ -1341,6 +2025,7 @@ class MicropinGame:
                         self.lamps.play(ROLLOVER_COMPLETE_SEQUENCE)
                         messages.append(f"rollovers complete: +{ROLLOVER_COMPLETE_BONUS} bonus")
                         sound = self.config.rollover_complete_sound
+                        led_effect = "rollover_complete_chase"
 
             if not inputs.outhole_closed:
                 self.context.ball_has_left_outhole = True
@@ -1362,7 +2047,8 @@ class MicropinGame:
                         and self.context.grace_started is not None
                         and outhole_started is not None
                         and (self.context.outlane_save_pending
-                             or outhole_started - self.context.grace_started <= GRACE_SECONDS)
+                             or outhole_started - self.context.grace_started
+                             <= self.config.ball_save_seconds)
                     )
                     if (
                         not self.context.tilted
@@ -1381,12 +2067,12 @@ class MicropinGame:
                         launch = True
                         messages.append("same player again: grace save used; auto-launching coil 5")
                     elif self.context.tilted:
-                        self._song = ()
+                        self._stop_songs()
                         sound = self.config.end_ball_sound
                         messages.append("bonus: skipped after tilt")
                         self._finish_ball(messages)
                     else:
-                        self._song = ()
+                        self._stop_songs()
                         sound = self.config.end_ball_sound
                         self._begin_bonus_payout(
                             self.context.bonus_multiplier,
@@ -1397,7 +2083,7 @@ class MicropinGame:
                 if hole == SIDE_BONUS_CUP and scoring_allowed:
                     if self.context.extra_ball_qualified:
                         self._award_extra_ball("side bonus cup", messages)
-                    self._song = ()
+                    self._stop_songs()
                     self._start_song(self.config.side_bonus_hole_song)
                     messages.append(
                         f"side bonus cup: collecting {self.context.bonus} "
@@ -1500,13 +2186,11 @@ class MicropinGame:
                     self._enter_state(GameState.GAME_OVER)
                     messages.append(self._state_message())
                 else:
-                    previous_digit = (
-                        self.context.match_digit if self.context.match_step else None
-                    )
-                    digit = self._random.randrange(10)
-                    while digit == previous_digit:
-                        digit = self._random.randrange(10)
-                    self.context.match_digit = digit
+                    if not self.context.match_sequence:
+                        self._prepare_match_sequence()
+                    self.context.match_digit = self.context.match_sequence[
+                        self.context.match_step
+                    ]
                     sound = self.config.match_sound
                     rate = self._match_rate(self.context.match_step)
                     self.context.match_step += 1
@@ -1515,27 +2199,47 @@ class MicropinGame:
                         f"match: {self.context.match_digit} ({rate:.2f} digits/s)"
                     )
 
+        direct_sound = sound
+        mute_feedback_was_active = (
+            self._mute_feedback_handle is not None
+            and not self._mute_feedback_handle.finished
+        )
         song_sound = self._advance_song(self._clock())
-        if song_sound is not None:
-            sound = song_sound
+        # Immediate rule sounds are the one intentional exception to sequence
+        # priority: a bumper/target/etc. owns this frame, while every melody
+        # continues advancing and can emit its next scheduled note normally.
+        sound = direct_sound if direct_sound is not None else song_sound
         if self.muted:
-            if self._mute_feedback_active:
+            if mute_feedback_was_active:
                 # The mute confirmation is the only song allowed to finish
                 # after mute becomes active. Ignore unrelated direct tones.
                 sound = song_sound
-            elif sound != Tone(0, SoundMode.SILENCE):
+            else:
                 sound = None
+        if (
+            self._mute_feedback_handle is not None
+            and self._mute_feedback_handle.finished
+        ):
+            self._mute_feedback_handle = None
         now = self._clock()
         if sound is not None:
-            self._sound_until = (
-                (self._next_song_time if song_sound is not None else now + 0.14)
-                if sound.mode is not SoundMode.SILENCE else None
-            )
+            if sound.mode is SoundMode.SILENCE:
+                self._sound_until = None
+            elif direct_sound is not None:
+                self._sound_until = now + 0.14
+            else:
+                self._sound_until = None
         elif self._sound_until is not None and now >= self._sound_until:
             sound = Tone(0, SoundMode.SILENCE)
             self._sound_until = None
         return StepResult(
-            self._render_output(cup_mask=cup_mask, launch=launch, sound=sound),
+            self._render_output(
+                cup_mask=cup_mask,
+                launch=launch,
+                sound=sound,
+                tone_trigger=direct_sound is not None,
+                led_effect=led_effect,
+            ),
             tuple(messages),
         )
 
@@ -1704,6 +2408,7 @@ class MicropinGame:
                     self.context.bonus_returns_to_play = False
                     self.context.bonus_completed_at = None
                     self._enter_state(GameState.GAME_PLAYING)
+                    self._start_gameplay_background()
                     cup_mask = 1 << SIDE_BONUS_CUP
                     messages.append("side bonus cup: payout complete; ejecting")
                     messages.append(self._state_message())
@@ -1738,6 +2443,7 @@ class MicropinGame:
                 >= self.config.credit_long_press_seconds
             ):
                 self._credit_long_handled = True
+                self._stop_songs()
                 self.muted = not self.muted
                 self._save_nvram()
                 if self.muted:
@@ -1832,7 +2538,11 @@ class MicropinGame:
         if self._high_score_tributes:
             self._tribute_player = self._high_score_tributes.pop(0)
             self._start_song(self.config.high_score_song)
-            self._tribute_until = now + sum(n.interval_seconds for n in self.config.high_score_song) + 0.5
+            cue = self.config.cue("high_score")
+            duration = cue.duration_seconds or sum(
+                n.interval_seconds for n in self.config.high_score_song
+            )
+            self._tribute_until = now + duration + 0.5
         elif self._tribute_player is not None:
             self._tribute_player = None
             self._attract_started = now
@@ -1842,25 +2552,47 @@ class MicropinGame:
         song: tuple[SongNote, ...],
         *,
         audible_while_muted: bool = False,
-    ) -> None:
-        if self.muted and not audible_while_muted:
-            return
-        self._song = song
-        self._song_index = 0
-        self._next_song_time = self._clock()
-        self._mute_feedback_active = audible_while_muted and bool(song)
+        repeat: int | _Forever | None = None,
+        priority: int = 10,
+        delay_seconds: float = 0.0,
+        name: str = "game_cue",
+    ) -> SoundSequenceHandle | None:
+        if not song or (self.muted and not audible_while_muted):
+            return None
+        handle = self.sounds.play(
+            SoundSequence(
+                name=name,
+                notes=song,
+                repeat=repeat,
+                priority=priority,
+            ),
+            delay_seconds=delay_seconds,
+        )
+        if audible_while_muted:
+            self._mute_feedback_handle = handle
+        return handle
 
     def _advance_song(self, now: float) -> Tone | None:
-        if not self._song or now < self._next_song_time:
-            return None
-        if self._song_index >= len(self._song):
-            self._song = ()
-            self._mute_feedback_active = False
-            return Tone(0, SoundMode.SILENCE)
-        note = self._song[self._song_index]
-        self._song_index += 1
-        self._next_song_time = now + note.interval_seconds
-        return note.tone
+        return self.sounds.advance(now=now)
+
+    def _stop_songs(self) -> None:
+        self.sounds.cancel_all()
+        self._background_sound = None
+        self._mute_feedback_handle = None
+
+    def _start_gameplay_background(
+        self, *, delay_seconds: float = 0.0
+    ) -> None:
+        """Start/restart the looping gameplay bed after a deliberate pause."""
+        if self._background_sound is not None:
+            self._background_sound.cancel()
+        self._background_sound = self._start_song(
+            self.config.gameplay_song,
+            repeat=FOREVER,
+            priority=0,
+            delay_seconds=delay_seconds,
+            name="gameplay_background",
+        )
 
     def _score_reflex_events(self, events: int, messages: list[str]) -> Tone | None:
         events &= 0x3f
@@ -1895,6 +2627,33 @@ class MicropinGame:
             MATCH_END_RATE_HZ - MATCH_START_RATE_HZ
         )
 
+    def _prepare_match_sequence(self) -> None:
+        """Choose the award first, then build a unique six-digit animation."""
+        score_endings = [
+            score % 10
+            for score in self.context.player_scores[
+                :self.context.players_in_game
+            ]
+        ]
+        hit = (
+            bool(score_endings)
+            and self._random.random() < self.config.match_percentage
+        )
+        if hit:
+            final_digit = self._random.choice(score_endings)
+        else:
+            occupied = set(score_endings)
+            losing_digits = [
+                digit for digit in range(10) if digit not in occupied
+            ]
+            final_digit = self._random.choice(losing_digits)
+
+        preceding = [digit for digit in range(10) if digit != final_digit]
+        self._random.shuffle(preceding)
+        self.context.match_sequence = tuple(
+            preceding[: MATCH_SEQUENCE_STEPS - 1] + [final_digit]
+        )
+
     def _add_player(self) -> None:
         """Common entry action for player 1 and each later participant."""
         self.context.players_in_game += 1
@@ -1905,6 +2664,7 @@ class MicropinGame:
     def _start_game(self) -> None:
         self._stop_side_bonus_lamp_effects()
         self.lamps.cancel_all()
+        self._stop_songs()
         self._attract_lamp_handle = None
         self._matched_players.clear()
         self._completed_game_recorded = False
@@ -1944,13 +2704,25 @@ class MicropinGame:
         self.context.last_match_digit = None
         self.context.match_digit = 0
         self.context.match_step = 0
+        self.context.match_sequence = ()
         self.context.bonus_completed_at = None
 
     def _launch_ball(self, *, new_numbered_ball: bool) -> None:
         self._standup_coincidence.clear()
         self.context.outlane_save_pending = False
         self.context.ball_ending = False
-        self._start_song(self.config.launch_song)
+        if self._background_sound is not None:
+            self._background_sound.cancel()
+            self._background_sound = None
+        launch_seconds = sum(
+            note.interval_seconds for note in self.config.launch_song
+        )
+        self._start_song(
+            self.config.launch_song,
+            priority=20,
+            name="launch",
+        )
+        self._start_gameplay_background(delay_seconds=launch_seconds)
         self._enter_state(GameState.GAME_PLAYING)
         self.context.previous_right_flipper = False
         self.context.previous_left_flipper = False
@@ -2018,6 +2790,9 @@ class MicropinGame:
             self._reset_attract_lamps()
         if state is not GameState.GAME_PLAYING:
             self._standup_coincidence.clear()
+            if self._background_sound is not None:
+                self._background_sound.cancel()
+                self._background_sound = None
         if state is GameState.WAITING_FOR_LAUNCH:
             self.context.standup_solid_mask = 0x1f
             self.context.standup_flashing_mask = 0
@@ -2030,6 +2805,7 @@ class MicropinGame:
         if state is GameState.MATCH_SEQUENCE:
             self.context.match_step = 0
             self.context.match_digit = 0
+            self._prepare_match_sequence()
             self.context.next_match_time = self._clock()
 
     def _state_message(self) -> str:
@@ -2074,6 +2850,8 @@ class MicropinGame:
         cup_mask: int = 0,
         launch: bool = False,
         sound: Tone | None = None,
+        tone_trigger: bool = False,
+        led_effect: str | None = None,
     ) -> OutputFrame:
         display = DisplayFrame()
         for player, score in enumerate(self.context.player_scores, start=1):
@@ -2133,7 +2911,9 @@ class MicropinGame:
             self.context.grace_started is not None
             and not self.context.grace_save_used
             and (self.context.outlane_save_pending
-                 or 0 <= now - self.context.grace_started < GRACE_SECONDS - GRACE_FLASH_EARLY_OFF_SECONDS)
+                 or 0 <= now - self.context.grace_started
+                 < self.config.ball_save_seconds
+                 - self.config.ball_save_grace_seconds)
         )
         saved_ball_flash = (
             self.context.same_player_again_started is not None
@@ -2219,6 +2999,8 @@ class MicropinGame:
             # ff/00 is no-op; 00/00 explicitly silences (rests/end/cleanup).
             tone_pitch=sound.pitch if sound else 0xff,
             tone_duration=int(sound.mode) if sound else 0,
+            tone_trigger=tone_trigger,
+            led_effect=led_effect,
         )
 
 
@@ -2235,8 +3017,6 @@ def synchronize_aperture(serial: SerialLines) -> int:
         reflex_enabled=False,
         cup_mask=0,
         launch=False,
-        tone_pitch=0,
-        tone_duration=0,
     )
     last_error: Exception | None = None
     for _ in range(3):
@@ -2255,10 +3035,29 @@ def synchronize_aperture(serial: SerialLines) -> int:
     raise TimeoutError(f"safe aperture resynchronization failed: {last_error}")
 
 
-def safe_cleanup(serial: SerialLines) -> None:
-    """Best effort: silence sound and inhibit every locally controlled coil."""
+def ay_hard_mute_update() -> AyRegisterUpdate:
+    """Return a complete AY image which is silent regardless of prior state."""
+    ay = AyRegisterImage()
+    # Disable tone and noise on all three mixer channels, then explicitly mute
+    # their volume registers.  A complete image is intentional: this is used
+    # when a launcher exits and may not own the current AY mirror.
+    ay.set_register(7, 0x3F)
+    ay.set_volume(0, 0)
+    ay.set_volume(1, 0)
+    ay.set_volume(2, 0)
+    return ay.pending_update()
+
+
+def safe_cleanup(serial: SerialLines, ay_sound: AySoundAdapter | None = None) -> None:
+    """Best effort: silence AY sound and inhibit every locally controlled coil."""
     try:
         synchronize_aperture(serial)
+        update = ay_hard_mute_update()
+        send_and_verify(serial, build_ay_payload(update))
+        if ay_sound is not None:
+            # Keep the local mirror honest too, in case cleanup is ever used
+            # without immediately terminating the host process.
+            ay_sound.silence()
     except (ConnectionError, OSError, RuntimeError, TimeoutError) as error:
         print(f"warning: final safe-output frame was not acknowledged: {error}")
 
@@ -2266,6 +3065,16 @@ def safe_cleanup(serial: SerialLines) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("device", nargs="?", help="CDC device; otherwise auto-detected")
+    parser.add_argument(
+        "--led-device",
+        help="dedicated Romulator LEDs CDC device; enables the folded WS2812 strip",
+    )
+    parser.add_argument("--led-count", type=int, default=160)
+    parser.add_argument(
+        "--led-split",
+        type=int,
+        help="pixels in the first front-to-back strip half (default: half of --led-count)",
+    )
     parser.add_argument(
         "--reset",
         action="store_true",
@@ -2283,14 +3092,68 @@ def main() -> int:
         default=Path(__file__).with_name("micropin_game.nvram.json"),
         help="persistent credits/high-score file",
     )
-    parser.add_argument("--dwell", type=float, default=0.01, help="seconds between frames")
+    parser.add_argument(
+        "--dwell",
+        type=float,
+        default=0.04,
+        help="seconds between frames (default: 0.04; lower values favor MIDI timing)",
+    )
     parser.add_argument("--timeout", type=float, default=5.0)
+    parser.add_argument(
+        "--no-ay",
+        action="store_true",
+        help="omit AY register updates (aperture transport diagnostic)",
+    )
+    parser.add_argument(
+        "--midi", type=Path,
+        help="play one MIDI track underneath the game through AY channel B/C",
+    )
+    parser.add_argument(
+        "--midi-track", default="Synth Pluck (Classic)",
+        help="MIDI track name, or zero-based track number (default: Synth Pluck (Classic))",
+    )
+    parser.add_argument(
+        "--midi-channel", type=int, choices=(1, 2), default=1,
+        help="AY channel for MIDI: 1=B (default), 2=C",
+    )
+    parser.add_argument(
+        "--midi-volume", type=int, default=2,
+        help="fixed AY MIDI volume, 1-15 (default: 2)",
+    )
+    parser.add_argument(
+        "--midi-loop", action="store_true",
+        help="repeat the selected MIDI track after its final note",
+    )
+    parser.add_argument(
+        "--midi-a4-period", type=lambda value: int(value, 0), default=142,
+        help="AY period for MIDI A4; tune by ear if needed (default: 142)",
+    )
     args = parser.parse_args()
     if args.dwell < 0:
         parser.error("--dwell cannot be negative")
+    if args.midi_volume not in range(1, 16):
+        parser.error("--midi-volume must be 1-15")
+    try:
+        geometry = StripGeometry(args.led_count, args.led_split)
+    except ValueError as error:
+        parser.error(str(error))
 
     device = find_device(args.device)
-    game = MicropinGame(load_game_config(args.config), nvram_path=args.nvram)
+    game_config = load_game_config(args.config)
+    game = MicropinGame(game_config, nvram_path=args.nvram)
+    ay_sound = (
+        None if args.no_ay else AySoundAdapter(volume=game_config.effects_volume)
+    )
+    midi_track = None
+    if args.midi is not None:
+        if args.no_ay:
+            parser.error("--midi cannot be used with --no-ay")
+        if game_config.gameplay_midi_songs:
+            parser.error("--midi cannot be combined with music.gameplay MIDI")
+        midi_track = load_midi(args.midi).select_track(args.midi_track)
+    if game_config.gameplay_midi_songs:
+        if args.no_ay:
+            parser.error("music.gameplay MIDI cannot be used with --no-ay")
     stop_requested = False
 
     def request_stop(_signum: int, _frame: object) -> None:
@@ -2300,8 +3163,17 @@ def main() -> int:
     previous_sigint = signal.signal(signal.SIGINT, request_stop)
     print(f"device: {device}")
     print(f"state: {game.context.state.value}")
+    led_context = (
+        LedTransport(args.led_device, led_count=geometry.count)
+        if args.led_device
+        else nullcontext(None)
+    )
 
-    with SerialLines(device, args.timeout) as serial:
+    with led_context as leds, SerialLines(device, args.timeout) as serial:
+        renderer = GameLedRenderer(geometry) if leds is not None else None
+        if leds is not None:
+            print(f"LEDs: {args.led_device} ({geometry.count} pixels, split {geometry.split})")
+            boot_pulse(leds, geometry)
         if args.reset:
             reset_reply = serial.command("reset")
             if reset_reply != "reset ok":
@@ -2310,21 +3182,177 @@ def main() -> int:
             # a moment to initialize RAM and adopt the current mailbox value.
             time.sleep(0.05)
         mode = serial.command("status")
-        if mode not in ("mode aperture", "mode aperture-only"):
-            raise RuntimeError(f"ROMulator is not in aperture mode: {mode!r}")
+        print(f"ROMulator status: {mode}")
         synchronized_sequence = synchronize_aperture(serial)
         print(f"aperture synchronized at sequence {synchronized_sequence:02x}")
+        if midi_track is not None and ay_sound is not None:
+            ay_sound.start_midi(
+                midi_track,
+                channel=args.midi_channel,
+                volume=args.midi_volume,
+                loop=args.midi_loop,
+                a4_period=args.midi_a4_period,
+            )
+            print(
+                f"MIDI: track {midi_track.index} {midi_track.name!r} "
+                f"({len(midi_track.notes)} notes) on AY "
+                f"{'BC'[args.midi_channel - 1]}, volume {args.midi_volume}"
+            )
+        if game_config.gameplay_midi_songs:
+            print(
+                "gameplay MIDI choices: "
+                + ", ".join(repr(name) for name in game_config.gameplay_midi_songs)
+                + " (one is chosen when the ball enters play)"
+            )
         output = game.initial_output()
+        active_led_effect: str | None = None
+        active_led_effect_started_at = 0.0
+        base_rgb = game_config.lighting_base_rgb
+        base_from_rgb = base_rgb
+        base_target_rgb = base_rgb
+        base_transition_started_at = time.monotonic()
+        gameplay_midi_active = False
+        previous_gameplay_midi: str | None = None
+        # A bonus cup temporarily enters BONUS_PROCESSING before returning to
+        # GAME_PLAYING.  It is still the same ball, so it must not be treated
+        # as a new random-background selection merely because MIDI was muted
+        # during the payout.
+        gameplay_midi_ball: tuple[int, int] | None = None
+        high_score_midi_player: int | None = None
+        high_score_midi_until = 0.0
         try:
             while not stop_requested:
-                _sequence, ports, dma = send_and_verify(serial, output.to_payload())
+                now = time.monotonic()
+                if output.led_effect is not None:
+                    active_led_effect = output.led_effect
+                    active_led_effect_started_at = now
+                if ay_sound is not None:
+                    wants_gameplay_midi = (
+                        game.context.state is GameState.GAME_PLAYING
+                        or (
+                            game.context.state is GameState.HIGH_SCORE
+                            and high_score_midi_player is not None
+                            and now < high_score_midi_until
+                        )
+                    )
+                    current_ball = (game.context.current_player, game.context.ball_number)
+                    if (
+                        wants_gameplay_midi
+                        and game_config.gameplay_midi_songs
+                        and current_ball != gameplay_midi_ball
+                    ):
+                        choices = tuple(
+                            name
+                            for name in game_config.gameplay_midi_songs
+                            if name != previous_gameplay_midi
+                        )
+                        # A one-song playlist remains perfectly valid.
+                        selected = random.choice(choices or game_config.gameplay_midi_songs)
+                        ay_sound.configure_gameplay_midi(
+                            load_midi_song_config(args.config, selected)
+                        )
+                        previous_gameplay_midi = selected
+                        gameplay_midi_ball = current_ball
+                        print(f"gameplay MIDI selected: {selected!r}")
+                    ay_sound.set_gameplay_midi_active(wants_gameplay_midi)
+                    gameplay_midi_active = wants_gameplay_midi
+                    high_score_cue = game_config.cue("high_score")
+                    if (
+                        game.context.state is GameState.HIGH_SCORE
+                        and game._tribute_player is not None
+                        and high_score_cue.midi is not None
+                        and high_score_midi_player != game._tribute_player
+                    ):
+                        source = load_midi_song_config(args.config, high_score_cue.midi)
+                        ay_sound.configure_gameplay_midi(
+                            replace(
+                                source,
+                                loop=False,
+                                start_measure=high_score_cue.start_measure,
+                                end_measure=high_score_cue.end_measure,
+                            )
+                        )
+                        ay_sound.set_gameplay_midi_active(True, now=now)
+                        high_score_midi_player = game._tribute_player
+                        high_score_midi_until = now + high_score_cue.duration_seconds
+                        print(
+                            f"high-score MIDI: {high_score_cue.midi!r}, measures "
+                            f"{high_score_cue.start_measure}-{high_score_cue.end_measure or 'end'}"
+                        )
+                    elif (
+                        high_score_midi_player is not None
+                        and now >= high_score_midi_until
+                    ):
+                        ay_sound.set_gameplay_midi_active(False, now=now)
+                        high_score_midi_player = None
+                if leds is not None and renderer is not None:
+                    desired_base_rgb = (
+                        game_config.lighting_tilt_rgb
+                        if game.context.tilted
+                        else game_config.lighting_match_rgb
+                        if game.context.state in (
+                            GameState.MATCH_SEQUENCE,
+                            GameState.WAITING_FOR_LAUNCH,
+                        )
+                        else game_config.lighting_base_rgb
+                    )
+                    fade = game_config.lighting_fade_seconds
+                    if desired_base_rgb != base_target_rgb:
+                        base_from_rgb = base_rgb
+                        base_target_rgb = desired_base_rgb
+                        base_transition_started_at = now
+                    fraction = 1.0 if fade == 0 else min(1.0, (now - base_transition_started_at) / fade)
+                    base_rgb = tuple(
+                        round(start + (target - start) * fraction)
+                        for start, target in zip(base_from_rgb, base_target_rgb)
+                    )
+                    waiting_effect = (
+                        game_config.waiting_for_launch_light_effect
+                        if game.context.state is GameState.WAITING_FOR_LAUNCH
+                        else None
+                    )
+                    high_score_effect = (
+                        game_config.cue("high_score").light_effect
+                        if game.context.state is GameState.HIGH_SCORE
+                        else None
+                    )
+                    if (
+                        active_led_effect == "rollover_complete_chase"
+                        and now - active_led_effect_started_at >= ROLLOVER_CHASE_SECONDS
+                    ):
+                        active_led_effect = None
+                    leds.show(
+                        renderer.effect_frame(
+                            active_led_effect,
+                            now=now - active_led_effect_started_at,
+                        )
+                        if active_led_effect is not None
+                        else renderer.effect_frame(high_score_effect, now=now)
+                        if high_score_effect is not None
+                        else renderer.effect_frame(waiting_effect)
+                        if waiting_effect is not None
+                        else renderer.frame(
+                            output.lamp_bitmap,
+                            output.tone_pitch,
+                            output.tone_duration,
+                            base_rgb=base_rgb,
+                        )
+                    )
+                ay_update = ay_sound.update_for(output) if ay_sound is not None else None
+                _sequence, ports, dma = send_and_verify(
+                    serial, output.to_payload(ay_update)
+                )
+                if ay_sound is not None:
+                    ay_sound.acknowledge(ay_update)
                 result = game.step(HardwareSnapshot.from_wire(ports, dma))
                 for message in result.messages:
                     print(message)
                 output = result.output
                 time.sleep(args.dwell)
         finally:
-            safe_cleanup(serial)
+            if leds is not None:
+                leds.show(bytes(geometry.count * 3))
+            safe_cleanup(serial, ay_sound)
             signal.signal(signal.SIGINT, previous_sigint)
 
     print("stopped; coils inhibited and sound silenced")

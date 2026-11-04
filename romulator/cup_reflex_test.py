@@ -55,8 +55,6 @@ def cleanup_outputs(serial: SerialLines) -> None:
         reflex_enabled=False,
         cup_mask=0,
         launch=False,
-        tone_pitch=0,
-        tone_duration=0,
     )
     last_error: Exception | None = None
     for _ in range(3):
@@ -175,8 +173,6 @@ def main() -> int:
                     cup_mask=command_cups,
                     launch=bool(command_launch),
                     display_window=display_window,
-                    tone_pitch=tone_pitch,
-                    tone_duration=tone_duration,
                 )
                 try:
                     sequence, ports, dma = send_and_verify(serial, payload)

@@ -42,6 +42,22 @@ def describe_events(events: int, names_by_bit: tuple[str, ...]) -> str:
     return ",".join(names) if names else "-"
 
 
+def _expand_packed_contacts(packed: bytes) -> bytes:
+    """Expand four aperture contact bytes to the legacy 32-byte DMA image.
+
+    The motherboard scan RAM represents each contact in one byte, with only
+    bit $10 meaningful.  Aperture response v2 transports that same information
+    densely: packed bit n is one when contact n is closed.  Returning the old
+    representation here keeps all game rules and diagnostic callers stable.
+    """
+    if len(packed) != 4:
+        raise ValueError("expected four packed contact bytes")
+    return bytes(
+        0x00 if packed[index // 8] & (1 << (index % 8)) else 0x10
+        for index in range(32)
+    )
+
+
 def send_and_verify(serial: SerialLines, payload: bytes) -> tuple[int, tuple[int, int, int, int], bytes]:
     reply = serial.command(f"tx {payload.hex()}")
     match = re.fullmatch(r"tx ([0-9a-fA-F]{2})", reply)
@@ -61,19 +77,23 @@ def send_and_verify(serial: SerialLines, payload: bytes) -> tuple[int, tuple[int
                 raise TimeoutError(f"incomplete response for lamp transaction {sequence:02x}")
             time.sleep(0.001)
 
-    # Accept either the compact sequence+switch response or the original full
-    # echo. The Pico validates CRC before delivering either frame to the host.
-    # This keeps the host compatible with the checkpointed diagnostic ROM.
+    # Compact v2 carries four event bytes plus four packed contact bytes.  The
+    # prior 36-byte image and the original echo form remain accepted so old
+    # diagnostic ROMs can still be used with current host tools.
+    compact_v2 = len(response) == 10 and response[:2] == bytes((sequence, 8))
     compact = len(response) == 38 and response[:2] == bytes((sequence, 36))
     expected_prefix = bytes((sequence, len(payload) + 36)) + payload
     echoed = len(response) == len(expected_prefix) + 36 and response.startswith(expected_prefix)
-    if not compact and not echoed:
+    if not compact_v2 and not compact and not echoed:
         returned_sequence = response[0] if response else -1
         returned_payload = response[2:2 + len(payload)] if len(response) >= 2 else b""
         raise ResponseMismatch(
             f"sequence {sequence:02x}: expected echo {payload.hex()}, "
             f"received sequence {returned_sequence:02x} echo {returned_payload.hex()}"
         )
+    if compact_v2:
+        switches = response[2:]
+        return sequence, tuple(switches[:4]), _expand_packed_contacts(switches[4:])
     switches = response[2:] if compact else response[len(expected_prefix):]
     return sequence, tuple(switches[:4]), bytes(switches[4:])
 
