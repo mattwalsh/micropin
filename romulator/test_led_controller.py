@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from led_controller import (
     BLACK_RGB,
@@ -10,7 +11,60 @@ from led_controller import (
     WAITING_WIPE_RGB,
     WAITING_WIPE_ROWS,
     WAITING_WIPE_SECONDS,
+    find_led_device,
 )
+
+
+class LedDeviceDiscoveryTests(unittest.TestCase):
+    def test_mac_uses_led_interface(self) -> None:
+        with patch("led_controller.platform.system", return_value="Darwin"), patch(
+            "led_controller.glob.glob",
+            return_value=[
+                "/dev/cu.usbmodemEPROM5_00011",
+                "/dev/cu.usbmodemEPROM5_00013",
+            ],
+        ), patch("led_controller.os.path.realpath", side_effect=lambda path: path):
+            self.assertEqual(
+                find_led_device(), "/dev/cu.usbmodemEPROM5_00013"
+            )
+
+    def test_linux_prefers_stable_led_interface(self) -> None:
+        def matches(pattern: str) -> list[str]:
+            return ["/dev/serial/by-id/romulator-if02"] if "if02" in pattern else []
+
+        with patch("led_controller.platform.system", return_value="Linux"), patch(
+            "led_controller.glob.glob", side_effect=matches
+        ), patch("led_controller.os.path.realpath", return_value="/dev/ttyACM1"):
+            self.assertEqual(
+                find_led_device(control_device="/dev/ttyACM0"), "/dev/ttyACM1"
+            )
+
+    def test_linux_falls_back_to_acm_port_other_than_control(self) -> None:
+        def matches(pattern: str) -> list[str]:
+            return ["/dev/ttyACM0", "/dev/ttyACM1"] if pattern == "/dev/ttyACM*" else []
+
+        with patch("led_controller.platform.system", return_value="Linux"), patch(
+            "led_controller.glob.glob", side_effect=matches
+        ), patch(
+            "led_controller.linux_tty_interface", return_value=None
+        ), patch("led_controller.os.path.realpath", side_effect=lambda path: path):
+            self.assertEqual(
+                find_led_device(control_device="/dev/ttyACM0"), "/dev/ttyACM1"
+            )
+
+    def test_linux_uses_named_led_interface_without_by_id(self) -> None:
+        def matches(pattern: str) -> list[str]:
+            return ["/dev/ttyACM0", "/dev/ttyACM1"] if pattern == "/dev/ttyACM*" else []
+
+        with patch("led_controller.platform.system", return_value="Linux"), patch(
+            "led_controller.glob.glob", side_effect=matches
+        ), patch(
+            "led_controller.linux_tty_interface",
+            side_effect=lambda path: "Romulator LEDs" if path.endswith("1") else "Romulator Control",
+        ), patch("led_controller.os.path.realpath", side_effect=lambda path: path):
+            self.assertEqual(
+                find_led_device(control_device="/dev/ttyACM0"), "/dev/ttyACM1"
+            )
 
 
 class LedGeometryTests(unittest.TestCase):

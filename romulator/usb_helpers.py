@@ -19,6 +19,15 @@ import tty
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def linux_tty_interface(device):
+    """Return a Linux tty's USB interface string, when sysfs provides it."""
+    interface = Path("/sys/class/tty") / Path(device).name / "device" / "interface"
+    try:
+        return interface.read_text().strip()
+    except (OSError, UnicodeError):
+        return None
+
+
 def serial_device(explicit=None):
     if explicit:
         return explicit
@@ -32,6 +41,11 @@ def serial_device(explicit=None):
             candidates = control_candidates
     elif platform.system() == "Linux":
         candidates = glob.glob("/dev/serial/by-id/*EPROM*if00*")
+        if not candidates:
+            candidates = [
+                path for path in glob.glob("/dev/ttyACM*")
+                if linux_tty_interface(path) == "Romulator Control"
+            ]
     else:
         raise RuntimeError("supported systems are macOS and Linux")
     candidates = sorted(set(os.path.realpath(p) for p in candidates))

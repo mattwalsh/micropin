@@ -25,6 +25,7 @@ from led_controller import (
     ROLLOVER_CHASE_SECONDS,
     StripGeometry,
     boot_pulse,
+    find_led_device,
 )
 from midi_ay import (
     MidiAySequencer,
@@ -3137,7 +3138,12 @@ def main() -> int:
     parser.add_argument("device", nargs="?", help="CDC device; otherwise auto-detected")
     parser.add_argument(
         "--led-device",
-        help="dedicated Romulator LEDs CDC device; enables the folded WS2812 strip",
+        help="dedicated Romulator LEDs CDC device (default: auto-detect)",
+    )
+    parser.add_argument(
+        "--no-led-device",
+        action="store_true",
+        help="disable the folded WS2812 strip instead of auto-detecting it",
     )
     parser.add_argument("--led-count", type=int, default=160)
     parser.add_argument(
@@ -3206,6 +3212,8 @@ def main() -> int:
         help="AY period for MIDI A4; tune by ear if needed (default: 142)",
     )
     args = parser.parse_args()
+    if args.no_led_device and args.led_device:
+        parser.error("--led-device and --no-led-device are mutually exclusive")
     if args.dwell < 0:
         parser.error("--dwell cannot be negative")
     if args.midi_volume not in range(1, 16):
@@ -3216,6 +3224,11 @@ def main() -> int:
         parser.error(str(error))
 
     device = find_device(args.device)
+    led_device = (
+        None
+        if args.no_led_device
+        else find_led_device(args.led_device, control_device=device)
+    )
     game_config = load_game_config(args.config)
     game = MicropinGame(game_config, nvram_path=args.nvram)
     ay_sound = (
@@ -3241,15 +3254,15 @@ def main() -> int:
     print(f"device: {device}")
     print(f"state: {game.context.state.value}")
     led_context = (
-        LedTransport(args.led_device, led_count=geometry.count)
-        if args.led_device
+        LedTransport(led_device, led_count=geometry.count)
+        if led_device
         else nullcontext(None)
     )
 
     with led_context as leds, SerialLines(device, args.timeout) as serial:
         renderer = GameLedRenderer(geometry) if leds is not None else None
         if leds is not None:
-            print(f"LEDs: {args.led_device} ({geometry.count} pixels, split {geometry.split})")
+            print(f"LEDs: {led_device} ({geometry.count} pixels, split {geometry.split})")
             boot_pulse(leds, geometry)
         if args.reset:
             reset_reply = serial.command("reset")

@@ -20,6 +20,18 @@ class USBHelpersTests(unittest.TestCase):
             self.assertEqual(usb.serial_device(), "/dev/ttyACM0")
             self.assertEqual(glob.call_count, 1)
 
+    def test_linux_falls_back_to_named_control_interface(self):
+        def matches(pattern):
+            return ["/dev/ttyACM0", "/dev/ttyACM1"] if pattern == "/dev/ttyACM*" else []
+
+        with patch.object(usb.platform, "system", return_value="Linux"), patch.object(
+            usb.glob, "glob", side_effect=matches
+        ), patch.object(
+            usb, "linux_tty_interface",
+            side_effect=lambda path: "Romulator Control" if path.endswith("0") else "Romulator LEDs",
+        ), patch.object(usb.os.path, "realpath", side_effect=lambda path: path):
+            self.assertEqual(usb.serial_device(), "/dev/ttyACM0")
+
     def test_no_device(self):
         with patch.object(usb.platform, "system", return_value="Linux"), patch.object(
             usb.glob, "glob", return_value=[]

@@ -20,6 +20,8 @@ import struct
 import termios
 import time
 
+from usb_helpers import linux_tty_interface
+
 
 SOF = bytes((0xA5, 0x5A))
 FRAME_TYPE_RGB = 0x01
@@ -83,7 +85,11 @@ def _write_all(fd: int, payload: bytes) -> None:
         position += count
 
 
-def find_led_device(explicit: str | None = None) -> str:
+def find_led_device(
+    explicit: str | None = None,
+    *,
+    control_device: str | None = None,
+) -> str:
     """Find the ROMulator's dedicated LED CDC endpoint, or use ``explicit``.
 
     The composite firmware exposes control as interface 0 and LEDs as interface
@@ -97,13 +103,37 @@ def find_led_device(explicit: str | None = None) -> str:
             if path.endswith("3")
         ]
     elif platform.system() == "Linux":
-        candidates = glob.glob("/dev/serial/by-id/*EPROM*if01*")
+        # A USB CDC function consumes a communication interface plus a data
+        # interface.  The second CDC function therefore normally appears as
+        # if02 in /dev/serial/by-id, even though it is CDC endpoint number 1.
+        candidates = glob.glob("/dev/serial/by-id/*EPROM*if02*")
+        # Retain compatibility with systems/udev rules which label CDC
+        # functions by endpoint number instead of USB interface number.
+        candidates += glob.glob("/dev/serial/by-id/*EPROM*if01*")
+        if not candidates:
+            candidates = [
+                path for path in glob.glob("/dev/ttyACM*")
+                if linux_tty_interface(path) == "Romulator LEDs"
+            ]
+        if not candidates:
+            # Some minimal Raspberry Pi installations do not create by-id
+            # links or expose interface strings.  The control port has already
+            # been identified by the caller, so use the other ACM endpoint
+            # only if that leaves exactly one candidate.
+            control_realpath = (
+                os.path.realpath(control_device) if control_device else None
+            )
+            candidates = [
+                path for path in glob.glob("/dev/ttyACM*")
+                if os.path.realpath(path) != control_realpath
+            ]
     else:
         raise RuntimeError("supported systems are macOS and Linux")
     candidates = sorted(set(os.path.realpath(path) for path in candidates))
     if not candidates:
         raise RuntimeError(
-            "no ROMulator LED CDC device found; connect the ROMulator or pass a device path"
+            "no ROMulator LED CDC device found; connect the ROMulator, pass "
+            "--led-device, or use --no-led-device"
         )
     if len(candidates) != 1:
         raise RuntimeError("multiple LED CDC devices; pass a device path: " + ", ".join(candidates))
