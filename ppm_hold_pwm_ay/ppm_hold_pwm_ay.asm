@@ -110,6 +110,8 @@ AY_VOLUME EQU 0x03
 AY_ENVELOPE_PERIOD_LO EQU 0x00 ; decay period $0400
 AY_ENVELOPE_PERIOD_HI EQU 0x04
 AY_ENVELOPE_SHAPE EQU 0x09
+AY_GATE_TRIGGER EQU 0xff       ; required shared audio-path pre-trigger
+AY_GATE_NORMAL EQU 0x12         ; measured quieter usable shared-path mode
 LAMP_D EQU 0xd
 LAMP_E EQU 0xe
 LAMP_F EQU 0xf
@@ -6277,7 +6279,9 @@ AY_INIT:
         ; common port-9 gate cannot revive its last audible tone.
         MVI A, #ff
         OUT TONE_PITCH
-        MVI A, #10
+        ; The quiet $12 gate setting only takes effect after a fresh $ff
+        ; pre-trigger, matching the aperture AY transaction sequence.
+        MVI A, AY_GATE_TRIGGER
         OUT TONE_ENABLE_DUR
         MVI B, #07
         MVI C, #3e
@@ -6307,6 +6311,8 @@ AY_INIT:
         MVI B, #01
         MVI C, #01
         CALL AY_WRITE_REG
+        MVI A, AY_GATE_NORMAL
+        OUT TONE_ENABLE_DUR
         POP B
         RET
 
@@ -6328,6 +6334,11 @@ AY_PLAY_TONE:
         PUSH B
         ANI #1e
         JZ AY_PLAY_TONE_MUTE
+        ; Port $09 is not simply a steady volume setting on this board.  A
+        ; note must begin with its $ff trigger, then restore $12 only after
+        ; the AY register writes are complete.  Writing $12 alone is silent.
+        MVI A, AY_GATE_TRIGGER
+        OUT TONE_ENABLE_DUR
         PUSH H
         LXI H, AY_PERIOD_TABLE
         MOV E,B
@@ -6352,7 +6363,7 @@ AY_PLAY_TONE:
         MVI C, AY_ENVELOPE_SHAPE
         CALL AY_WRITE_REG
         ; The downstream legacy audio gate needs a fresh trigger per note.
-        MVI A, #10
+        MVI A, AY_GATE_NORMAL
         OUT TONE_ENABLE_DUR
         JMP AY_PLAY_TONE_DONE
 AY_PLAY_TONE_MUTE:
@@ -6373,14 +6384,6 @@ AY_WRITE_REG:
         CMA
         OUT AY_DATA
         RET
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
-        NOP
         NOP
         NOP
         NOP

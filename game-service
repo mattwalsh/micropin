@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+case "${1:-status}" in
+    start|stop|restart|enable|disable)
+        exec sudo systemctl "$1" micropin-game.service
+        ;;
+    status)
+        exec systemctl status --no-pager micropin-game.service
+        ;;
+    logs)
+        exec journalctl -u micropin-game.service -f
+        ;;
+    *)
+        echo "usage: $0 {start|stop|restart|enable|disable|status|logs}" >&2
+        exit 2
+        ;;
+esac
