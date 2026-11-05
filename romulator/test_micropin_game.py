@@ -4,9 +4,11 @@ import tempfile
 
 from micropin_game import (
     ATTRACT_ANIMATION_SECONDS,
+    ATTRACT_HOLD_SECONDS,
     ATTRACT_LAMP_ANIMATIONS,
     ATTRACT_MARQUEE_PATH,
     ATTRACT_MARQUEE_PERIOD,
+    ATTRACT_TRANSITION_SECONDS,
     COLLECT_BONUS_LAMP,
     CUP_LAMPS,
     CUP_TARGET_LAMPS,
@@ -33,14 +35,40 @@ from micropin_game import (
     SongNote,
     Tone,
     load_game_config,
+    overlay_romulator_status,
+    romulator_transaction_fingerprint,
     synchronize_aperture,
 )
-from micropin_protocol import build_control_payload
+from micropin_protocol import DisplayFrame, build_control_payload
 
 
 def spread_digits(output):
     window = output.display.to_bytes()
     return ''.join(f'{window[offset]:02x}' for offset in (25, 24, 23))
+
+
+def team_digits(display: DisplayFrame, team: int) -> str:
+    window = display.to_bytes()
+    if team == 1:
+        leading, pairs = 12, (11, 10, 9)
+    elif team == 2:
+        leading, pairs = 22, (21, 20, 19)
+    else:
+        raise ValueError("team must be one or two")
+    return f"{window[leading] & 0x0f:x}" + "".join(
+        f"{window[offset]:02x}" for offset in pairs
+    )
+
+
+def extra_score_leds(display: DisplayFrame) -> tuple[bool, bool]:
+    """Return (high_score, match) from the two repurposed score-area lamps."""
+    indicators = display.to_bytes()[12]
+    return bool(indicators & 0x10), bool(indicators & 0x20)
+
+
+def player_score_leds(display: DisplayFrame) -> tuple[bool, bool, bool, bool]:
+    indicators = display.to_bytes()[30]
+    return tuple(bool(indicators & (1 << (player + 3))) for player in range(1, 5))
 
 
 def snapshot(
@@ -79,6 +107,47 @@ def snapshot(
 
 
 class MicropinGameTests(unittest.TestCase):
+    def test_romulator_status_is_a_nonmutating_seven_hex_digit_player_six_overlay(self):
+        base = DisplayFrame()
+        fingerprint = romulator_transaction_fingerprint(b"exact aperture payload")
+        status = overlay_romulator_status(base, fingerprint, 42)
+
+        self.assertEqual(len(fingerprint), 7)
+        self.assertEqual(team_digits(status, 1), "0000042")
+        self.assertEqual(team_digits(status, 2), fingerprint)
+        self.assertNotEqual(status.to_bytes(), base.to_bytes())
+        self.assertEqual(team_digits(base, 1), "fffffff")
+        self.assertEqual(team_digits(base, 2), "fffffff")
+
+    def test_extra_score_lamps_indicate_high_score_and_match_states(self) -> None:
+        now = [0.0]
+        game = MicropinGame(clock=lambda: now[0])
+
+        # Normal play: high-score lamp is solid; match lamp is dark.
+        game.context.state = GameState.GAME_PLAYING
+        self.assertEqual(extra_score_leds(game.initial_output().display), (True, False))
+
+        # The match sequence reverses that arrangement.
+        game.context.state = GameState.MATCH_SEQUENCE
+        self.assertEqual(extra_score_leds(game.initial_output().display), (False, True))
+
+        # Attract starts on the just-finished-game score page.  A match makes
+        # the match lamp blink in lockstep with the flashing matching digit.
+        game.context.state = GameState.GAME_OVER
+        game._matched_players = {1}
+        self.assertEqual(extra_score_leds(game.initial_output().display), (True, True))
+        now[0] = 0.25
+        self.assertEqual(extra_score_leds(game.initial_output().display), (True, False))
+
+        # The alternate top-five-high-scores page flashes high score and all
+        # player indicators as one obvious scoreboard banner.
+        now[0] = ATTRACT_HOLD_SECONDS + ATTRACT_TRANSITION_SECONDS + 0.1
+        self.assertEqual(extra_score_leds(game.initial_output().display), (True, False))
+        self.assertEqual(player_score_leds(game.initial_output().display), (True,) * 4)
+        now[0] += 0.25
+        self.assertEqual(extra_score_leds(game.initial_output().display), (False, False))
+        self.assertEqual(player_score_leds(game.initial_output().display), (False,) * 4)
+
     def test_every_player_entry_restarts_add_player_music(self):
         now = [0.0]
         song = (SongNote(Tone(0x78, 4), 0.1), SongNote(Tone(0x87, 4), 0.1))
@@ -1027,7 +1096,7 @@ class MicropinGameTests(unittest.TestCase):
         result = game.step(snapshot())
         self.assertIs(game.context.state, GameState.GAME_OVER)
         self.assertEqual(game.context.ball_number, 0)
-        self.assertEqual(spread_digits(result.output), f'ff{game.context.match_digit}fff')
+        self.assertEqual(spread_digits(result.output), 'f60000')
         self.assertFalse(result.output.reflex_enabled)
 
     def test_start_during_match_abandons_match_and_starts_new_game(self) -> None:

@@ -8,10 +8,13 @@ import json
 import os
 from pathlib import Path
 import platform
+import select
 import shutil
 import subprocess
 import sys
+import termios
 import time
+import tty
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -21,6 +24,12 @@ def serial_device(explicit=None):
         return explicit
     if platform.system() == "Darwin":
         candidates = glob.glob("/dev/cu.usbmodemEPROM5*")
+        # The composite firmware exposes CDC interface 0 (Romulator Control)
+        # and interface 1 (raw LED frames). macOS names their callout devices
+        # with trailing 1 and 3 respectively, e.g. _00011 and _00013.
+        control_candidates = [path for path in candidates if path.endswith("1")]
+        if control_candidates:
+            candidates = control_candidates
     elif platform.system() == "Linux":
         candidates = glob.glob("/dev/serial/by-id/*EPROM*if00*")
     else:
@@ -47,6 +56,39 @@ def send(device, command):
     finally:
         os.close(fd)
     print(f"{command} sent to {device}")
+
+
+def query(device, command, timeout=2.0):
+    """Send one CDC line command and return its one-line reply."""
+    fd = os.open(device, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+    try:
+        tty.setraw(fd, termios.TCSANOW)
+        attributes = termios.tcgetattr(fd)
+        attributes[4] = termios.B115200
+        attributes[5] = termios.B115200
+        termios.tcsetattr(fd, termios.TCSANOW, attributes)
+        termios.tcflush(fd, termios.TCIOFLUSH)
+        pending = (command + "\n").encode("ascii")
+        deadline = time.monotonic() + timeout
+        while pending:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise RuntimeError(f"timed out writing {command!r}")
+            _, writable, _ = select.select([], [fd], [], remaining)
+            if writable:
+                pending = pending[os.write(fd, pending):]
+        received = bytearray()
+        while b"\n" not in received:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise RuntimeError(f"no reply to {command!r}")
+            readable, _, _ = select.select([fd], [], [], remaining)
+            if readable:
+                received.extend(os.read(fd, 256))
+        line, _, _ = received.partition(b"\n")
+        return line.rstrip(b"\r").decode("ascii")
+    finally:
+        os.close(fd)
 
 
 def linux_volumes():
@@ -108,18 +150,27 @@ def unmount_storage():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("reset", "mount", "eject", "reload", "reload-aperture", "info"))
-    parser.add_argument("uf2", nargs="?", type=Path, help="prebuilt firmware (reload actions only)")
+    parser.add_argument(
+        "action",
+        choices=("reset", "mount", "eject", "reload", "mode", "info", "status"),
+    )
+    parser.add_argument("value", nargs="?", help="firmware path (reload) or rom/aperture (mode)")
     parser.add_argument("--device", help="explicit CDC serial device")
     parser.add_argument("--timeout", type=float, default=15, help="volume discovery timeout")
     args = parser.parse_args()
-    if args.uf2 and not args.action.startswith("reload"):
-        parser.error("UF2 path is only valid for reload actions")
+    if args.value and not (args.action.startswith("reload") or args.action == "mode"):
+        parser.error("an argument is only valid for reload or mode actions")
+    if args.action == "mode" and args.value not in {"rom", "aperture"}:
+        parser.error("mode requires either 'rom' or 'aperture'")
     device = serial_device(args.device)
     if args.action == "info":
         print(f"serial: {device}")
         for label in ("EPROMEMU", "RPI-RP2"):
             print(f"{label}: {volume(label) or 'not mounted'}")
+    elif args.action == "status":
+        print(f"serial: {device}")
+        for command in ("status", "state", "stats", "diag", "bootcount"):
+            print(query(device, command))
     elif args.action == "eject":
         unmount_storage()
         send(device, "eject")
@@ -128,9 +179,11 @@ def main():
         print(f"ROM storage: {wait_volume('EPROMEMU', args.timeout)}")
     elif args.action == "reset":
         send(device, "reset")
+    elif args.action == "mode":
+        send(device, f"setmode {args.value}")
     else:
-        build = "build-aperture" if args.action == "reload-aperture" else "build"
-        source = args.uf2 or ROOT / "romulator" / build / "pico_eprom_emulator.uf2"
+        build = "build"
+        source = Path(args.value) if args.value else ROOT / "romulator" / build / "pico_eprom_emulator.uf2"
         # Validate before sending BOOTSEL so a missing file leaves hardware alone.
         with source.open("rb") as file:
             digest = hashlib.md5(file.read()).hexdigest()
@@ -145,8 +198,7 @@ def main():
             shutil.copyfile(source, target)
             os.sync()
         print(f"deployed {source} (MD5 {digest})")
-        if args.action == "reload-aperture":
-            print("This firmware exposes CDC only; no EPROMEMU disk should mount.")
+        print("This firmware uses CE2/$1000 for the aperture and GP26 for WS2812 LEDs.")
     return 0
 
 

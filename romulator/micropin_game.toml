@@ -1,49 +1,97 @@
 [game]
 balls_per_game = 4
-# A shorter press adds one credit after release. Holding the same button this
-# long toggles persistent sound mute and does not add a credit.
 credit_long_press_seconds = 3.0
 
 [high_scores]
-# Initial/reset table; saved NVRAM scores take precedence during normal boots.
 defaults = [60000, 50000, 40000, 30000, 20000, 10000]
 
 [holes]
 settle_seconds = 0.5
 
-# Reuse the Popcorn notes below for boot and start. Set either to "none" to
-# silence it, or point it to another [[songs.NAME]] sequence.
-[music]
-boot = "match_win"
-# Played whenever a player joins, including player 1 on a new game.
-start = "match_win"
-launch = "launch"
-outlane = "outlane"
-outlane_save = "outlane_save"
-standup_special = "charge"
-standup_complete = "standup_complete"
-bonus_2x = "bonus_2x"
-bonus_3x = "bonus_3x"
-side_bonus_hole = "side_bonus_hole"
-tilt = "tilt"
-high_score = "funkytown"
-add_credit = "add_credit"
-mute_on = "mute_on"
-mute_off = "mute_off"
+# A newly launched ball is eligible for one automatic relaunch for this many
+# seconds total. During the final grace_seconds, the save still counts but its
+# two "same player again" lamps are deliberately dark.
+[ball_save]
+relaunch_seconds = 10.0
+grace_seconds = 1.0
 
-# The R-K and Q-A inlanes each add this much to the bonus bank. Once a ball
-# drains, pay it to the active player in 1,000-point steps at this interval.
+# Probability that the final match digit awards one or more credits. Use 0.0
+# for never, 0.1 for one game in ten, or 1.0 to guarantee a match.
+[match]
+percentage = 0.25
+
+[audio]
+# Fixed AY channel-A level for game effects (1..15), independent of MIDI voices.
+effects_volume = 6
+# Fixed default for MIDI voices (1..15). A voice may override it, but the
+# normal case intentionally keeps per-voice configuration uncluttered.
+midi_volume = 4
+
+# Persistent base layer.  Colors accept ordinary #aabbcc RGB values.
+[lighting]
+base = "#ffffff"
+match = "#000000"
+tilt = "#ff0000"
+fade_seconds = 0.9
+
+# Backgrounds are owned by game state and therefore loop for as long as that
+# state is active.  A playlist chooses a fresh, non-repeated MIDI selection
+# once per ball.
+[backgrounds.gameplay]
+midi_playlist = ["chameleon", "chase", "tubular_bells", "popcorn2", "dr_who", "fugue", "bwv_784", "oxygene4", "parade"]
+
+# This one is intentionally light-only.  It starts when a game is waiting for
+# the ball launch and ends automatically at launch.
+[backgrounds.waiting_for_launch]
+light_effect = "launch_flipper_pulse"
+
+# One-shot named presentation cues.  Each cue has exactly one source:
+# ``sequence`` names an existing [songs.NAME] (or built-in) sequence; a future
+# MIDI cue uses ``midi = \"NAME\"`` plus optional start_measure/end_measure.
+[cues.boot]
+sequence = "match_win"
+
+[cues.start]
+sequence = "match_win"
+
+[cues.launch]
+sequence = "launch"
+
+[cues.outlane]
+sequence = "outlane"
+[cues.outlane_save]
+sequence = "outlane_save"
+[cues.standup_special]
+sequence = "charge"
+[cues.standup_complete]
+sequence = "standup_complete"
+[cues.bonus_2x]
+sequence = "bonus_2x"
+[cues.bonus_3x]
+sequence = "bonus_3x"
+[cues.side_bonus_hole]
+sequence = "side_bonus_hole"
+[cues.tilt]
+sequence = "tilt"
+[cues.high_score]
+midi = "cantina"
+start_measure = 11
+end_measure = 26
+light_effect = "rainbow"
+[cues.add_credit]
+sequence = "add_credit"
+[cues.mute_on]
+sequence = "mute_on"
+[cues.mute_off]
+sequence = "mute_off"
+
 [bonus]
 pause_seconds = 0.75
 inlane_points = 1000
 tick_seconds = 0.10
-# Pause after the hole-entry cue before multiplier presentation/countdown.
 entry_pause_seconds = 0.5
-# Presentation pause before showing each multiplier and before countdown.
 multiplier_pause_seconds = 0.5
 
-# Port-1 reflex-event scoring. Each of the four bumpers and both slings is
-# independently configurable.
 [points]
 lower_left_bumper = 25
 upper_left_bumper = 50
@@ -52,338 +100,420 @@ lower_right_bumper = 10
 right_sling = 5
 left_sling = 5
 
-# Logical pitch and safe hardware mode sent through the aperture. Modes are
-# limited to "silence", "short", "medium", and "long"; the continuous-loud
-# and dangerously loud port-9 bit combinations are intentionally unavailable.
-# These six pitches are cribbed from ppm_ORIG's reflex sound table.
+# Safe choices are "silence", "short", "medium", and "long". This is the
+# fallback for every direct sound and song which does not choose another mode.
+[sound]
+default_mode = "medium"
+
+# Direct sounds inherit sound.default_mode unless they have their own mode.
 [sounds.lower_left_bumper]
 pitch = 0xca
-mode = "long"
 
 [sounds.upper_left_bumper]
 pitch = 0xaa
-mode = "long"
 
 [sounds.middle_rollover_bumper]
 pitch = 0x87
-mode = "long"
 
 [sounds.lower_right_bumper]
 pitch = 0x65
-mode = "long"
 
 [sounds.right_sling]
 pitch = 0x78
-mode = "long"
-
 [sounds.left_sling]
 pitch = 0xb6
-mode = "long"
-
 [sounds.match]
 pitch = 0x78
-mode = "long"
-
 [sounds.bonus_add]
 pitch = 0x87
-mode = "long"
-
 [sounds.end_ball]
-# Stock ppm outhole tone, played on a settled drain, not a saved-ball relaunch.
 pitch = 0x15
-mode = "long"
-
-# One tone for each 1,000-point bonus payout tick, including the final tick.
 [sounds.bonus_payout]
 pitch = 0x87
-mode = "long"
-
 [sounds.standup]
 pitch = 0x87
-mode = "long"
-
 [sounds.rollover]
 pitch = 0x54
-mode = "long"
-
 [sounds.rollover_complete]
 pitch = 0xf1
-mode = "long"
-
-# Credit-button and mute-state feedback. Songs may be expanded later without
-# changing the game-state code.
-[[songs.add_credit]]
-pitch = 0x78
-mode = "long"
-interval_seconds = 0.14
-
-[[songs.mute_on]]
-pitch = 0x94
-mode = "long"
-interval_seconds = 0.10
-[[songs.mute_on]]
-pitch = 0x78
-mode = "long"
-interval_seconds = 0.10
-
-[[songs.mute_off]]
-pitch = 0x78
-mode = "long"
-interval_seconds = 0.10
-[[songs.mute_off]]
-pitch = 0x94
-mode = "long"
-interval_seconds = 0.10
-
-# Temporary stand-in cue for clearing all five standup targets.
-[[songs.standup_complete]]
-pitch = 0xae
-mode = "long"
-interval_seconds = 0.14
-
-[[songs.bonus_2x]]
-pitch = 0x78
-mode = "long"
-interval_seconds = 0.10
-[[songs.bonus_2x]]
-pitch = 0xae
-mode = "long"
-interval_seconds = 0.10
-
-[[songs.bonus_3x]]
-pitch = 0x78
-mode = "long"
-interval_seconds = 0.08
-[[songs.bonus_3x]]
-pitch = 0x94
-mode = "long"
-interval_seconds = 0.08
-[[songs.bonus_3x]]
-pitch = 0xca
-mode = "long"
-interval_seconds = 0.08
-
-# Distinct acknowledgement when the ball settles in the side bonus cup.
-[[songs.side_bonus_hole]]
-pitch = 0x78
-mode = "long"
-interval_seconds = 0.10
-[[songs.side_bonus_hole]]
-pitch = 0x94
-mode = "long"
-interval_seconds = 0.10
-[[songs.side_bonus_hole]]
-pitch = 0xae
-mode = "long"
-interval_seconds = 0.10
-
-# First six notes of an approximate Taps phrase: G G C, G C E.
-[[songs.tilt]]
-pitch = 0x3c
-mode = "long"
-interval_seconds = 0.30
-[[songs.tilt]]
-pitch = 0x3c
-mode = "long"
-interval_seconds = 0.30
-[[songs.tilt]]
-pitch = 0x57
-mode = "long"
-interval_seconds = 0.70
-[[songs.tilt]]
-pitch = 0x3c
-mode = "long"
-interval_seconds = 0.30
-[[songs.tilt]]
-pitch = 0x57
-mode = "long"
-interval_seconds = 0.30
-[[songs.tilt]]
-pitch = 0x6e
-mode = "long"
-interval_seconds = 0.70
-
 [sounds.cup_lit]
 pitch = 0x65
-mode = "long"
-
 [sounds.cup_unlit]
 pitch = 0x33
-mode = "long"
-
 [sounds.cups_complete]
 pitch = 0xf1
-mode = "long"
 
-# Quick five-note approximately chromatic ascent; tune pitches after mapping
-# the real hardware's notes. Duration 04 avoids the louder envelope settings.
-[[songs.launch]]
-pitch = 0x78
-mode = "long"
-interval_seconds = 0.07
+# Songs inherit sound.default_mode. A song may set `mode = "long"` once for
+# all its notes, and an individual note may override it with `mode = "short"`.
+# `speedup = 2.0` plays twice as fast; `speedup = 0.5` plays twice as slowly.
+# A pitch of zero is a rest and automatically uses silence.
+[songs.add_credit]
+notes = [{ pitch = 0x78, seconds = 0.14 }]
 
-[[songs.launch]]
-pitch = 0x7e
-mode = "long"
-interval_seconds = 0.07
+# Host-side MIDI choices are parsed once when requested; the 8085 sees only
+# compact AY register writes. `chase` is the low Synth Pluck line.
+[midi_songs."chase"]
+file = "../py_pin/midi/chase.mid"
+loop = true
+# These are the AY's single shared envelope generator.  A voice below can
+# opt into it with `use_envelope = true`; fixed `volume` is then ignored.
+envelope_period = 0xa00
+envelope_shape = 3
 
-[[songs.launch]]
-pitch = 0x85
-mode = "long"
-interval_seconds = 0.07
+[[midi_songs."chase".voices]]
+track = "Synth Pluck (Classic)"
+channel = 1
+a4_period = 142
+use_envelope = false
 
-[[songs.launch]]
-pitch = 0x8c
-mode = "long"
-interval_seconds = 0.07
+[[midi_songs."chase".voices]]
+track = "Clean Guitar"
+channel = 2
+a4_period = 142
+use_envelope = false
 
-[[songs.launch]]
-pitch = 0x94
-mode = "long"
-interval_seconds = 0.07
+[midi_songs.tubular_bells]
+file = "../py_pin/midi/tubular_bells.mid"
+loop = true
+# Shared AY percussion settings. The envelope and noise rate are shared, but
+# only the drum voice below enables their mixer path.
+envelope_period = 0x0100
+envelope_shape = 0x01
+noise_period = 0x01
 
-# Ordinary outlane: descending counterpart of the launch cue.
-[[songs.outlane]]
-pitch = 0x94
-mode = "long"
-interval_seconds = 0.07
-[[songs.outlane]]
-pitch = 0x8c
-mode = "long"
-interval_seconds = 0.07
-[[songs.outlane]]
-pitch = 0x85
-mode = "long"
-interval_seconds = 0.07
-[[songs.outlane]]
-pitch = 0x7e
-mode = "long"
-interval_seconds = 0.07
-[[songs.outlane]]
-pitch = 0x78
-mode = "long"
-interval_seconds = 0.07
+[[midi_songs.tubular_bells.voices]]
+track = "Grand Piano (Classic)"
+# This track contains chords.  Keep the two highest simultaneous notes on AY
+# B/C; any lower chord notes are intentionally dropped.
+channels = [1, 2]
+a4_period = 142
 
-# Saved outlane: base note then approximately a perfect fifth up.
-[[songs.outlane_save]]
-pitch = 0x78
-mode = "long"
-interval_seconds = 0.07
-[[songs.outlane_save]]
-pitch = 0xae
-mode = "long"
-interval_seconds = 0.07
+[[midi_songs.tubular_bells.voices]]
+track = "Grand Piano"
+channel = 0
+a4_period = 142
 
-# High-score phrase from ppm/ppm.asm. 00/00 entries are silent rests.
-[[songs.funkytown]]
-pitch = 0x87
-mode = "long"
-interval_seconds = 0.14
-[[songs.funkytown]]
-pitch = 0x87
-mode = "long"
-interval_seconds = 0.14
-[[songs.funkytown]]
-pitch = 0x78
-mode = "long"
-interval_seconds = 0.14
-[[songs.funkytown]]
-pitch = 0x87
-mode = "long"
-interval_seconds = 0.14
-[[songs.funkytown]]
-pitch = 0
-mode = "silence"
-interval_seconds = 0.14
-[[songs.funkytown]]
-pitch = 0x65
-mode = "long"
-interval_seconds = 0.14
-[[songs.funkytown]]
-pitch = 0
-mode = "silence"
-interval_seconds = 0.14
-[[songs.funkytown]]
-pitch = 0x65
-mode = "long"
-interval_seconds = 0.14
-[[songs.funkytown]]
-pitch = 0x87
-mode = "long"
-interval_seconds = 0.14
-[[songs.funkytown]]
-pitch = 0xbf
-mode = "long"
-interval_seconds = 0.14
-[[songs.funkytown]]
-pitch = 0xaa
-mode = "long"
-interval_seconds = 0.14
-[[songs.funkytown]]
-pitch = 0x87
-mode = "long"
-interval_seconds = 0.14
+[midi_songs.chameleon]
+file = "../py_pin/midi/chameleon.mid"
+loop = true
+envelope_period = 0x0100
+envelope_shape = 0x01
+noise_period = 0x01
 
-# Standup special award: approximate "Charge!" fanfare pending pitch mapping.
-[[songs.charge]]
-pitch = 0x78
-mode = "long"
-interval_seconds = 0.09
-[[songs.charge]]
-pitch = 0x94
-mode = "long"
-interval_seconds = 0.09
-[[songs.charge]]
-pitch = 0xae
-mode = "long"
-interval_seconds = 0.09
-[[songs.charge]]
-pitch = 0xe4
-mode = "long"
-interval_seconds = 0.09
-[[songs.charge]]
-pitch = 0xae
-mode = "long"
-interval_seconds = 0.09
-[[songs.charge]]
-pitch = 0xe4
-mode = "long"
-interval_seconds = 0.09
+[[midi_songs.chameleon.voices]]
+track = "Bass Guitar (Classic)"
+channel = 0
+a4_period = 142
 
-# Winning-match melody. Each tuple is sent once; interval_seconds is the wait
-# before the next tuple, while the ROMulator keeps polling switches normally.
-# The pitches are the familiar Popcorn phrase and can be changed freely.
-[[songs.match_win]]
-pitch = 0xf1
-mode = "long"
-interval_seconds = 0.14
+[[midi_songs.chameleon.voices]]
+track = "Electric Drum Kit"
+channel = 1
+a4_period = 142
+use_envelope = true
+use_tone = false
+use_noise = true
 
-[[songs.match_win]]
-pitch = 0xd6
-mode = "long"
-interval_seconds = 0.14
+[[midi_songs.chameleon.voices]]
+track = "Muted E-Guitar"
+channel = 2
+a4_period = 142
 
-[[songs.match_win]]
-pitch = 0xf1
-mode = "long"
-interval_seconds = 0.14
+[[midi_songs.chameleon.voices]]
+track = "8-Bit Triangle"
+channel = 2
+a4_period = 142
 
-[[songs.match_win]]
-pitch = 0xb4
-mode = "long"
-interval_seconds = 0.14
+[midi_songs.dr_who]
+file = "../py_pin/midi/dr_who.mid"
+loop = true
 
-[[songs.match_win]]
-pitch = 0x8f
-mode = "long"
-interval_seconds = 0.14
+[[midi_songs.dr_who.voices]]
+track = "Scifi"
+channels = [0,1]
+a4_period = 142
 
-[[songs.match_win]]
-pitch = 0xb4
-mode = "long"
-interval_seconds = 0.14
+[[midi_songs.dr_who.voices]]
+track = "8-Bit Triangle"
+channel = 2
+a4_period = 142
 
-[[songs.match_win]]
-pitch = 0x78
-mode = "long"
-interval_seconds = 0.20
+[midi_songs.cantina]
+file = "../py_pin/midi/cantina2.mid"
+loop = false
+start_measure = 11
+
+[[midi_songs.cantina.voices]]
+track = "Grand Piano"
+channels = [0,1]
+a4_period = 142
+
+#[[midi_songs.cantina.voices]]
+#track = "Grand Piano 2"
+#channels = [1,2]
+#volume = 2
+#a4_period = 142
+
+[midi_songs.fugue]
+file = "../py_pin/midi/fugue.mid"
+loop = true
+
+[[midi_songs.fugue.voices]]
+track = "Synth Bass"
+channel = 0
+a4_period = 142
+
+[[midi_songs.fugue.voices]]
+track = "8-Bit Sawtooth"
+channel = 1
+a4_period = 142
+
+[[midi_songs.fugue.voices]]
+track = "Pop Synth"
+channel = 2
+a4_period = 142
+
+[midi_songs.parade]
+file = "../py_pin/midi/parade.mid"
+loop = true
+start_measure = 5
+end_measure = 22
+
+[[midi_songs.parade.voices]]
+track = "Elec. Piano (Classic)"
+channels = [0,1,2]
+a4_period = 142
+
+[midi_songs.oxygene4]
+file = "../py_pin/midi/oxygene4.mid"
+loop = true
+
+[[midi_songs.oxygene4.voices]]
+track = "Bass Guitar (Classic)"
+channel = 0
+a4_period = 142
+use_tone = true
+
+[[midi_songs.oxygene4.voices]]
+track = "Synth Pluck (Classic)"
+channel = 1
+a4_period = 142
+noise_period = 0x01
+use_noise = true
+
+[[midi_songs.oxygene4.voices]]
+track = "Smooth Synth (Classic)"
+channel = 2
+a4_period = 71
+
+[midi_songs.bwv_784]
+file = "../py_pin/midi/bwv_784.mid"
+loop = true
+
+[[midi_songs.bwv_784.voices]]
+track = "8-bit square"
+channels = [0, 1, 2]
+a4_period = 142
+
+
+[midi_songs.popcorn]
+file = "../py_pin/midi/popcorn.mid"
+loop = true
+# Shared AY percussion settings. The envelope and noise rate are shared, but
+# only the drum voice below enables their mixer path.
+envelope_period = 0x0100
+envelope_shape = 0x01
+noise_period = 0x01
+
+[[midi_songs.popcorn.voices]]
+track = "Jazz Guitar"
+channel = 0
+a4_period = 142
+
+[[midi_songs.popcorn.voices]]
+track = "8-Bit Triangle"
+channel = 1
+a4_period = 142
+
+[[midi_songs.popcorn.voices]]
+track = "Electric Drum Kit"
+channel = 2
+a4_period = 142
+use_envelope = true
+use_tone = false
+use_noise = true
+
+
+# Popcorn's lead and accompaniment tracks, assigned to AY B and C. They use
+# the shared music.midi_volume; no shared envelope is selected for this song.
+[midi_songs.popcorn2]
+file = "../py_pin/midi/popcorn_2.mid"
+loop = true
+# The drum voice below selects the shared AY envelope and noise source.
+envelope_period = 0x050
+envelope_shape = 0x07
+noise_period = 0x02
+
+[[midi_songs.popcorn2.voices]]
+track = "Jazz Guitar"
+channel = 0
+a4_period = 142
+priority = 0
+
+[[midi_songs.popcorn2.voices]]
+track = "Grand Piano"
+channel = 0
+a4_period = 142
+priority = 1
+
+[[midi_songs.popcorn2.voices]]
+track = "Synthesizer"
+channel = 1
+use_envelope = false
+a4_period = 142
+
+[[midi_songs.popcorn2.voices]]
+track = "French Horn"
+channel = 2
+use_envelope = false
+a4_period = 142
+priority = 2
+
+[[midi_songs.popcorn2.voices]]
+track = "Electric Drum Kit"
+channel = 2
+a4_period = 142
+use_envelope = true
+use_tone = true
+use_noise = true
+priority = 1
+
+[songs.mute_on]
+notes = [
+    { pitch = 0x94, seconds = 0.10 },
+    { pitch = 0x78, seconds = 0.10 },
+]
+
+[songs.mute_off]
+notes = [
+    { pitch = 0x78, seconds = 0.10 },
+    { pitch = 0x94, seconds = 0.10 },
+]
+
+[songs.standup_complete]
+notes = [{ pitch = 0xae, seconds = 0.14 }]
+
+[songs.bonus_2x]
+notes = [
+    { pitch = 0x78, seconds = 0.10 },
+    { pitch = 0xae, seconds = 0.10 },
+]
+
+[songs.bonus_3x]
+notes = [
+    { pitch = 0x78, seconds = 0.08 },
+    { pitch = 0x94, seconds = 0.08 },
+    { pitch = 0xca, seconds = 0.08 },
+]
+
+[songs.side_bonus_hole]
+notes = [
+    { pitch = 0x78, seconds = 0.10 },
+    { pitch = 0x94, seconds = 0.10 },
+    { pitch = 0xae, seconds = 0.10 },
+]
+
+# First six notes of an approximate Taps phrase: G G C, G C E.
+[songs.tilt]
+notes = [
+    { pitch = 0x3c, seconds = 0.30 },
+    { pitch = 0x3c, seconds = 0.30 },
+    { pitch = 0x57, seconds = 0.70 },
+    { pitch = 0x3c, seconds = 0.30 },
+    { pitch = 0x57, seconds = 0.30 },
+    { pitch = 0x6e, seconds = 0.70 },
+]
+
+[songs.launch]
+notes = [
+    { pitch = 0x78, seconds = 0.07 },
+    { pitch = 0x7e, seconds = 0.07 },
+    { pitch = 0x85, seconds = 0.07 },
+    { pitch = 0x8c, seconds = 0.07 },
+    { pitch = 0x94, seconds = 0.07 },
+]
+
+[songs.outlane]
+notes = [
+    { pitch = 0x94, seconds = 0.07 },
+    { pitch = 0x8c, seconds = 0.07 },
+    { pitch = 0x85, seconds = 0.07 },
+    { pitch = 0x7e, seconds = 0.07 },
+    { pitch = 0x78, seconds = 0.07 },
+]
+
+[songs.outlane_save]
+notes = [
+    { pitch = 0x78, seconds = 0.07 },
+    { pitch = 0xae, seconds = 0.07 },
+]
+
+## High-score phrase from ppm/ppm.asm.
+#[songs.chameleon]
+#mode = "medium"
+#speedup = 0.6
+#notes = [
+#    { pitch = 25, seconds = 0.15 },
+#    { pitch = 27, seconds = 0.15 },
+#    { pitch = 28, seconds = 0.14 },
+#    { pitch = 30, seconds = 0.24 },
+#    { pitch = 54, seconds = 0.24 },
+#    { pitch = 60, seconds = 0.28 },
+#    { pitch = 0,  seconds = 0.04 },
+#    { pitch = 34, seconds = 0.15 },
+#    { pitch = 36, seconds = 0.15 },
+#    { pitch = 38, seconds = 0.14 },
+#    { pitch = 40, seconds = 0.24 },
+#    { pitch = 60, seconds = 0.24 },
+#    { pitch = 72, seconds = 0.28 },
+#    { pitch = 0,  seconds = 0.04 }
+#]
+
+[songs.funkytown]
+mode = "medium"
+speedup = 1.0
+notes = [
+    { pitch = 0x87, seconds = 0.14 },
+    { pitch = 0x87, seconds = 0.14 },
+    { pitch = 0x78, seconds = 0.14 },
+    { pitch = 0x87, seconds = 0.14 },
+    { pitch = 0x00, seconds = 0.14 }, # rest
+    { pitch = 0x65, seconds = 0.14 },
+    { pitch = 0x00, seconds = 0.14 }, # rest
+    { pitch = 0x65, seconds = 0.14 },
+    { pitch = 0x87, seconds = 0.14 },
+    { pitch = 0xb4, seconds = 0.14 },
+    { pitch = 0xaa, seconds = 0.14 },
+    { pitch = 0x87, seconds = 0.14 },
+]
+
+[songs.charge]
+notes = [
+    { pitch = 0x78, seconds = 0.09 },
+    { pitch = 0x94, seconds = 0.09 },
+    { pitch = 0xae, seconds = 0.09 },
+    { pitch = 0xe4, seconds = 0.09 },
+    { pitch = 0xae, seconds = 0.09 },
+    { pitch = 0xe4, seconds = 0.09 },
+]
+
+# Familiar Popcorn phrase used for match/start/boot for now.
+[songs.match_win]
+notes = [
+    { pitch = 0xf1, seconds = 0.14 },
+    { pitch = 0xd6, seconds = 0.14 },
+    { pitch = 0xf1, seconds = 0.14 },
+    { pitch = 0xb4, seconds = 0.14 },
+    { pitch = 0x8f, seconds = 0.14 },
+    { pitch = 0xb4, seconds = 0.14 },
+    { pitch = 0x78, seconds = 0.20 },
+]

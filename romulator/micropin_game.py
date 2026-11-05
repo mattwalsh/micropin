@@ -7,6 +7,7 @@ import argparse
 from contextlib import nullcontext
 from dataclasses import dataclass, field, replace
 from enum import Enum, IntEnum
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -96,6 +97,40 @@ ROLLOVER_COMPLETE_STEP_SECONDS = 0.10
 def score_digits(score: int, width: int = 6) -> str:
     """Decimal score with F (hardware blank) padding; zero remains visible."""
     return str(min(max(0, score), 10 ** width - 1)).rjust(width, "f")
+
+
+ROMULATOR_STATUS_DIGITS = 7
+ROMULATOR_STATUS_COUNTER_MODULUS = 10 ** ROMULATOR_STATUS_DIGITS
+
+
+def romulator_transaction_fingerprint(payload: bytes) -> str:
+    """Return a compact, show-floor-friendly fingerprint of one wire payload."""
+    return hashlib.sha256(payload).hexdigest()[:ROMULATOR_STATUS_DIGITS]
+
+
+def overlay_romulator_status(
+    display: DisplayFrame, fingerprint: str, roundtrips: int
+) -> DisplayFrame:
+    """Render the prior payload fingerprint and completed roundtrips in displays 6/5.
+
+    This is intentionally a host-only display overlay.  It replaces the
+    otherwise attract-only player-6 high-score field with a hexadecimal
+    fingerprint and player 5's field with a zero-padded decimal count, but
+    never changes the game model or the 8085's interpretation of the display
+    scan window.
+    """
+    if len(fingerprint) != ROMULATOR_STATUS_DIGITS or any(
+        digit not in "0123456789abcdef" for digit in fingerprint.lower()
+    ):
+        raise ValueError("ROMulator status fingerprint must be seven hexadecimal digits")
+    if roundtrips < 0:
+        raise ValueError("ROMulator roundtrip count cannot be negative")
+    status = display.copy()
+    status.set_team_score(1, f"{roundtrips % ROMULATOR_STATUS_COUNTER_MODULUS:07d}")
+    status.set_team_score(2, fingerprint)
+    return status
+
+
 # The stock ROM's eight 500-point handlers are contacts 20, 10, 11, 13, 14,
 # 12, 17, 18. Its lamp codes 02,2a,10,1a,01,19,21,0a decode as
 # (code & 7) * 8 + (code >> 3), giving these raw output numbers.
@@ -2854,34 +2889,38 @@ class MicropinGame:
         led_effect: str | None = None,
     ) -> OutputFrame:
         display = DisplayFrame()
+        now = self._clock()
+        attract_score_page = False
+        attract_high_score_page = False
+        if self.context.state is GameState.GAME_OVER and not self._high_score_tributes:
+            page_seconds = ATTRACT_HOLD_SECONDS + ATTRACT_TRANSITION_SECONDS
+            phase = (now - self._attract_started) % (2 * page_seconds)
+            attract_score_page = phase < ATTRACT_HOLD_SECONDS
+            attract_high_score_page = page_seconds <= phase < (
+                page_seconds + ATTRACT_HOLD_SECONDS
+            )
         for player, score in enumerate(self.context.player_scores, start=1):
             if player <= self.context.players_in_game:
                 display.set_player_score(player, score_digits(score))
         if self.context.state in (GameState.GAME_OVER, GameState.HIGH_SCORE):
-            now = self._clock()
             if self._tribute_player is not None:
                 if int(now * 4) % 2:
                     display.set_player_score(self._tribute_player, "ffffff")
             elif self.context.state is GameState.GAME_OVER and not self._high_score_tributes:
-                page_seconds = ATTRACT_HOLD_SECONDS + ATTRACT_TRANSITION_SECONDS
-                phase = (now - self._attract_started) % (2 * page_seconds)
-                if phase < ATTRACT_HOLD_SECONDS:
+                if attract_score_page:
                     if int(now * 4) % 2:
                         for player in self._matched_players:
                             digits = score_digits(self.context.player_scores[player - 1])
                             display.set_player_score(player, digits[:-1] + "f")
-                elif phase < page_seconds or phase >= page_seconds + ATTRACT_HOLD_SECONDS:
+                elif not attract_high_score_page:
                     for player in range(1, 5):
                         display.set_player_score(player, self._display_random.randrange(1 << 24))
-                    for team in (1, 2):
-                        display.set_team_score(team, f'f{self._display_random.randrange(1 << 24):06x}')
                 else:
-                    for rank, score in enumerate(self.high_scores[:4], 1):
-                        value = "ffffff" if rank - 1 in self._new_high_score_ranks and int(now * 4) % 2 else score_digits(score)
-                        display.set_player_score(rank, value)
-                    for team, score in enumerate(self.high_scores[4:], 1):
-                        value = "fffffff" if team + 3 in self._new_high_score_ranks and int(now * 4) % 2 else score_digits(score, 7)
-                        display.set_team_score(team, value)
+                    # Rank 1 uses the former match display below; ranks 2–5
+                    # occupy the four player-score displays.
+                    for player, score in enumerate(self.high_scores[1:5], 1):
+                        value = "ffffff" if player in self._new_high_score_ranks and int(now * 4) % 2 else score_digits(score)
+                        display.set_player_score(player, value)
         display.set_bonus(score_digits(self.context.bonus))
         display.set_credits(score_digits(self.context.credits, 2))
         display.set_ball_in_play(self.context.ball_number)
@@ -2890,11 +2929,14 @@ class MicropinGame:
             position = MATCH_DIGIT_POSITIONS[max(0, self.context.match_step - 1) % 6]
             digits[position] = str(self.context.match_digit)
             display.set_spread("".join(digits))
-        elif self.context.state is GameState.GAME_OVER and self.context.last_match_digit is not None:
-            digits = list("ffffff")
-            digits[MATCH_DIGIT_POSITIONS[-1]] = str(self.context.last_match_digit)
-            display.set_spread("".join(digits))
-        now = self._clock()
+        elif (
+            attract_high_score_page
+            and 0 in self._new_high_score_ranks
+            and int(now * 4) % 2
+        ):
+            display.set_spread("ffffff")
+        else:
+            display.set_spread(score_digits(self.high_scores[0]))
         self._advance_attract_lamps(now)
         game_over_flash = (
             self.context.state is GameState.GAME_OVER
@@ -2905,6 +2947,28 @@ class MicropinGame:
         display.set_tilt_led(
             self.context.tilted
             and int(now * TILT_FLASH_HZ * 2) % 2 == 0
+        )
+        # These two extra score-area indicators were not useful as teams in
+        # this game.  The left one is now the high-score lamp; the right one
+        # is the match lamp.  Keep their attract flashes phase-locked to the
+        # score-digit flashes below.
+        attract_flash_on = int(now * 4) % 2 == 0
+        display.set_high_score_led(
+            self.context.state is not GameState.MATCH_SEQUENCE
+            and (
+                self.context.state is not GameState.GAME_OVER
+                or not attract_high_score_page
+                or attract_flash_on
+            )
+        )
+        display.set_match_led(
+            self.context.state is GameState.MATCH_SEQUENCE
+            or (
+                self.context.state is GameState.GAME_OVER
+                and attract_score_page
+                and bool(self._matched_players)
+                and attract_flash_on
+            )
         )
         flash_on = False
         grace_active = (
@@ -2964,7 +3028,13 @@ class MicropinGame:
                 SAME_PLAYER_AGAIN_LAMP % 8
             )
         display.set_same_player_again_led(same_player_on)
-        if self.context.state not in (GameState.GAME_OVER, GameState.MATCH_SEQUENCE, GameState.HIGH_SCORE):
+        if self.context.state is GameState.GAME_OVER and attract_high_score_page:
+            # The top-five page is an intentionally obvious "scoreboard"
+            # moment: make all four player indicators blink in phase with its
+            # high-score lamp.
+            for player in range(1, 5):
+                display.set_player_led(player, attract_flash_on)
+        elif self.context.state not in (GameState.GAME_OVER, GameState.MATCH_SEQUENCE, GameState.HIGH_SCORE):
             player_led_on = True
             if self.context.state is GameState.WAITING_FOR_LAUNCH:
                 player_led_on = int(now * WAITING_PLAYER_FLASH_HZ * 2) % 2 == 0
@@ -3098,6 +3168,13 @@ def main() -> int:
         default=0.04,
         help="seconds between frames (default: 0.04; lower values favor MIDI timing)",
     )
+    parser.add_argument(
+        "--no-romulator-status",
+        action="store_false",
+        dest="romulator_status",
+        help="leave the player-6 seven-digit display available for attract high scores",
+    )
+    parser.set_defaults(romulator_status=True)
     parser.add_argument("--timeout", type=float, default=5.0)
     parser.add_argument(
         "--no-ay",
@@ -3205,6 +3282,18 @@ def main() -> int:
                 + " (one is chosen when the ball enters play)"
             )
         output = game.initial_output()
+        # The first visible frame has no predecessor.  Each subsequent frame
+        # shows the SHA-256 prefix of the prior *canonical* game payload: the
+        # same payload excluding this cosmetic status overlay.  Hashing the
+        # fully overlaid frame would make its own prior hash change every
+        # frame, even while every actual game output stayed unchanged.
+        last_transaction_fingerprint = "0" * ROMULATOR_STATUS_DIGITS
+        completed_roundtrips = 0
+        if args.romulator_status:
+            print(
+                "ROMulator status display: player 5 completed roundtrips; "
+                "player 6 previous canonical payload SHA-256 prefix"
+            )
         active_led_effect: str | None = None
         active_led_effect_started_at = 0.0
         base_rgb = game_config.lighting_base_rgb
@@ -3339,9 +3428,29 @@ def main() -> int:
                         )
                     )
                 ay_update = ay_sound.update_for(output) if ay_sound is not None else None
-                _sequence, ports, dma = send_and_verify(
-                    serial, output.to_payload(ay_update)
+                canonical_payload = output.to_payload(ay_update)
+                transmitted_output = (
+                    replace(
+                        output,
+                        display=overlay_romulator_status(
+                            output.display,
+                            last_transaction_fingerprint,
+                            completed_roundtrips,
+                        ),
+                    )
+                    if args.romulator_status
+                    else output
                 )
+                payload = (
+                    transmitted_output.to_payload(ay_update)
+                    if args.romulator_status
+                    else canonical_payload
+                )
+                _sequence, ports, dma = send_and_verify(
+                    serial, payload
+                )
+                last_transaction_fingerprint = romulator_transaction_fingerprint(canonical_payload)
+                completed_roundtrips += 1
                 if ay_sound is not None:
                     ay_sound.acknowledge(ay_update)
                 result = game.step(HardwareSnapshot.from_wire(ports, dma))

@@ -1,0 +1,19 @@
+[Unit]
+Description=Micropin Python game
+After=local-fs.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=msw
+WorkingDirectory=/home/msw/micropin
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/msw/micropin/run-game
+Restart=on-failure
+RestartSec=3
+# The game handles Ctrl-C by inhibiting coils and silencing sound.
+KillSignal=SIGINT
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

@@ -18,18 +18,20 @@ class AttractScoreTests(unittest.TestCase):
         game.context.match_digit = 3
         game.step(snapshot())
         self.assertEqual(game._matched_players, {1})
-        self.assertEqual(spread_digits(game.initial_output()), 'ff3fff')
+        self.assertEqual(spread_digits(game.initial_output()), 'f60000')
         now[0] = 0.25
         window = game.initial_output().display.to_bytes()
         self.assertEqual(window[6:9], bytes.fromhex('2ff1ff'))
         self.assertEqual(window[13:16], bytes.fromhex('24f1ff'))
-        self.assertEqual(spread_digits(game.initial_output()), 'ff3fff')
-        # The same value on the high-score page gets no match-digit flashing.
+        self.assertEqual(spread_digits(game.initial_output()), 'f60000')
+        # The high-score display always owns the former match position once
+        # the live match animation has completed.
         game.high_scores[0] = 123
         game._new_high_score_ranks.clear()
         now[0] = 5.25
         self.assertEqual(game.initial_output().display.to_bytes()[6:9],
-                         bytes.fromhex('23f1ff'))
+                         bytes.fromhex('0000f5'))
+        self.assertEqual(spread_digits(game.initial_output()), 'fff123')
         game.step(snapshot(cabinet=0x40))
         self.assertEqual(game._matched_players, set())
 
@@ -69,7 +71,7 @@ class AttractScoreTests(unittest.TestCase):
         self.assertEqual(game.context.credits, 0)  # Award spent once, not twice.
         self.assertEqual(game.recent_games, [70000])
 
-    def test_new_high_score_entries_flash_on_both_display_types(self):
+    def test_new_top_high_score_flashes_in_the_former_match_display(self):
         now = [0.0]
         game = MicropinGame(clock=lambda: now[0])
         game.context.players_in_game = 2
@@ -79,13 +81,12 @@ class AttractScoreTests(unittest.TestCase):
         self.assertEqual(game._new_high_score_ranks, {0, 5})
         now[0] = 5.0
         on = game.initial_output().display.to_bytes()
-        self.assertEqual(on[6:9], bytes.fromhex('0000f7'))
-        self.assertEqual(on[19:22], bytes.fromhex('0050f2'))
+        self.assertEqual(spread_digits(game.initial_output()), 'f70000')
+        self.assertEqual(on[6:9], bytes.fromhex('0000f6'))
         now[0] = 5.25
         off = game.initial_output().display.to_bytes()
-        self.assertEqual(off[6:9], b'\xff' * 3)
-        self.assertEqual(off[19:22], b'\xff' * 3)
-        self.assertEqual(off[22] & 15, 15)
+        self.assertEqual(spread_digits(game.initial_output()), 'ffffff')
+        self.assertEqual(off[6:9], bytes.fromhex('0000f6'))
 
     def test_match_position_order_and_blank_numeric_padding(self):
         now = [0.0]
@@ -157,13 +158,14 @@ class AttractScoreTests(unittest.TestCase):
         now[0] = 4.5
         random_frame = game.initial_output().display.to_bytes()
         self.assertNotEqual(random_frame[3:6], b'\xff' * 3)
-        self.assertNotEqual(random_frame[9:12], b'\xff' * 3)
+        self.assertEqual(random_frame[9:12], b'\xff' * 3)
         self.assertEqual(random_frame[12] & 15, 15)
         self.assertEqual(random_frame[22] & 15, 15)
         now[0] = 5.0
         high = game.initial_output().display.to_bytes()
-        self.assertEqual(high[6:9], bytes.fromhex('0000f6'))
-        self.assertEqual(high[9:12], bytes.fromhex('0000f2'))
+        self.assertEqual(spread_digits(game.initial_output()), 'f60000')
+        self.assertEqual(high[6:9], bytes.fromhex('0000f5'))
+        self.assertEqual(high[9:12], b'\xff' * 3)
         self.assertEqual(high[12] & 15, 15)
         now[0] = 9.5
         self.assertNotEqual(game.initial_output().display.to_bytes()[6:9], high[6:9])
