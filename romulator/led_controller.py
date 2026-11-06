@@ -36,11 +36,15 @@ WAITING_WIPE_RGB = (0x00, 0xFF, 0x00)
 WAITING_WIPE_SECONDS = 0.75
 WAITING_WIPE_ROWS = 10
 BLACK_RGB = (0, 0, 0)
+SIDE_CUP_LED_FIRST = 105
+SIDE_CUP_LED_LAST = 135
 LED_EFFECT_NAMES = (
     "launch_wipe",
     "launch_flipper_pulse",
     "rollover_complete_chase",
     "rainbow",
+    "rainbow_fast",
+    "side_cup_rainbow",
     "rainbow_vivid",
     "warm_background",
     "blackout",
@@ -354,17 +358,38 @@ class GameLedRenderer:
                     component * level // 255 for component in ROLLOVER_CHASE_RGB
                 )
             return bytes(pixels)
-        if effect == "rainbow":
+        if effect in ("rainbow", "rainbow_fast"):
             # This is intentionally the original, soft sine-wave palette.
             # Its three channels do not fully bottom out together, so it
             # reads as pastel rather than as primary-color bands.
             pixels = bytearray(self.geometry.count * 3)
+            speed = 0.60 if effect == "rainbow_fast" else 0.12
             for pixel in range(self.geometry.count):
-                hue = (pixel / self.geometry.count + now * 0.12) % 1.0
+                hue = (pixel / self.geometry.count + now * speed) % 1.0
                 red = round(127.5 * (1 + math.sin(math.tau * hue)))
                 green = round(127.5 * (1 + math.sin(math.tau * (hue + 1 / 3))))
                 blue = round(127.5 * (1 + math.sin(math.tau * (hue + 2 / 3))))
                 pixels[pixel * 3:pixel * 3 + 3] = bytes((red, green, blue))
+            return bytes(pixels)
+        if effect == "side_cup_rainbow":
+            # Physical pixels nearest the right-side sixth cup. Everything
+            # outside this small island stays black while bonus is counted.
+            pixels = bytearray(self.geometry.count * 3)
+            first = min(self.geometry.count, SIDE_CUP_LED_FIRST)
+            stop = min(self.geometry.count, SIDE_CUP_LED_LAST + 1)
+            span = max(1, stop - first)
+            for pixel in range(first, stop):
+                hue = ((pixel - first) / span + now * 0.60) % 1.0
+                red = round(127.5 * (1 + math.sin(math.tau * hue)))
+                green = round(
+                    127.5 * (1 + math.sin(math.tau * (hue + 1 / 3)))
+                )
+                blue = round(
+                    127.5 * (1 + math.sin(math.tau * (hue + 2 / 3)))
+                )
+                pixels[pixel * 3:pixel * 3 + 3] = bytes(
+                    (red, green, blue)
+                )
             return bytes(pixels)
         if effect == "rainbow_vivid":
             # True HSV hue sweep: saturation and value are both 1.0, so the

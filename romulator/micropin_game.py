@@ -49,6 +49,7 @@ from random_lamp_test import ResponseMismatch, send_and_verify
 START_MASK = 0x40
 RIGHT_FLIPPER_MASK = 0x10
 LEFT_FLIPPER_MASK = 0x20
+LEFT_FLIPPER_LEVEL_MASK = 0x40
 CREDIT_MASK = 0x04
 CREDIT_LEVEL_MASK = 0x10
 TILT_MASK = 0x88
@@ -85,6 +86,7 @@ STANDUP_COINCIDENCE_FRAMES = 2
 STANDUP_COMPLETE_POINTS = 10_000
 GAME_OVER_FLASH_HZ = 2.0
 TILT_FLASH_HZ = 4.0
+TILT_BONUS_FLASH_HZ = 8.0
 ATTRACT_HOLD_SECONDS = 4.5
 ATTRACT_TRANSITION_SECONDS = 0.5
 ATTRACT_PLAYFIELD_HOLD_SECONDS = 5.0
@@ -93,6 +95,14 @@ DEFAULT_HIGH_SCORES = (60000, 50000, 40000, 30000, 20000, 10000)
 STANDARD_LAMP_FLASH_HZ = 2.0
 CUP_COMPLETE_STEP_SECONDS = 0.10
 ROLLOVER_COMPLETE_STEP_SECONDS = 0.10
+CUP_COMPLETE_PRESENTATION_SECONDS = 3.0
+CUP_COMPLETE_DISPLAY_PATTERNS = (
+    "1fffff",
+    "fffff2",
+    "f3ffff",
+    "ffff4f",
+    "ff5fff",
+)
 
 
 def score_digits(score: int, width: int = 6) -> str:
@@ -116,9 +126,11 @@ def overlay_romulator_status(
 
     This is intentionally a host-only display overlay.  It replaces the
     otherwise attract-only player-6 high-score field with a hexadecimal
-    fingerprint and player 5's field with a zero-padded decimal count, but
-    never changes the game model or the 8085's interpretation of the display
-    scan window.
+    fingerprint and player 5's field with a zero-padded decimal count.  The
+    physically separated seventh digit of player 6 stays blank; only the last
+    six fingerprint digits use its tightly grouped main display.  This never
+    changes the game model or the 8085's interpretation of the display scan
+    window.
     """
     if len(fingerprint) != ROMULATOR_STATUS_DIGITS or any(
         digit not in "0123456789abcdef" for digit in fingerprint.lower()
@@ -128,7 +140,7 @@ def overlay_romulator_status(
         raise ValueError("ROMulator roundtrip count cannot be negative")
     status = display.copy()
     status.set_team_score(1, f"{roundtrips % ROMULATOR_STATUS_COUNTER_MODULUS:07d}")
-    status.set_team_score(2, fingerprint)
+    status.set_team_score(2, "f" + fingerprint[-6:])
     return status
 
 
@@ -151,6 +163,7 @@ SAME_PLAYER_AGAIN_SECONDS = 2.0
 SAME_PLAYER_AGAIN_FLASH_HZ = 4.0
 SAME_PLAYER_AGAIN_LAMP = 6
 WAITING_PLAYER_FLASH_HZ = 2.0
+LAUNCH_HIGH_SCORE_MIN_SECONDS = 1.5
 DEFAULT_BALL_SAVE_SECONDS = 4.0
 DEFAULT_BALL_SAVE_GRACE_SECONDS = 0.5
 DEFAULT_CONFIG_PATH = Path(__file__).with_name("micropin_game.toml")
@@ -773,6 +786,7 @@ class GameConfig:
     match_percentage: float = 0.1
     inlane_bonus_points: int = 1000
     bonus_tick_seconds: float = 0.10
+    tilt_bonus_tick_seconds: float = 0.05
     bonus_pause_seconds: float = 0.75
     bonus_entry_pause_seconds: float = 0.5
     bonus_multiplier_pause_seconds: float = 0.5
@@ -825,7 +839,7 @@ class GameConfig:
     waiting_for_launch_light_effect: str | None = None
     lighting_base_rgb: tuple[int, int, int] = (255, 255, 255)
     lighting_match_rgb: tuple[int, int, int] = (0, 0, 0)
-    lighting_tilt_rgb: tuple[int, int, int] = (255, 0, 0)
+    lighting_tilt_rgb: tuple[int, int, int] = (255, 64, 0)
     lighting_fade_seconds: float = 0.35
 
     def cue(self, name: str) -> CueBinding:
@@ -837,6 +851,14 @@ class GameConfig:
         # presentation-only cue table.
         if name == "high_score":
             return CueBinding(name=name, sequence=self.high_score_song)
+        if name == "tilt":
+            return CueBinding(name=name, sequence=self.tilt_song)
+        if name == "cups_complete":
+            return CueBinding(
+                name=name,
+                light_effect="rainbow_fast",
+                duration_seconds=CUP_COMPLETE_PRESENTATION_SECONDS,
+            )
         raise KeyError(f"unknown cue {name!r}")
 
 
@@ -884,6 +906,9 @@ def load_game_config(path: Path) -> GameConfig:
     bonus_config = data.get("bonus", {})
     inlane_bonus_points = int(bonus_config.get("inlane_points", 1000))
     bonus_tick_seconds = float(bonus_config.get("tick_seconds", 0.10))
+    tilt_bonus_tick_seconds = float(
+        bonus_config.get("tilt_tick_seconds", 0.05)
+    )
     bonus_pause_seconds = float(bonus_config.get("pause_seconds", 0.75))
     bonus_entry_pause_seconds = float(
         bonus_config.get("entry_pause_seconds", 0.5)
@@ -899,6 +924,10 @@ def load_game_config(path: Path) -> GameConfig:
         raise ValueError("bonus.inlane_points must be a positive multiple of 1000")
     if not 0.01 <= bonus_tick_seconds <= 5.0:
         raise ValueError("bonus.tick_seconds must be between 0.01 and 5 seconds")
+    if not 0.01 <= tilt_bonus_tick_seconds <= 1.0:
+        raise ValueError(
+            "bonus.tilt_tick_seconds must be between 0.01 and 1 second"
+        )
     if not 0 <= bonus_multiplier_pause_seconds <= 5.0:
         raise ValueError(
             "bonus.multiplier_pause_seconds must be between 0 and 5 seconds"
@@ -1062,7 +1091,7 @@ def load_game_config(path: Path) -> GameConfig:
 
     lighting_base_rgb = load_hex_color("base", (255, 255, 255))
     lighting_match_rgb = load_hex_color("match", (0, 0, 0))
-    lighting_tilt_rgb = load_hex_color("tilt", (255, 0, 0))
+    lighting_tilt_rgb = load_hex_color("tilt", (255, 64, 0))
     lighting_fade_seconds = float(lighting.get("fade_seconds", 0.35))
     if not 0 <= lighting_fade_seconds <= 5:
         raise ValueError("lighting.fade_seconds must be 0..5")
@@ -1111,7 +1140,7 @@ def load_game_config(path: Path) -> GameConfig:
         "boot", "start", "launch", "outlane", "outlane_save",
         "standup_special", "standup_complete", "bonus_2x", "bonus_3x",
         "side_bonus_hole", "tilt", "high_score", "add_credit", "mute_on",
-        "mute_off",
+        "mute_off", "cups_complete",
     )
 
     def load_cue(name: str, legacy_sequence: str) -> CueBinding:
@@ -1156,6 +1185,10 @@ def load_game_config(path: Path) -> GameConfig:
                 else max((track.duration_seconds for track in midi_file.tracks), default=start_seconds)
             )
             duration_seconds = max(0.01, end_seconds - start_seconds)
+        if "duration_seconds" in source:
+            duration_seconds = float(source["duration_seconds"])
+            if duration_seconds <= 0:
+                raise ValueError(f"cues.{name}.duration_seconds must be positive")
         return CueBinding(
             name=name,
             sequence=() if midi_name is not None else load_song(str(sequence_name)),
@@ -1182,6 +1215,7 @@ def load_game_config(path: Path) -> GameConfig:
         "add_credit": str(music.get("add_credit", "add_credit")),
         "mute_on": str(music.get("mute_on", "mute_on")),
         "mute_off": str(music.get("mute_off", "mute_off")),
+        "cups_complete": "none",
     }
     cue_bindings = {name: load_cue(name, legacy_sequences[name]) for name in legacy_cue_names}
     waiting_background = backgrounds.get("waiting_for_launch", {})
@@ -1211,6 +1245,7 @@ def load_game_config(path: Path) -> GameConfig:
         match_percentage=match_percentage,
         inlane_bonus_points=inlane_bonus_points,
         bonus_tick_seconds=bonus_tick_seconds,
+        tilt_bonus_tick_seconds=tilt_bonus_tick_seconds,
         bonus_pause_seconds=bonus_pause_seconds,
         bonus_entry_pause_seconds=bonus_entry_pause_seconds,
         bonus_multiplier_pause_seconds=bonus_multiplier_pause_seconds,
@@ -1398,6 +1433,10 @@ class HardwareSnapshot:
         return bool(self.cabinet_events & LEFT_FLIPPER_MASK)
 
     @property
+    def left_flipper_held(self) -> bool:
+        return bool(self.cabinet_levels & LEFT_FLIPPER_LEVEL_MASK)
+
+    @property
     def credit_pressed(self) -> bool:
         return bool(self.cabinet_events & CREDIT_MASK)
 
@@ -1462,6 +1501,8 @@ class GameContext:
     ball_number: int = 0
     ball_in_play: bool = False
     tilted: bool = False
+    next_tilt_bonus_time: float = 0.0
+    tilt_outhole_pending: bool = False
     credits: int = 0
     bonus: int = 0
     bonus_multiplier: int = 1
@@ -1515,6 +1556,9 @@ class OutputFrame:
     tone_duration: int = 0
     # A host-rendered, finite presentation effect requested this frame.
     led_effect: str | None = None
+    # Host-only cue metadata; it is deliberately not part of the 8085 wire
+    # payload. The host may use it to start a MIDI/light presentation.
+    presentation_cue: str | None = None
     # A direct rule event occurred this frame.  It may intentionally repeat
     # the preceding pitch, but Micropin's shared port-9 sound gate still needs
     # a fresh AY transaction to make it audible.
@@ -1819,6 +1863,10 @@ class MicropinGame:
         if not self.muted:
             self._start_song(self.config.boot_song)
         self._standup_coincidence = StandupCoincidence()
+        self._cup_complete_started_at: float | None = None
+        self._delayed_cup_eject_mask = 0
+        self._delayed_cup_eject_at: float | None = None
+        self._launch_high_scores_until: float | None = None
 
     def initial_output(self) -> OutputFrame:
         return self._render_output()
@@ -1848,6 +1896,17 @@ class MicropinGame:
         cup_mask = 0
         sound: Tone | None = None
         led_effect: str | None = None
+        presentation_cue: str | None = None
+        if (
+            self._delayed_cup_eject_at is not None
+            and self._clock() >= self._delayed_cup_eject_at
+        ):
+            cup_mask |= self._delayed_cup_eject_mask
+            messages.append(
+                f"delayed cup eject requested: {self._delayed_cup_eject_mask:02x}"
+            )
+            self._delayed_cup_eject_mask = 0
+            self._delayed_cup_eject_at = None
         newly_closed_outlanes = inputs.closed_outlane_mask & ~self.context.previous_outlane_mask
         self.context.previous_outlane_mask = inputs.closed_outlane_mask
         newly_closed_playfield = inputs.closed_playfield_mask & ~self.context.previous_playfield_mask
@@ -1908,6 +1967,21 @@ class MicropinGame:
                 self._advance_high_score_tributes()
 
         elif self.context.state is GameState.WAITING_FOR_LAUNCH:
+            now = self._clock()
+            if (
+                self._launch_high_scores_until is None
+                and (inputs.left_flipper_pressed or inputs.left_flipper_held)
+            ):
+                self._launch_high_scores_until = (
+                    now + LAUNCH_HIGH_SCORE_MIN_SECONDS
+                )
+                messages.append("launch interlude: showing high scores")
+            elif (
+                self._launch_high_scores_until is not None
+                and not inputs.left_flipper_held
+                and now >= self._launch_high_scores_until
+            ):
+                self._launch_high_scores_until = None
             if inputs.right_flipper_pressed:
                 if inputs.outhole_closed:
                     launch = True
@@ -1944,8 +2018,31 @@ class MicropinGame:
             if inputs.tilt_pressed and not self.context.tilted:
                 self.context.tilted = True
                 self.context.outlane_save_pending = False
+                self.context.next_tilt_bonus_time = (
+                    self._clock() + self.config.tilt_bonus_tick_seconds
+                )
+                self._stop_songs()
                 self._start_song(self.config.tilt_song)
                 messages.append("TILT: local reflex and flipper coils inhibited")
+
+            if (
+                self.context.tilted
+                and self.context.bonus
+                and self._clock() >= self.context.next_tilt_bonus_time
+            ):
+                now = self._clock()
+                ticks = 1 + int(
+                    (now - self.context.next_tilt_bonus_time)
+                    / self.config.tilt_bonus_tick_seconds
+                )
+                drained = min(self.context.bonus, ticks * 1000)
+                self.context.bonus -= drained
+                self.context.next_tilt_bonus_time += (
+                    ticks * self.config.tilt_bonus_tick_seconds
+                )
+                messages.append(
+                    f"tilt bonus drain: -{drained}; remaining {self.context.bonus}"
+                )
 
             if newly_closed_outlanes and not self.context.tilted and not self.context.ball_ending:
                 points = newly_closed_outlanes.bit_count() * 1000
@@ -2103,10 +2200,15 @@ class MicropinGame:
                         launch = True
                         messages.append("same player again: grace save used; auto-launching coil 5")
                     elif self.context.tilted:
-                        self._stop_songs()
-                        sound = self.config.end_ball_sound
-                        messages.append("bonus: skipped after tilt")
-                        self._finish_ball(messages)
+                        if self.context.bonus:
+                            self.context.tilt_outhole_pending = True
+                            self.context.ball_ending = True
+                            messages.append(
+                                "tilt: outhole settled; waiting for bonus drain"
+                            )
+                        else:
+                            messages.append("bonus: drained after tilt")
+                            self._finish_ball(messages)
                     else:
                         self._stop_songs()
                         sound = self.config.end_ball_sound
@@ -2158,18 +2260,50 @@ class MicropinGame:
                             self.context.cup_lit_mask = 0x1f
                             self.context.cups_completed_this_ball = True
                             self.lamps.play(CUP_COMPLETE_SEQUENCE)
+                            self._cup_complete_started_at = self._clock()
+                            presentation_cue = "cups_complete"
+                            cups_complete_cue = self.config.cue("cups_complete")
+                            led_effect = cups_complete_cue.light_effect
+                            # Keep the completing ball captured while the
+                            # three-second display/MIDI/LED celebration runs.
+                            cup_mask &= ~cup_bit
+                            self._delayed_cup_eject_mask |= cup_bit
+                            self._delayed_cup_eject_at = (
+                                self._cup_complete_started_at
+                                + max(
+                                    CUP_COMPLETE_PRESENTATION_SECONDS,
+                                    cups_complete_cue.duration_seconds,
+                                )
+                            )
                             self._maybe_qualify_extra_ball(messages)
                             if self.context.cup_tier < len(CUP_BONUS_VALUES) - 1:
                                 self.context.cup_tier += 1
                             messages.append(
                                 f"cups complete: next value {CUP_BONUS_VALUES[self.context.cup_tier]}"
                             )
-                            sound = self.config.cups_complete_sound
+                            sound = (
+                                None
+                                if cups_complete_cue.midi is not None
+                                else self.config.cups_complete_sound
+                            )
                     else:
                         self.context.player_scores[self.context.current_player - 1] += 100
                         sound = self.config.cup_unlit_sound
                         messages.append(f"cup {hole + 1}: unlit, +100 points")
-                messages.append(f"cup eject requested: {hole + 1}")
+                if cup_mask & (1 << hole):
+                    messages.append(f"cup eject requested: {hole + 1}")
+                elif self._delayed_cup_eject_mask & (1 << hole):
+                    messages.append(
+                        f"cup eject delayed until celebration ends: {hole + 1}"
+                    )
+
+            if (
+                self.context.tilted
+                and self.context.tilt_outhole_pending
+                and not self.context.bonus
+            ):
+                messages.append("bonus: tilt drain complete")
+                self._finish_ball(messages)
 
         elif self.context.state is GameState.BONUS_PROCESSING:
             payout_sound, payout_cups = self._advance_bonus_payout(messages)
@@ -2275,6 +2409,7 @@ class MicropinGame:
                 sound=sound,
                 tone_trigger=direct_sound is not None,
                 led_effect=led_effect,
+                presentation_cue=presentation_cue,
             ),
             tuple(messages),
         )
@@ -2714,6 +2849,8 @@ class MicropinGame:
         self.context.ball_number = 1
         self.context.ball_in_play = False
         self.context.tilted = False
+        self.context.next_tilt_bonus_time = 0.0
+        self.context.tilt_outhole_pending = False
         self.context.bonus = 0
         self.context.bonus_multiplier = 1
         self.context.bonus_payout_multiplier = 1
@@ -2785,6 +2922,8 @@ class MicropinGame:
         self.context.bonus_payout_phase = BonusPayoutPhase.COUNTING
         self.context.bonus_returns_to_play = False
         self.context.tilted = False
+        self.context.next_tilt_bonus_time = 0.0
+        self.context.tilt_outhole_pending = False
         self.context.ball_has_left_outhole = False
         self._hole_timer.clear()
         self.context.previous_inlane_mask = 0
@@ -2821,6 +2960,8 @@ class MicropinGame:
             self._ball_ready_lamps.cancel()
             self._ball_ready_lamps = None
         self.context.state = state
+        if state is not GameState.WAITING_FOR_LAUNCH:
+            self._launch_high_scores_until = None
         if state is GameState.GAME_OVER:
             self._attract_started = self._clock()
             self._reset_attract_lamps()
@@ -2888,11 +3029,16 @@ class MicropinGame:
         sound: Tone | None = None,
         tone_trigger: bool = False,
         led_effect: str | None = None,
+        presentation_cue: str | None = None,
     ) -> OutputFrame:
         display = DisplayFrame()
         now = self._clock()
         attract_score_page = False
         attract_high_score_page = False
+        launch_high_score_page = (
+            self.context.state is GameState.WAITING_FOR_LAUNCH
+            and self._launch_high_scores_until is not None
+        )
         if self.context.state is GameState.GAME_OVER and not self._high_score_tributes:
             page_seconds = ATTRACT_HOLD_SECONDS + ATTRACT_TRANSITION_SECONDS
             phase = (now - self._attract_started) % (2 * page_seconds)
@@ -2902,6 +3048,9 @@ class MicropinGame:
             )
         for player, score in enumerate(self.context.player_scores, start=1):
             if player <= self.context.players_in_game:
+                display.set_player_score(player, score_digits(score))
+        if launch_high_score_page:
+            for player, score in enumerate(self.high_scores[1:5], 1):
                 display.set_player_score(player, score_digits(score))
         if self.context.state in (GameState.GAME_OVER, GameState.HIGH_SCORE):
             if self._tribute_player is not None:
@@ -2922,10 +3071,21 @@ class MicropinGame:
                     for player, score in enumerate(self.high_scores[1:5], 1):
                         value = "ffffff" if player in self._new_high_score_ranks and int(now * 4) % 2 else score_digits(score)
                         display.set_player_score(player, value)
-        display.set_bonus(score_digits(self.context.bonus))
+        tilt_bonus_flash_off = (
+            self.context.tilted
+            and self.context.bonus > 0
+            and int(now * TILT_BONUS_FLASH_HZ * 2) % 2 != 0
+        )
+        display.set_bonus(
+            "ffffff"
+            if tilt_bonus_flash_off
+            else score_digits(self.context.bonus)
+        )
         display.set_credits(score_digits(self.context.credits, 2))
         display.set_ball_in_play(self.context.ball_number)
-        if self.context.state is GameState.MATCH_SEQUENCE:
+        if launch_high_score_page:
+            display.set_spread(score_digits(self.high_scores[0]))
+        elif self.context.state is GameState.MATCH_SEQUENCE:
             digits = list("ffffff")
             position = MATCH_DIGIT_POSITIONS[max(0, self.context.match_step - 1) % 6]
             digits[position] = str(self.context.match_digit)
@@ -2938,6 +3098,25 @@ class MicropinGame:
             display.set_spread("ffffff")
         else:
             display.set_spread(score_digits(self.high_scores[0]))
+        if (
+            self._cup_complete_started_at is not None
+            and 0 <= now - self._cup_complete_started_at
+            < CUP_COMPLETE_PRESENTATION_SECONDS
+        ):
+            elapsed = now - self._cup_complete_started_at
+            frame_seconds = (
+                CUP_COMPLETE_PRESENTATION_SECONDS
+                / len(CUP_COMPLETE_DISPLAY_PATTERNS)
+            )
+            pattern = CUP_COMPLETE_DISPLAY_PATTERNS[
+                min(
+                    len(CUP_COMPLETE_DISPLAY_PATTERNS) - 1,
+                    int(elapsed / frame_seconds),
+                )
+            ]
+            for player in range(1, 5):
+                display.set_player_score(player, pattern)
+            display.set_spread(pattern)
         self._advance_attract_lamps(now)
         game_over_flash = (
             self.context.state is GameState.GAME_OVER
@@ -2955,7 +3134,9 @@ class MicropinGame:
         # score-digit flashes below.
         attract_flash_on = int(now * 4) % 2 == 0
         display.set_high_score_led(
-            self.context.state is not GameState.MATCH_SEQUENCE
+            attract_flash_on
+            if launch_high_score_page
+            else self.context.state is not GameState.MATCH_SEQUENCE
             and (
                 self.context.state is not GameState.GAME_OVER
                 or not attract_high_score_page
@@ -3029,7 +3210,10 @@ class MicropinGame:
                 SAME_PLAYER_AGAIN_LAMP % 8
             )
         display.set_same_player_again_led(same_player_on)
-        if self.context.state is GameState.GAME_OVER and attract_high_score_page:
+        if launch_high_score_page:
+            for player in range(1, 5):
+                display.set_player_led(player, attract_flash_on)
+        elif self.context.state is GameState.GAME_OVER and attract_high_score_page:
             # The top-five page is an intentionally obvious "scoreboard"
             # moment: make all four player indicators blink in phase with its
             # high-score lamp.
@@ -3072,6 +3256,7 @@ class MicropinGame:
             tone_duration=int(sound.mode) if sound else 0,
             tone_trigger=tone_trigger,
             led_effect=led_effect,
+            presentation_cue=presentation_cue,
         )
 
 
@@ -3171,7 +3356,7 @@ def main() -> int:
     parser.add_argument(
         "--dwell",
         type=float,
-        default=0.04,
+        default=0.00,
         help="seconds between frames (default: 0.04; lower values favor MIDI timing)",
     )
     parser.add_argument(
@@ -3305,7 +3490,7 @@ def main() -> int:
         if args.romulator_status:
             print(
                 "ROMulator status display: player 5 completed roundtrips; "
-                "player 6 previous canonical payload SHA-256 prefix"
+                "player 6 last six digits of previous canonical payload SHA-256 prefix"
             )
         active_led_effect: str | None = None
         active_led_effect_started_at = 0.0
@@ -3322,15 +3507,82 @@ def main() -> int:
         gameplay_midi_ball: tuple[int, int] | None = None
         high_score_midi_player: int | None = None
         high_score_midi_until = 0.0
+        presentation_midi_name: str | None = None
+        presentation_midi_until = 0.0
         try:
             while not stop_requested:
                 now = time.monotonic()
                 if output.led_effect is not None:
-                    active_led_effect = output.led_effect
-                    active_led_effect_started_at = now
+                    cup_presentation_owns_leds = (
+                        active_led_effect == "rainbow_fast"
+                        and now - active_led_effect_started_at
+                        < CUP_COMPLETE_PRESENTATION_SECONDS
+                    )
+                    if (
+                        output.led_effect == "rainbow_fast"
+                        or not cup_presentation_owns_leds
+                    ):
+                        active_led_effect = output.led_effect
+                        active_led_effect_started_at = now
                 if ay_sound is not None:
-                    wants_gameplay_midi = (
+                    if game.context.tilted and presentation_midi_name is not None:
+                        ay_sound.set_gameplay_midi_active(False, now=now)
+                        presentation_midi_name = None
+                        gameplay_midi_ball = None
+                    if output.presentation_cue is not None:
+                        cue = game_config.cue(output.presentation_cue)
+                        if cue.midi is not None:
+                            ay_sound.set_gameplay_midi_active(False, now=now)
+                            source = load_midi_song_config(args.config, cue.midi)
+                            ay_sound.configure_gameplay_midi(
+                                replace(
+                                    source,
+                                    loop=False,
+                                    start_measure=cue.start_measure,
+                                    end_measure=cue.end_measure,
+                                )
+                            )
+                            presentation_midi_name = cue.name
+                            presentation_midi_until = now + cue.duration_seconds
+                            gameplay_midi_ball = None
+                            print(
+                                f"presentation MIDI: {cue.midi!r} for "
+                                f"{cue.duration_seconds:.2f}s ({cue.name})"
+                            )
+                    if (
+                        presentation_midi_name is not None
+                        and now >= presentation_midi_until
+                    ):
+                        ay_sound.set_gameplay_midi_active(False, now=now)
+                        presentation_midi_name = None
+                        gameplay_midi_ball = None
+                        if (
+                            game.context.state is GameState.GAME_PLAYING
+                            and not game.context.tilted
+                            and previous_gameplay_midi is not None
+                        ):
+                            ay_sound.configure_gameplay_midi(
+                                load_midi_song_config(
+                                    args.config,
+                                    previous_gameplay_midi,
+                                )
+                            )
+                            gameplay_midi_ball = (
+                                game.context.current_player,
+                                game.context.ball_number,
+                            )
+                    presentation_midi_active = (
+                        presentation_midi_name is not None
+                        and now < presentation_midi_until
+                    )
+                    normal_gameplay_midi = (
                         game.context.state is GameState.GAME_PLAYING
+                        and not game.context.tilted
+                        and not presentation_midi_active
+                    )
+                    wants_gameplay_midi = (
+                        normal_gameplay_midi
+                        or presentation_midi_active
                         or (
                             game.context.state is GameState.HIGH_SCORE
                             and high_score_midi_player is not None
@@ -3339,7 +3591,7 @@ def main() -> int:
                     )
                     current_ball = (game.context.current_player, game.context.ball_number)
                     if (
-                        wants_gameplay_midi
+                        normal_gameplay_midi
                         and game_config.gameplay_midi_songs
                         and current_ball != gameplay_midi_ball
                     ):
@@ -3418,13 +3670,39 @@ def main() -> int:
                         if game.context.state is GameState.HIGH_SCORE
                         else None
                     )
+                    side_cup_effect = (
+                        "side_cup_rainbow"
+                        if (
+                            game.context.state is GameState.BONUS_PROCESSING
+                            and game.context.bonus_returns_to_play
+                        )
+                        else None
+                    )
                     if (
                         active_led_effect == "rollover_complete_chase"
                         and now - active_led_effect_started_at >= ROLLOVER_CHASE_SECONDS
                     ):
                         active_led_effect = None
+                    if (
+                        active_led_effect == "rainbow_fast"
+                        and now - active_led_effect_started_at
+                        >= max(
+                            CUP_COMPLETE_PRESENTATION_SECONDS,
+                            game_config.cue("cups_complete").duration_seconds,
+                        )
+                    ):
+                        active_led_effect = None
                     leds.show(
-                        renderer.effect_frame(
+                        renderer.frame(
+                            output.lamp_bitmap,
+                            output.tone_pitch,
+                            output.tone_duration,
+                            base_rgb=base_rgb,
+                        )
+                        if game.context.tilted
+                        else renderer.effect_frame(side_cup_effect, now=now)
+                        if side_cup_effect is not None
+                        else renderer.effect_frame(
                             active_led_effect,
                             now=now - active_led_effect_started_at,
                         )

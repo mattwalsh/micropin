@@ -500,6 +500,27 @@ def load_midi_song_config(config_path: Path, name: str) -> MidiSongConfig:
     default_volume = int(audio.get("midi_volume", music.get("midi_volume", 2)))
     if not 1 <= default_volume <= 0x0f:
         raise ValueError("audio.midi_volume must be 1-15")
+    # Envelope choices deliberately have three levels of precedence:
+    #
+    #   [audio] defaults -> [midi_songs.<name>] defaults -> [[...voices]]
+    #
+    # This makes it convenient to audition a shared AY character across the
+    # whole library, while leaving a drum/noise voice free to opt out.
+    global_use_envelope = bool(
+        audio.get("midi_use_envelope", music.get("midi_use_envelope", False))
+    )
+    global_envelope_period = audio.get(
+        "midi_envelope_period", music.get("midi_envelope_period")
+    )
+    if global_envelope_period is not None:
+        global_envelope_period = int(global_envelope_period)
+        if not 1 <= global_envelope_period <= 0xffff:
+            raise ValueError("audio.midi_envelope_period must be 1-65535")
+    global_envelope_shape = int(
+        audio.get("midi_envelope_shape", music.get("midi_envelope_shape", 0))
+    )
+    if not 0 <= global_envelope_shape <= 0x0f:
+        raise ValueError("audio.midi_envelope_shape must be 0-15")
     source = songs.get(name) if isinstance(songs, dict) else None
     if not isinstance(source, dict):
         available = ", ".join(sorted(songs)) if isinstance(songs, dict) else ""
@@ -510,12 +531,14 @@ def load_midi_song_config(config_path: Path, name: str) -> MidiSongConfig:
         raise ValueError(f"midi_songs.{name}.file is required") from error
     path = filename if filename.is_absolute() else config_path.parent / filename
     loop = bool(source.get("loop", False))
-    envelope_period = source.get("envelope_period")
+    song_use_envelope = bool(source.get("use_envelope", global_use_envelope))
+    song_has_envelope_period = "envelope_period" in source
+    envelope_period = source.get("envelope_period", global_envelope_period)
     if envelope_period is not None:
         envelope_period = int(envelope_period)
         if not 1 <= envelope_period <= 0xffff:
             raise ValueError(f"midi_songs.{name}.envelope_period must be 1-65535")
-    envelope_shape = int(source.get("envelope_shape", 0))
+    envelope_shape = int(source.get("envelope_shape", global_envelope_shape))
     if not 0 <= envelope_shape <= 0x0f:
         raise ValueError(f"midi_songs.{name}.envelope_shape must be 0-15")
     noise_period = source.get("noise_period")
@@ -554,7 +577,7 @@ def load_midi_song_config(config_path: Path, name: str) -> MidiSongConfig:
         # arrangements inherit the global music setting.
         volume = int(voice.get("volume", default_volume))
         a4_period = int(voice.get("a4_period", 142))
-        use_envelope = bool(voice.get("use_envelope", False))
+        use_envelope = bool(voice.get("use_envelope", song_use_envelope))
         use_tone = bool(voice.get("use_tone", True))
         use_noise = bool(voice.get("use_noise", False))
         priority = int(voice.get("priority", index))
@@ -577,6 +600,16 @@ def load_midi_song_config(config_path: Path, name: str) -> MidiSongConfig:
             a4_period=a4_period, use_envelope=use_envelope,
             use_tone=use_tone, use_noise=use_noise, priority=priority,
         ))
+    if any(voice.use_envelope for voice in voices) and envelope_period is None:
+        raise ValueError(
+            f"midi_songs.{name} selects the envelope but has no envelope_period; "
+            "set midi_envelope_period in [audio] or envelope_period on the song"
+        )
+    # Merely defining a global period should not generate otherwise-unneeded
+    # R11/R12/R13 traffic for songs whose voices all use fixed volume. An
+    # explicit song period retains the old behavior for deliberate preloads.
+    if not song_has_envelope_period and not any(voice.use_envelope for voice in voices):
+        envelope_period = None
     for channel in range(3):
         priorities = [
             voice.priority for voice in voices if channel in voice.channels

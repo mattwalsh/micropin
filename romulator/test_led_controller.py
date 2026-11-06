@@ -7,6 +7,8 @@ from led_controller import (
     LAUNCH_FLIPPER_PULSE_PIXELS,
     LAUNCH_FLIPPER_PULSE_RGB,
     LAUNCH_FLIPPER_PULSE_SECONDS,
+    SIDE_CUP_LED_FIRST,
+    SIDE_CUP_LED_LAST,
     StripGeometry,
     WAITING_WIPE_RGB,
     WAITING_WIPE_ROWS,
@@ -141,6 +143,33 @@ class LedGeometryTests(unittest.TestCase):
         renderer = GameLedRenderer(StripGeometry(160))
         frame = renderer.effect_frame("rainbow_vivid", now=0)
         self.assertEqual(frame[:3], bytes((255, 0, 0)))
+
+    def test_fast_rainbow_advances_at_five_times_the_normal_rate(self) -> None:
+        renderer = GameLedRenderer(StripGeometry(160))
+        self.assertEqual(
+            renderer.effect_frame("rainbow_fast", now=0.2),
+            renderer.effect_frame("rainbow", now=1.0),
+        )
+
+    def test_side_cup_rainbow_only_illuminates_pixels_15_through_25(self) -> None:
+        geometry = StripGeometry(160)
+        renderer = GameLedRenderer(geometry)
+        frame = renderer.effect_frame("side_cup_rainbow", now=0.25)
+        self.assertEqual(
+            frame[: SIDE_CUP_LED_FIRST * 3],
+            b"\0" * (SIDE_CUP_LED_FIRST * 3),
+        )
+        active = frame[
+            SIDE_CUP_LED_FIRST * 3 : (SIDE_CUP_LED_LAST + 1) * 3
+        ]
+        self.assertNotEqual(
+            active,
+            b"\0" * ((SIDE_CUP_LED_LAST - SIDE_CUP_LED_FIRST + 1) * 3),
+        )
+        self.assertEqual(
+            frame[(SIDE_CUP_LED_LAST + 1) * 3 :],
+            b"\0" * ((geometry.count - SIDE_CUP_LED_LAST - 1) * 3),
+        )
 
 
 if __name__ == "__main__":

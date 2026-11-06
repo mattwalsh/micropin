@@ -26,12 +26,19 @@ effects_volume = 6
 # Fixed default for MIDI voices (1..15). A voice may override it, but the
 # normal case intentionally keeps per-voice configuration uncluttered.
 midi_volume = 4
+# These are library-wide defaults.  A song can set `use_envelope` to make all
+# of its voices use the shared envelope, and a voice can still explicitly set
+# `use_envelope = false` to opt out.  Temporarily set this flag true to
+# audition the PPM-style envelope across every MIDI arrangement.
+midi_use_envelope = false
+midi_envelope_period = 0x0400
+midi_envelope_shape = 0x09
 
 # Persistent base layer.  Colors accept ordinary #aabbcc RGB values.
 [lighting]
 base = "#ffffff"
 match = "#000000"
-tilt = "#ff0000"
+tilt = "#ff4000"
 fade_seconds = 0.9
 
 # Backgrounds are owned by game state and therefore loop for as long as that
@@ -73,10 +80,15 @@ sequence = "bonus_3x"
 sequence = "side_bonus_hole"
 [cues.tilt]
 sequence = "tilt"
+[cues.cups_complete]
+midi = "superstition"
+start_measure = 22
+end_measure = 23
+light_effect = "rainbow_fast"
 [cues.high_score]
 midi = "cantina"
 start_measure = 11
-end_measure = 26
+end_measure = 24
 light_effect = "rainbow"
 [cues.add_credit]
 sequence = "add_credit"
@@ -89,6 +101,8 @@ sequence = "mute_off"
 pause_seconds = 0.75
 inlane_points = 1000
 tick_seconds = 0.10
+# Tilt discards bonus visibly and quickly without adding it to the score.
+tilt_tick_seconds = 0.05
 entry_pause_seconds = 0.5
 multiplier_pause_seconds = 0.5
 
@@ -164,13 +178,11 @@ envelope_shape = 3
 track = "Synth Pluck (Classic)"
 channel = 1
 a4_period = 142
-use_envelope = false
 
 [[midi_songs."chase".voices]]
 track = "Clean Guitar"
 channel = 2
 a4_period = 142
-use_envelope = false
 
 [midi_songs.tubular_bells]
 file = "../py_pin/midi/tubular_bells.mid"
@@ -196,8 +208,6 @@ a4_period = 142
 [midi_songs.chameleon]
 file = "../py_pin/midi/chameleon.mid"
 loop = true
-envelope_period = 0x0100
-envelope_shape = 0x01
 noise_period = 0x01
 
 [[midi_songs.chameleon.voices]]
@@ -209,7 +219,6 @@ a4_period = 142
 track = "Electric Drum Kit"
 channel = 1
 a4_period = 142
-use_envelope = true
 use_tone = false
 use_noise = true
 
@@ -234,6 +243,27 @@ a4_period = 142
 
 [[midi_songs.dr_who.voices]]
 track = "8-Bit Triangle"
+channel = 2
+a4_period = 142
+
+[midi_songs.superstition]
+file = "../py_pin/midi/superstition.mid"
+loop = false
+start_measure = 22
+end_measure = 23
+
+[[midi_songs.superstition.voices]]
+track = "Brass"
+channel = 0
+a4_period = 142
+
+[[midi_songs.superstition.voices]]
+track = "Saxophone"
+channel = 1
+a4_period = 142
+
+[[midi_songs.superstition.voices]]
+track = "Bass Guitar"
 channel = 2
 a4_period = 142
 
@@ -338,7 +368,6 @@ a4_period = 142
 track = "Electric Drum Kit"
 channel = 2
 a4_period = 142
-use_envelope = true
 use_tone = false
 use_noise = true
 
@@ -368,13 +397,11 @@ priority = 1
 [[midi_songs.popcorn2.voices]]
 track = "Synthesizer"
 channel = 1
-use_envelope = false
 a4_period = 142
 
 [[midi_songs.popcorn2.voices]]
 track = "French Horn"
 channel = 2
-use_envelope = false
 a4_period = 142
 priority = 2
 
@@ -382,7 +409,6 @@ priority = 2
 track = "Electric Drum Kit"
 channel = 2
 a4_period = 142
-use_envelope = true
 use_tone = true
 use_noise = true
 priority = 1

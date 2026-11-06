@@ -23,6 +23,7 @@ from micropin_game import (
     GameState,
     HardwareSnapshot,
     HoleDwellTimer,
+    LEFT_FLIPPER_MASK,
     MicropinGame,
     ROLLOVER_DMA_INDICES,
     ROLLOVER_LAMPS,
@@ -71,6 +72,17 @@ def player_score_leds(display: DisplayFrame) -> tuple[bool, bool, bool, bool]:
     return tuple(bool(indicators & (1 << (player + 3))) for player in range(1, 5))
 
 
+def player_digits(display: DisplayFrame, player: int) -> str:
+    offsets = {
+        1: (8, 7, 6),
+        2: (15, 14, 13),
+        3: (5, 4, 3),
+        4: (18, 17, 16),
+    }[player]
+    window = display.to_bytes()
+    return "".join(f"{window[offset]:02x}" for offset in offsets)
+
+
 def snapshot(
     *,
     cabinet: int = 0,
@@ -107,14 +119,14 @@ def snapshot(
 
 
 class MicropinGameTests(unittest.TestCase):
-    def test_romulator_status_is_a_nonmutating_seven_hex_digit_player_six_overlay(self):
+    def test_romulator_status_blanks_separated_digit_and_shows_last_six(self):
         base = DisplayFrame()
         fingerprint = romulator_transaction_fingerprint(b"exact aperture payload")
         status = overlay_romulator_status(base, fingerprint, 42)
 
         self.assertEqual(len(fingerprint), 7)
         self.assertEqual(team_digits(status, 1), "0000042")
-        self.assertEqual(team_digits(status, 2), fingerprint)
+        self.assertEqual(team_digits(status, 2), "f" + fingerprint[-6:])
         self.assertNotEqual(status.to_bytes(), base.to_bytes())
         self.assertEqual(team_digits(base, 1), "fffffff")
         self.assertEqual(team_digits(base, 2), "fffffff")
@@ -1203,13 +1215,75 @@ class MicropinGameTests(unittest.TestCase):
 
         # Host-commanded cup ejectors remain usable during tilt even though
         # local bumpers, slings and flippers stay inhibited.
-        cup = game.step(snapshot(outhole=False, cups=0x01))
-        self.assertEqual(cup.output.cup_mask, 0x01)
+        cup = game.step(snapshot(outhole=False, cups=0x3f))
+        self.assertEqual(cup.output.cup_mask, 0x3f)
         self.assertFalse(cup.output.reflex_enabled)
+
+        score = game.context.player_scores[0]
+        game.step(snapshot(outhole=False, reflex=0x3f))
+        self.assertEqual(game.context.player_scores[0], score)
 
         now[0] += 1 / (4.0 * 2)
         flashed_off = game.step(snapshot(outhole=False))
         self.assertFalse(flashed_off.output.display.to_bytes()[22] & 0x20)
+
+    def test_tilt_flashes_and_rapidly_discards_bonus_without_scoring(self) -> None:
+        now = [0.0]
+        game = MicropinGame(
+            GameConfig(
+                hole_settle_seconds=0,
+                tilt_bonus_tick_seconds=0.20,
+            ),
+            clock=lambda: now[0],
+        )
+        game.step(snapshot(cabinet=0x40))
+        game.step(snapshot(cabinet=0x10))
+        game.context.bonus = 3000
+        starting_score = game.context.player_scores[0]
+
+        tilted = game.step(snapshot(cabinet=0x08, outhole=False))
+        self.assertEqual(tilted.output.display.to_bytes()[0:3], bytes((0, 0x30, 0xff)))
+
+        # Bonus digits flash independently of the scoreboard Tilt LED.
+        now[0] = 1 / (8.0 * 2)
+        blank = game.step(snapshot(outhole=False))
+        self.assertEqual(blank.output.display.to_bytes()[0:3], b"\xff\xff\xff")
+        self.assertTrue(blank.output.display.to_bytes()[22] & 0x20)
+
+        for expected_bonus, instant in ((2000, 0.25), (1000, 0.45), (0, 0.65)):
+            now[0] = instant
+            game.step(snapshot(outhole=False))
+            self.assertEqual(game.context.bonus, expected_bonus)
+            self.assertEqual(game.context.player_scores[0], starting_score)
+
+    def test_tilted_outhole_waits_for_bonus_to_drain_before_finishing_ball(self) -> None:
+        now = [0.0]
+        game = MicropinGame(
+            GameConfig(
+                balls_per_game=4,
+                hole_settle_seconds=0,
+                tilt_bonus_tick_seconds=0.05,
+            ),
+            clock=lambda: now[0],
+        )
+        game.step(snapshot(cabinet=0x40))
+        game.step(snapshot(cabinet=0x10))
+        game.context.bonus = 2000
+        game.step(snapshot(cabinet=0x08, outhole=False))
+
+        settled = game.step(snapshot(outhole=True))
+        self.assertIs(game.context.state, GameState.GAME_PLAYING)
+        self.assertFalse(settled.output.reflex_enabled)
+
+        now[0] = 0.05
+        game.step(snapshot(outhole=True))
+        self.assertIs(game.context.state, GameState.GAME_PLAYING)
+        now[0] = 0.10
+        game.step(snapshot(outhole=True))
+        self.assertIs(game.context.state, GameState.WAITING_FOR_LAUNCH)
+        self.assertEqual(game.context.ball_number, 2)
+        self.assertEqual(game.context.bonus, 0)
+        self.assertFalse(game.context.tilted)
 
     def test_inlanes_accrue_on_closure_and_payout_1000_per_tick(self) -> None:
         now = [10.0]
@@ -1264,12 +1338,19 @@ class MicropinGameTests(unittest.TestCase):
         self.assertEqual(game.context.player_scores[0], 1_200_000)
 
     def test_tilt_skips_bonus_payout_and_advances_ball(self) -> None:
-        game = MicropinGame(GameConfig(hole_settle_seconds=0))
+        now = [0.0]
+        game = MicropinGame(
+            GameConfig(hole_settle_seconds=0, tilt_bonus_tick_seconds=0.05),
+            clock=lambda: now[0],
+        )
         game.step(snapshot(cabinet=0x40))
         game.step(snapshot(cabinet=0x10))
         game.step(snapshot(outhole=False, inlanes=0x01))
         self.assertEqual(game.context.bonus, 1000)
         game.step(snapshot(cabinet=0x08, outhole=False, inlanes=0x01))
+        drained = game.step(snapshot(outhole=True))
+        self.assertIs(game.context.state, GameState.GAME_PLAYING)
+        now[0] = 0.05
         drained = game.step(snapshot(outhole=True))
         self.assertIs(game.context.state, GameState.WAITING_FOR_LAUNCH)
         self.assertEqual(game.context.player_scores[0], 0)
@@ -1481,6 +1562,35 @@ class MicropinGameTests(unittest.TestCase):
                 bitmap[expected_lamp // 8] & (1 << (expected_lamp % 8))
             )
 
+    def test_cup_completion_runs_three_second_five_display_presentation(self) -> None:
+        now = [0.0]
+        game = MicropinGame(
+            GameConfig(hole_settle_seconds=0), clock=lambda: now[0]
+        )
+        game.step(snapshot(cabinet=START_MASK))
+        game.step(snapshot(cabinet=0x10))
+        game.context.cup_lit_mask = 0x01
+
+        completed = game.step(snapshot(outhole=False, cups=0x01))
+        self.assertEqual(completed.output.presentation_cue, "cups_complete")
+        self.assertEqual(completed.output.led_effect, "rainbow_fast")
+        self.assertEqual(completed.output.cup_mask, 0)
+
+        for instant, pattern in zip(
+            (0.0, 0.61, 1.21, 1.81, 2.41),
+            ("1fffff", "fffff2", "f3ffff", "ffff4f", "ff5fff"),
+        ):
+            now[0] = instant
+            display = game.initial_output().display
+            self.assertEqual(spread_digits(game.initial_output()), pattern)
+            for player in range(1, 5):
+                self.assertEqual(player_digits(display, player), pattern)
+
+        now[0] = 3.01
+        finished = game.step(snapshot(outhole=False, cups=0x01))
+        self.assertNotEqual(spread_digits(finished.output), "ff5fff")
+        self.assertEqual(finished.output.cup_mask, 0x01)
+
     def test_completed_cups_and_standups_qualify_and_award_extra_ball(self) -> None:
         game = MicropinGame(GameConfig(hole_settle_seconds=0))
         game.step(snapshot(cabinet=START_MASK))
@@ -1624,6 +1734,51 @@ class MicropinGameTests(unittest.TestCase):
         game.context.state = GameState.MATCH_SEQUENCE
         match = game.step(snapshot())
         self.assertEqual(match.output.display.to_bytes()[30] & 0xf0, 0)
+
+    def test_left_flipper_shows_top_five_while_waiting_with_minimum_hold(self) -> None:
+        now = [0.0]
+        game = MicropinGame(clock=lambda: now[0])
+        game.high_scores = [60000, 50000, 40000, 30000, 20000, 10000]
+        game.step(snapshot(cabinet=START_MASK))
+
+        shown = game.step(
+            snapshot(cabinet=LEFT_FLIPPER_MASK, cabinet_levels=0xcf)
+        ).output
+        self.assertEqual(spread_digits(shown), "f60000")
+        self.assertEqual(
+            tuple(player_digits(shown.display, player) for player in range(1, 5)),
+            ("f50000", "f40000", "f30000", "f20000"),
+        )
+        self.assertEqual(player_score_leds(shown.display), (True, True, True, True))
+        self.assertTrue(extra_score_leds(shown.display)[0])
+
+        # Releasing immediately does not truncate the 1.5-second interlude.
+        now[0] = 0.25
+        early_release = game.step(snapshot(cabinet_levels=0x8f)).output
+        self.assertEqual(player_digits(early_release.display, 1), "f50000")
+        self.assertEqual(
+            player_score_leds(early_release.display),
+            (False, False, False, False),
+        )
+
+        now[0] = 1.49
+        self.assertEqual(
+            player_digits(game.step(snapshot()).output.display, 1),
+            "f50000",
+        )
+        now[0] = 1.51
+        ended = game.step(snapshot()).output
+        self.assertNotEqual(player_digits(ended.display, 1), "f50000")
+
+        # Holding beyond the minimum keeps the page up until release.
+        now[0] = 2.0
+        game.step(snapshot(cabinet=LEFT_FLIPPER_MASK, cabinet_levels=0xcf))
+        now[0] = 4.0
+        held = game.step(snapshot(cabinet_levels=0xcf)).output
+        self.assertEqual(player_digits(held.display, 1), "f50000")
+        now[0] = 4.01
+        released = game.step(snapshot(cabinet_levels=0x8f)).output
+        self.assertNotEqual(player_digits(released.display, 1), "f50000")
 
     def test_nonparticipating_player_displays_are_blank(self) -> None:
         game = MicropinGame()
