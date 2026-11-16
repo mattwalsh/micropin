@@ -141,7 +141,9 @@ LAMP_E EQU 0xe
 LAMP_F EQU 0xf
 o0000:  JMP j0040
 o0003:  CALL CREDIT_HANDLER
-o0006:  JMP jo0382
+o0006:  JMP RESTORE_INTERRUPT_CONTEXT_AND_RETURN
+; Force the credit byte to packed-BCD 01.  Returns A=01.
+GRANT_INITIAL_CREDIT:
 c0009:  MVI A, #01 ;o1606
         STA CREDITS_1
         RET
@@ -155,8 +157,12 @@ c0009:  MVI A, #01 ;o1606
         NOP
         NOP
         NOP
+; Begin the all-five-cups completion delay, then fall through to award 10,000
+; bonus points.  The award entry may also be called independently.
+START_ALL_CUPS_COMPLETE_AWARD:
 c0018:  MVI A, #3c ;jo0aac
         STA CUP_EJECT_SEQUENCE_TIMER
+AWARD_10000_BONUS:
 c001d:  LXI H, SCORE_10000 ;jo151f
 o0020:  CALL ADD_BONUS
         RET
@@ -266,7 +272,7 @@ o00d3:  CALL COPY_FROM_HL_TO_DE
         MVI A, #64
         STA $224a
 o00f2:  JMP j00fb
-jo00f5: CALL co0317 ;o00bd
+jo00f5: CALL COMPARE_PLAYFIELD_CHECKSUM ;o00bd
 o00f8:  JZ j0143
 j00fb:  MVI A, #07 ;o00f2
         STA $21c2
@@ -302,7 +308,7 @@ o0132:  JNZ j012d
         OUT COIL_7
         OUT COIL_8
         DI
-o0140:  CALL jc137d
+o0140:  CALL RECONCILE_PLAYFIELD_DMA
 j0143:  IN PRICE_89_CAB ;o00f8
         MOV B,A
         ANI #20
@@ -319,7 +325,7 @@ o015c:  JNZ jo0168
         LXI H, GAME_OVER_MUSIC
 o0162:  CALL PLAY_SOUND
 o0165:  JMP j01bf
-jo0168: CALL c17a8 ;o0148,o0156,o015c
+jo0168: CALL CLEAR_GAME_DISPLAY_STATE ;o0148,o0156,o015c
         MVI A, #d0
         STA GAME_STATE2
         MVI A, #00
@@ -341,7 +347,7 @@ jo0168: CALL c17a8 ;o0148,o0156,o015c
 o019d:  CALL COPY_FROM_HL_TO_DE
         MVI B, #01
         LXI D, ROLLOVERS
-o01a5:  CALL jc178e
+o01a5:  CALL FILL_PLAYER_DISPLAY_BLOCKS
         LXI H, #21c9
         LXI D, #21ce
         MVI A, #0a
@@ -358,9 +364,12 @@ j01bf:  DI ;o0165
         STA SWITCH_LATCHED
         LDA GAME_STATE2
         ANI #80
-o01ca:  JNZ j01d2
+o01ca:  JNZ READ_PRICING_AND_GAME_DIP_SWITCHES
         MVI A, #00
         STA GAME_STATE2
+; Read the two pricing rotary encoders (ports 2/3 plus their 8/9 bits on port
+; 4), store packed price settings, then read the DIP-selected balls per game.
+READ_PRICING_AND_GAME_DIP_SWITCHES:
 j01d2:  IN PRICE_CENTS_07_PORT ;o01ca,o1c45,o1c4b,o1c54,o1c70
         CMA
         MOV L,A
@@ -415,6 +424,9 @@ o0224:  JNZ j0228
         INR B
 j0228:  MOV A,B ;o021b,o0224
         STA BALLS_PER_GAME
+; Main hardware-output loop.  It commits the latched coil bytes to ports 5..8,
+; services interrupt windows, display/lamp bookkeeping, and eventually loops.
+MAIN_OUTPUT_LOOP:
 j022c:  OUT LAMP_F ;o028f,o1c7b,o1cc0,o1ccb,o1cd9,o1d63
         EI
         NOP
@@ -468,7 +480,7 @@ o0284:  JNZ j1bb9
         LDA $23b6
         ANI #bf
         STA $23b6
-o028f:  JMP j022c
+o028f:  JMP MAIN_OUTPUT_LOOP
 ADD_BONUS_HL:
         XCHG ;o07c8,o0ce8,o0dc5,o0dd4,o14b7,o15ca,o18d9
         LHLD $21f9
@@ -536,6 +548,9 @@ o02f8:  CALL ADD_PULL_IN_MASK
         OUT COIL_6
         RET
 
+; Sum the 34-byte software playfield comparison image at $233b..$235c.
+; Output: HL=sum (16-bit, wrapping); D advances to $235d.
+SUM_PLAYFIELD_COMPARE_IMAGE:
 c0303:  LXI D, PLAYFIELD_COMPARE_IMAGE ;co0317,o13b5
         LXI B, #0000
         LXI H, #0000
@@ -548,7 +563,11 @@ j030c:  LDAX D ;o0313
 o0313:  JNZ j030c
         RET
 
-co0317: CALL c0303 ;jo00f5
+; Compare the current playfield-image checksum against the saved value at
+; $2224.  Returns Z only when both bytes match (with the original zero special
+; case preserved).
+COMPARE_PLAYFIELD_CHECKSUM:
+co0317: CALL SUM_PLAYFIELD_COMPARE_IMAGE ;jo00f5
         XCHG
         LHLD $2224
         MOV A,E
@@ -575,7 +594,7 @@ o0333:  CALL PWM_RST55_CARRIER
         IN BUMPER_SLINGS_SWITCHES_PORT
         LXI D, #0000
 j0340:  ORA A ;o0349
-o0341:  JZ jo0382
+o0341:  JZ RESTORE_INTERRUPT_CONTEXT_AND_RETURN
         RAR
 o0345:  JC j034c
         INR E
@@ -586,11 +605,11 @@ j034c:  MOV A,E ;o0345
         CMA
         LXI H, STATE_OUTLANE_1
 o0354:  CALL CHECK_ATH_BIT_OF_HL
-o0357:  JNZ jo0382
+o0357:  JNZ RESTORE_INTERRUPT_CONTEXT_AND_RETURN
 o035a:  CALL SAVE_BDPSW
         LDA CONTROL_FLAGS
         ANI #02
-o0362:  CNZ c0402
+o0362:  CNZ ROTATE_CUP_LAMP_STATE
 o0365:  CALL RESTORE_BDPSW
 o0368:  CALL SET_ATH_BIT_OF_HL
 ; E is the zero-based number of the first asserted port-1 bit.  XCHG moves that
@@ -604,11 +623,15 @@ o0368:  CALL SET_ATH_BIT_OF_HL
         MOV H,M
         MOV L,A
         PCHL
+; Input: A=switch bit number.  Clear its software latch, restore the outer
+; interrupt context, and return from the handler.
+CLEAR_SWITCH_LATCH_AND_RETURN:
 j0376:  LXI H, SWITCH_LATCHED ;o0606,o13e7,o178b
 o0379:  JMP jo037f
         LXI H, STATE_OUTLANE_1
 jo037f: CALL CLEAR_ATH_BIT_OF_HL ;o0379
 ; vector to 0630 stack restore
+RESTORE_INTERRUPT_CONTEXT_AND_RETURN:
 jo0382: CALL RESTORE_BDPSW ;o0006,o0341,o0357,o038f,o03a5,o0486,o0540,o0549,o078c,o07cb,o084f,o0865,o086d,o0921,o092a
         RET
 
@@ -617,7 +640,7 @@ SWITCH_HANDLER:
 o0389:  CALL PWM_RST65_CARRIER
         IN CABINET_TILT_FLIPPERS_TIMER_PORT
 j038e:  ORA A ;o0397
-o038f:  JZ jo0382
+o038f:  JZ RESTORE_INTERRUPT_CONTEXT_AND_RETURN
         RAR
 o0393:  JC j039a
         INR E
@@ -628,7 +651,7 @@ j039a:  MOV A,E ;o0393
         CMA
         LXI H, SWITCH_LATCHED
 o03a2:  CALL CHECK_ATH_BIT_OF_HL
-o03a5:  JNZ jo0382
+o03a5:  JNZ RESTORE_INTERRUPT_CONTEXT_AND_RETURN
 o03a8:  CALL SET_ATH_BIT_OF_HL
 ; E is the zero-based number of the first asserted port-0 bit.  As above,
 ; doubling it selects the corresponding little-endian handler pointer.
@@ -649,7 +672,7 @@ REFLEX_DISPATCH_TABLE:
         DW RIGHT_SLINGSHOT_HANDLER         ; port 1 bit 4
         DW LEFT_SLINGSHOT_HANDLER          ; port 1 bit 5
         DW REFLEX_CONTROL_FLAG_HANDLER     ; port 1 bit 6
-        DW jo0382                          ; port 1 bit 7, unused/return
+        DW RESTORE_INTERRUPT_CONTEXT_AND_RETURN                          ; port 1 bit 7, unused/return
 CABINET_DISPATCH_TABLE:
         DW PERIODIC_TIMER_HANDLER          ; port 0 bit 0: timer tick
         DW PLAYFIELD_DMA_HANDLER           ; port 0 bit 1: DMA sample ready
@@ -695,9 +718,13 @@ j03fc:  DCR C ;o03ff
         RM
         ADD A
 o03ff:  JMP j03fc
+; Rotate the selected cup-lamp state to the next of five positions.  If the
+; source bit is lit it is copied into the corresponding destination page bit;
+; the old position is then cleared.
+ROTATE_CUP_LAMP_STATE:
 c0402:  LDA $2211 ;o0362,o0b4c,o157f
         MOV B,A
-o0406:  CALL c0427
+o0406:  CALL RESOLVE_CUP_LAMP_PAIR
 o0409:  CALL CHECK_ATH_BIT_OF_HL
 o040c:  JZ j0413
         XCHG
@@ -708,11 +735,14 @@ j0413:  MOV A,B ;o040c
 o0417:  JNZ j041c
         MVI A, #00
 j041c:  STA $2211 ;o0417
-o041f:  CALL c0427
+o041f:  CALL RESOLVE_CUP_LAMP_PAIR
         XCHG
 o0423:  CALL CLEAR_ATH_BIT_OF_HL
         RET
 
+; Input: A=cup rotation index 0..4.
+; Output: A=bit number, HL=source lamp-state byte, DE=paired byte at HL+5.
+RESOLVE_CUP_LAMP_PAIR:
 c0427:  MVI D, #00 ;o0406,o041f
         MOV E,A
         LXI H, CUP_LIGHT_INDEX_TABLE
@@ -763,6 +793,9 @@ TILT_HELPER:
         STA SWITCH_LATCHED
         RET
 
+; Return NZ only for the lockout combination GAME_STATE2 bit 6 set and zero
+; credits.  All other combinations return Z.  A is otherwise scratch.
+CHECK_CREDIT_LOCKOUT_STATE:
 c046a:  LDA GAME_STATE2 ;o0483,o058b
         ANI #40
         RZ
@@ -779,8 +812,8 @@ TILT_HANDLER:
         CALL TILT_HELPER
         MVI A, #7d
         STA TILT_TIMER
-o0483:  CALL c046a
-o0486:  JNZ jo0382
+o0483:  CALL CHECK_CREDIT_LOCKOUT_STATE
+o0486:  JNZ RESTORE_INTERRUPT_CONTEXT_AND_RETURN
         MVI A, #fa
         STA DISPLAY_CLEAR_TIMER
         LDA $23b6
@@ -836,7 +869,7 @@ o04d0:  JNZ j04cd
         ANI #df
         STA $23b6
         MVI B, #30
-o050c:  CALL co1d81
+o050c:  CALL CLEAR_LAMP_AND_TEST_FLASH_PAGE
         MVI A, #d0
         STA GAME_STATE2
         LDA BALLS_PER_GAME
@@ -859,10 +892,10 @@ o052e:  CALL SET_ATH_BIT_OF_HL
         STA $221b
         MVI A, #02
         STA END_SEQUENCE_TIMER
-o0540:  JMP jo0382
+o0540:  JMP RESTORE_INTERRUPT_CONTEXT_AND_RETURN
 TILT2:  LXI H, TILT_MUSIC ;o04ab,o04b3
 o0546:  CALL PLAY_SOUND
-o0549:  JMP jo0382
+o0549:  JMP RESTORE_INTERRUPT_CONTEXT_AND_RETURN
 END_SEQUENCE_TIMER_EXPIRED:
 TIMER_06_EXPIRED:
         LDA $221b
@@ -892,7 +925,7 @@ TIMER_11_EXPIRED:
         IN PRICE_89_CAB
         ANI #80
 o0588:  JMP j05a2
-o058b:  CALL c046a
+o058b:  CALL CHECK_CREDIT_LOCKOUT_STATE
 o058e:  JNZ j05a2
 o0591:  CALL TILT_HELPER
         MVI A, #7d
@@ -945,7 +978,7 @@ j05f6:  ANI #3f ;o05f1
 o0600:  CZ FLASH_ROUTINE
         MVI A, #00
         DI
-o0606:  JMP j0376
+o0606:  JMP CLEAR_SWITCH_LATCH_AND_RETURN
 j0609:  DI ;o05e5
 o060a:  CALL SAVE_BDPSW
 ; C is the number of slots remaining when a zero was found, so
@@ -1061,6 +1094,10 @@ o06bd:  CALL CLEAR_ATH_BIT_OF_HL
 o06cb:  CALL SET_ATH_BIT_OF_HL
         MVI A, #09
         STA COIL_LATCH_TIMER
+; Shared credit-award entry: clear the scoreboard indicator bits and lamp 0,
+; then fall through through the normal packed-BCD credit increment, sound, and
+; optional high-score reset path.
+ADD_CREDIT_AND_CLEAR_INDICATORS:
 c06d3:  MVI A, #06 ;jo1a71
         LXI H, #2376
 o06d8:  CALL CLEAR_ATH_BIT_OF_HL
@@ -1069,7 +1106,7 @@ o06de:  CALL CLEAR_ATH_BIT_OF_HL
         LXI H, #23b6
 o06e4:  CALL CLEAR_ATH_BIT_OF_HL
         MVI B, #00
-o06e9:  CALL co1d81
+o06e9:  CALL CLEAR_LAMP_AND_TEST_FLASH_PAGE
         LDA CREDITS_1
         INR A
         DAA
@@ -1082,7 +1119,7 @@ o06fd:  CALL PLAY_SOUND
         DCR M
         RNZ
         MVI M, #64
-o0707:  CALL c1faa
+o0707:  CALL RESET_HIGH_SCORE_TABLE
         RET
 
 COIL_LATCH_TIMER_EXPIRED:
@@ -1129,33 +1166,36 @@ TIMER_EXPIRATION_TABLE:
 ; Lower-left bumper, coil 11
 LOWER_LEFT_BUMPER_HANDLER:
         LXI D, #0000
-o0763:  JMP j078f
+o0763:  JMP FIRE_REFLEX_DEVICE
 ; Upper-left bumper, coil 16
 UPPER_LEFT_BUMPER_HANDLER:
         LXI D, #0001
-o0769:  JMP j078f
+o0769:  JMP FIRE_REFLEX_DEVICE
 ; Middle rollover bumper, coil 17
 MIDDLE_ROLLOVER_BUMPER_HANDLER:
         LXI D, #0002
-o076f:  JMP j078f
+o076f:  JMP FIRE_REFLEX_DEVICE
 ; Lower-right bumper, coil 10
 LOWER_RIGHT_BUMPER_HANDLER:
         LXI D, #0003
-o0775:  JMP j078f
+o0775:  JMP FIRE_REFLEX_DEVICE
 ; Right slingshot, coil 19
 RIGHT_SLINGSHOT_HANDLER:
         LXI D, #0004
-o077b:  JMP j078f
+o077b:  JMP FIRE_REFLEX_DEVICE
 ; Left slingshot, coil 20
 LEFT_SLINGSHOT_HANDLER:
         LXI D, #0005
-o0781:  JMP j078f
+o0781:  JMP FIRE_REFLEX_DEVICE
 ; port 1 bit 6 handler: set $2191 bit 5
 REFLEX_CONTROL_FLAG_HANDLER:
         LDA CONTROL_FLAGS
         ORI #20
         STA CONTROL_FLAGS
-o078c:  JMP jo0382
+o078c:  JMP RESTORE_INTERRUPT_CONTEXT_AND_RETURN
+; Input: DE=reflex-device index 0..5.  Resolve and energize its coil, arm the
+; pulse timer, then select the matching sound and score table entries.
+FIRE_REFLEX_DEVICE:
 j078f:  LXI H, REFLEX_COIL_INDEX_TABLE ;o0763,o0769,o076f,o0775,o077b,o0781
         DAD D
         MOV A,M
@@ -1194,7 +1234,7 @@ o07bc:  CALL PLAY_SOUND
         MOV H,M
         MOV L,B
 o07c8:  CALL ADD_BONUS_HL
-o07cb:  JMP jo0382
+o07cb:  JMP RESTORE_INTERRUPT_CONTEXT_AND_RETURN
 COIL_PULSE_TIMER_EXPIRED:
 TIMER_02_EXPIRED:
         LDA $21c3
@@ -1277,7 +1317,7 @@ LEFT_FLIPPER_HANDLER:
         LXI H, GAME_STATE
         MVI A, #05
 o084c:  CALL CHECK_ATH_BIT_OF_HL
-o084f:  JNZ jo0382
+o084f:  JNZ RESTORE_INTERRUPT_CONTEXT_AND_RETURN
         LXI H, SILENCE_MUSIC
 o0855:  CALL PLAY_SOUND
         MVI A, #04
@@ -1285,10 +1325,10 @@ o0855:  CALL PLAY_SOUND
         LXI H, CONTROL_FLAGS
         MVI A, #00
 o0862:  CALL CHECK_ATH_BIT_OF_HL
-o0865:  JZ jo0382
+o0865:  JZ RESTORE_INTERRUPT_CONTEXT_AND_RETURN
         MVI A, #7d
         STA CLOCK_TIMER
-o086d:  JMP jo0382
+o086d:  JMP RESTORE_INTERRUPT_CONTEXT_AND_RETURN
 ; left flipper release
 LEFT_FLIPPER_TIMER_EXPIRED:
 o0870:  JMP FLIPPER_HOLD_ROUTINE
@@ -1347,7 +1387,7 @@ o08da:  JNZ END_MAIN_LOOP
         DCR A
         STA $2222
 o08f1:  JNZ END_MAIN_LOOP
-o08f4:  CALL c1faa
+o08f4:  CALL RESET_HIGH_SCORE_TABLE
         MVI A, #64
         STA $224a
         MVI A, #04
@@ -1366,10 +1406,10 @@ RIGHT_FLIPPER_HANDLER:
         LXI H, GAME_STATE
         MVI A, #05
 o091e:  CALL CHECK_ATH_BIT_OF_HL
-o0921:  JNZ jo0382
+o0921:  JNZ RESTORE_INTERRUPT_CONTEXT_AND_RETURN
         LXI H, SILENCE_MUSIC
 o0927:  CALL PLAY_SOUND
-o092a:  JMP jo0382
+o092a:  JMP RESTORE_INTERRUPT_CONTEXT_AND_RETURN
 RIGHT_FLIPPER_TIMER_EXPIRED:
 o092d:  JMP RIGHT_FLIPPER_HOLD
         MVI A, #05
@@ -1395,23 +1435,23 @@ o095e:  JMP END_MAIN_LOOP
 CUP_1_HANDLER:
         MVI B, #24
         MVI C, #00
-o0965:  JMP j0999
+o0965:  JMP DEBOUNCE_MAIN_CUP
 CUP_2_HANDLER:
         MVI B, #03
         MVI C, #01
-o096c:  JMP j0999
+o096c:  JMP DEBOUNCE_MAIN_CUP
 CUP_3_HANDLER:
         MVI B, #0b
         MVI C, #02
-o0973:  JMP j0999
+o0973:  JMP DEBOUNCE_MAIN_CUP
 CUP_4_HANDLER:
         MVI B, #13
         MVI C, #03
-o097a:  JMP j0999
+o097a:  JMP DEBOUNCE_MAIN_CUP
 CUP_5_HANDLER:
         MVI B, #29
         MVI C, #04
-o0981:  JMP j0999
+o0981:  JMP DEBOUNCE_MAIN_CUP
 SIDE_BONUS_CUP_HANDLER:
         MVI A, #04
         STA SWITCH_SETTLE_TIMER
@@ -1421,7 +1461,10 @@ SIDE_BONUS_CUP_HANDLER:
 o098f:  JNC j09ae
         MOV M,A
 o0993:  JZ j0bdf
-o0996:  JMP jo1419
+o0996:  JMP RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
+; Shared entry for the five main cups.  Debounce the cup via $2208 and the
+; switch-settle timer, then continue with the cup number in C and coil id in B.
+DEBOUNCE_MAIN_CUP:
 j0999:  LXI H, #2208 ;o0965,o096c,o0973,o097a,o0981
         MVI A, #ff
         ADD M
@@ -1430,12 +1473,12 @@ o099f:  JNC j09ae
 o09a3:  JZ j09bb
         MVI A, #04
         STA SWITCH_SETTLE_TIMER
-o09ab:  JMP jo1419
+o09ab:  JMP RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
 j09ae:  MVI A, #64 ;o098f,o099f
         STA $2208
         MVI A, #04
         STA SWITCH_SETTLE_TIMER
-o09b8:  JMP jo1419
+o09b8:  JMP RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
 j09bb:  LXI H, GAME_STATE ;o09a3
         MVI A, #07
 o09c0:  CALL SET_ATH_BIT_OF_HL
@@ -1443,12 +1486,12 @@ o09c0:  CALL SET_ATH_BIT_OF_HL
 o09c5:  CALL CHECK_ATH_BIT_OF_HL
 o09c8:  JZ jo09da
         MOV A,C
-o09cc:  CALL c0b6f
+o09cc:  CALL RESOLVE_CUP_TARGET_STATE
 o09cf:  CALL SET_ATH_BIT_OF_HL
         MVI A, #06
         STA TARGET_COIL_TIMER
-o09d7:  JMP jo1419
-jo09da: CALL co1d81 ;o09c8
+o09d7:  JMP RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
+jo09da: CALL CLEAR_LAMP_AND_TEST_FLASH_PAGE ;o09c8
         MOV A,C
         LXI H, CUPS_LEFT
 o09e1:  CALL CHECK_ATH_BIT_OF_HL
@@ -1463,8 +1506,8 @@ o09f6:  CALL SET_ATH_BIT_OF_HL
 o09f9:  JMP j09ff
 jo09fc: CALL CLEAR_ATH_BIT_OF_HL ;o09f3
 j09ff:  MOV A,C ;o09f9
-o0a00:  CALL c0b6f
-o0a03:  CALL co1d9c
+o0a00:  CALL RESOLVE_CUP_TARGET_STATE
+o0a03:  CALL CHECK_LAMP_LIT_PAGE
 o0a06:  JZ jo0a14
         XCHG
         DAD D
@@ -1472,14 +1515,14 @@ o0a0b:  CALL CHECK_ATH_BIT_OF_HL
         XCHG
         MVI A, #01
 o0a11:  JZ j0a24
-jo0a14: CALL co1d91 ;o0a06
+jo0a14: CALL SET_LAMP_FLASHING ;o0a06
         LXI H, OOPS_MUSIC
 o0a1a:  CALL PLAY_SOUND
         MVI A, #c8
         STA $2208
         MVI A, #5a
 j0a24:  STA CUP_BONUS_TIMER ;o0a11
-o0a27:  JMP jo1419
+o0a27:  JMP RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
 CUP_BONUS_TIMER_EXPIRED:
 TIMER_04_EXPIRED:
         LXI H, CUP_BONUS_SCORE_TABLE - 1
@@ -1498,12 +1541,12 @@ o0a3f:  CALL PLAY_SOUND
         LXI H, GAME_STATE2
         MVI A, #01
 o0a47:  CALL CHECK_ATH_BIT_OF_HL
-o0a4a:  JZ j0a93
+o0a4a:  JZ FINISH_CUP_AWARD
 o0a4d:  CALL CLEAR_ATH_BIT_OF_HL
         LXI H, CONTROL_FLAGS
         MVI A, #01
 o0a55:  CALL CHECK_ATH_BIT_OF_HL
-o0a58:  JZ j0a93
+o0a58:  JZ FINISH_CUP_AWARD
 o0a5b:  CALL CLEAR_ATH_BIT_OF_HL
         MVI A, #fa
         STA $2208
@@ -1521,12 +1564,15 @@ o0a79:  CALL PLAY_SOUND
         LDA $221a
         DCR A
         STA $221a
-o0a83:  JZ j0a93
+o0a83:  JZ FINISH_CUP_AWARD
         MVI A, #28
         STA CUP_COMPLETION_TIMER
         MVI A, #fa
         STA $2208
 o0a90:  JMP END_MAIN_LOOP
+; Finish a cup award: either launch the all-cups-complete sequence or re-arm
+; the resolved cup state and its delayed eject coil.
+FINISH_CUP_AWARD:
 j0a93:  LDA CUPS_LEFT ;o0a4a,o0a58,o0a83
         CPI #00
 o0a98:  JZ jo0aac
@@ -1537,7 +1583,7 @@ o0aa1:  CALL SET_ATH_BIT_OF_HL
         STA TARGET_COIL_TIMER
 o0aa9:  JMP END_MAIN_LOOP
 ; all cups complete
-jo0aac: CALL c0018 ;o0a98
+jo0aac: CALL START_ALL_CUPS_COMPLETE_AWARD ;o0a98
         NOP
         NOP
         MVI A, #64
@@ -1559,7 +1605,7 @@ o0acb:  JZ j0aec
         LXI H, CUP_COIL_TABLE - 1
         DAD D
         MOV B,M
-o0ad6:  CALL co1d76
+o0ad6:  CALL SET_LAMP_SOLID
         LXI H, UNKNOWN_MUSIC
 o0adc:  CALL PLAY_SOUND
         MVI A, #0f
@@ -1582,16 +1628,19 @@ o0af2:  CALL SET_ATH_BIT_OF_HL
         MOV B,A
         LDA $23be
         ANA B
-o0b0b:  JNZ j0b26
+o0b0b:  JNZ ADVANCE_CUP_EJECT_SEQUENCE
         LXI H, GAME_STATE
         MVI A, #03
 o0b13:  CALL CHECK_ATH_BIT_OF_HL
-o0b16:  JNZ j0b26
+o0b16:  JNZ ADVANCE_CUP_EJECT_SEQUENCE
         MVI B, #31
-o0b1b:  CALL co1d9c
-o0b1e:  JNZ j0b26
+o0b1b:  CALL CHECK_LAMP_LIT_PAGE
+o0b1e:  JNZ ADVANCE_CUP_EJECT_SEQUENCE
         MVI B, #09
-o0b23:  CALL co1d76
+o0b23:  CALL SET_LAMP_SOLID
+; Advance the five-step cup lamp/eject sequence and transfer the current cup's
+; lamp state before returning to the timer/interrupt loop.
+ADVANCE_CUP_EJECT_SEQUENCE:
 j0b26:  LDA $21c8 ;o0b0b,o0b16,o0b1e
         INR A
         CPI #05
@@ -1603,26 +1652,30 @@ o0b2c:  JZ j0b44
         DAD D
         MOV B,M
         PUSH H
-o0b3b:  CALL co1d76
+o0b3b:  CALL SET_LAMP_SOLID
         POP H
         DCX H
         MOV B,M
-o0b41:  CALL co1d81
+o0b41:  CALL CLEAR_LAMP_AND_TEST_FLASH_PAGE
 j0b44:  LXI H, CONTROL_FLAGS ;o0b2c
         MVI A, #01
 o0b49:  CALL CHECK_ATH_BIT_OF_HL
-o0b4c:  CNZ c0402
+o0b4c:  CNZ ROTATE_CUP_LAMP_STATE
 o0b4f:  JMP END_MAIN_LOOP
-jo0b52: CALL c0b6f ;o09e4
+jo0b52: CALL RESOLVE_CUP_TARGET_STATE ;o09e4
 o0b55:  CALL SET_ATH_BIT_OF_HL
         MVI A, #06
         STA TARGET_COIL_TIMER
-o0b5d:  CALL co1d9c
-o0b60:  JNZ jo1419
-o0b63:  CALL co1d76
+o0b5d:  CALL CHECK_LAMP_LIT_PAGE
+o0b60:  JNZ RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
+o0b63:  CALL SET_LAMP_SOLID
         LXI H, LOW_MUSIC
 o0b69:  CALL PLAY_SOUND
-o0b6c:  JMP jo1419
+o0b6c:  JMP RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
+; Input: A=one-based cup/standup number.
+; Output: B=target lamp id, A/C=state bit, HL=state byte, with $2209/$220b
+; caching the resolved address/bit for the delayed target handler.
+RESOLVE_CUP_TARGET_STATE:
 c0b6f:  MVI D, #00 ;o09cc,o0a00,jo0b52
         MOV E,A
         LXI H, CUP_TARGET_LAMP_TABLE - 1
@@ -1676,7 +1729,7 @@ CUP_BONUS_SCORE_TABLE:
         DB #21
         DW SCORE_2000, SCORE_4000, SCORE_6000, SCORE_8000
 j0bdf:  MVI B, #39 ;o0993
-o0be1:  CALL co1d9c
+o0be1:  CALL CHECK_LAMP_LIT_PAGE
 o0be4:  JZ j0d4d
         LXI H, GAME_STATE
         MVI A, #02
@@ -1690,24 +1743,24 @@ o0bf7:  JNZ j0ca6
         MVI A, #06
 o0c02:  CALL COPY_FROM_HL_TO_DE
         MVI B, #38
-o0c07:  CALL co1d9c
+o0c07:  CALL CHECK_LAMP_LIT_PAGE
 o0c0a:  JZ j0c12
         MVI A, #03
 o0c0f:  JMP j0c21
 j0c12:  MVI B, #11 ;o0c0a
-o0c14:  CALL co1d9c
+o0c14:  CALL CHECK_LAMP_LIT_PAGE
 o0c17:  JZ j0c1f
         MVI A, #02
 o0c1c:  JMP j0c21
 j0c1f:  MVI A, #01 ;o0c17
 j0c21:  STA $220c ;o0c0f,o0c1c
         MVI B, #31
-o0c26:  CALL co1d9c
+o0c26:  CALL CHECK_LAMP_LIT_PAGE
 o0c29:  JZ j0ca6
         MVI B, #31
-o0c2e:  CALL co1d81
+o0c2e:  CALL CLEAR_LAMP_AND_TEST_FLASH_PAGE
         MVI B, #09
-o0c33:  CALL co1d81
+o0c33:  CALL CLEAR_LAMP_AND_TEST_FLASH_PAGE
         LXI H, MORSE_CODE_MUSIC
 o0c39:  CALL PLAY_SOUND
         LXI H, #238a
@@ -1772,7 +1825,7 @@ o0c9e:  CALL SET_ATH_BIT_OF_HL
 o0ca3:  JMP j0ca8
 j0ca6:  MVI A, #3c ;o0bf7,o0c29
 j0ca8:  STA BONUS_COUNT_TIMER ;o0ca3
-o0cab:  JMP jo1419
+o0cab:  JMP RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
 BONUS_COUNT_TIMER_EXPIRED:
 TIMER_16_EXPIRED:
         LDA $2349
@@ -1792,9 +1845,9 @@ j0cc4:  MVI A, #00 ;o0cb6
         LXI H, GAME_STATE
         MVI A, #00
 o0cd6:  CALL CHECK_ATH_BIT_OF_HL
-o0cd9:  JNZ j0d29
+o0cd9:  JNZ EJECT_SIDE_BONUS_CUP
         LXI H, SCORE_1000
-o0cdf:  CALL c0e99
+o0cdf:  CALL TRY_SUBTRACT_FROM_BONUS
 o0ce2:  JC j0cf9
         LXI H, SCORE_1000
 o0ce8:  CALL ADD_BONUS_HL
@@ -1808,18 +1861,21 @@ o0cfc:  CALL ADD_BONUS
         LXI H, #235b
 o0d02:  CALL ADD_PTS
         LXI H, #235b
-o0d08:  CALL c0e99
+o0d08:  CALL TRY_SUBTRACT_FROM_BONUS
         LXI H, #220c
         DCR M
-o0d0f:  JZ j0d29
-o0d12:  JM j0d29
+o0d0f:  JZ EJECT_SIDE_BONUS_CUP
+o0d12:  JM EJECT_SIDE_BONUS_CUP
         LXI H, #220d
-o0d18:  CALL c0e6f
+o0d18:  CALL COMMIT_SPREAD_TO_BONUS_DISPLAY
         MVI A, #3c
         STA BONUS_COUNT_TIMER
         LXI H, SPREAD_HRM_MUSIC
 jo0d23: CALL PLAY_SOUND ;o0d4a
 o0d26:  JMP END_MAIN_LOOP
+; Finish side-cup bonus handling: energize its eject coil, clear its lamp and
+; switch latch, reset the bonus countdown state, and play the completion tone.
+EJECT_SIDE_BONUS_CUP:
 j0d29:  LXI H, #21c5 ;o0cd9,o0d0f,o0d12
         MOV A,M
         ORI #02
@@ -1827,7 +1883,7 @@ j0d29:  LXI H, #21c5 ;o0cd9,o0d0f,o0d12
         MVI A, #09
         STA TARGET_COIL_TIMER
         MVI B, #39
-o0d37:  CALL co1d81
+o0d37:  CALL CLEAR_LAMP_AND_TEST_FLASH_PAGE
         LDA SWITCH_LATCHED
         ANI #fd
         STA SWITCH_LATCHED
@@ -1840,26 +1896,29 @@ j0d4d:  LXI H, #21c5 ;o0be4,o0bef
 o0d52:  CALL SET_ATH_BIT_OF_HL
         MVI A, #06
         STA TARGET_COIL_TIMER
-o0d5a:  JMP jo1419
+o0d5a:  JMP RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
 STANDUP_1_HANDLER:
         MVI A, #2b
-o0d5f:  JMP j0d76
+o0d5f:  JMP LATCH_STANDUP_TARGET
 STANDUP_2_HANDLER:
         MVI A, #2c
-o0d64:  JMP j0d76
+o0d64:  JMP LATCH_STANDUP_TARGET
 STANDUP_3_HANDLER:
         MVI A, #04
-o0d69:  JMP j0d76
+o0d69:  JMP LATCH_STANDUP_TARGET
 STANDUP_4_HANDLER:
         MVI A, #0c
-o0d6e:  JMP j0d76
+o0d6e:  JMP LATCH_STANDUP_TARGET
 STANDUP_5_HANDLER:
         MVI A, #14
-o0d73:  JMP j0d76
+o0d73:  JMP LATCH_STANDUP_TARGET
+; Input: A=standup lamp id.  Remember the target and open/restart the short
+; standup-bar coincidence window used by STANDUP_BAR_TIMER_EXPIRED.
+LATCH_STANDUP_TARGET:
 j0d76:  STA $2226 ;o0d5f,o0d64,o0d69,o0d6e,o0d73
         LDA GAME_STATE
         ANI #04
-o0d7e:  JNZ jo1419
+o0d7e:  JNZ RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
         LDA STANDUP_BAR_TIMER
         ORA A
 o0d85:  JNZ j0d95
@@ -1870,12 +1929,12 @@ o0d85:  JNZ j0d95
         STA STATE_OUTLANE_1
 j0d95:  MVI A, #03 ;o0d85
         STA STANDUP_BAR_TIMER
-o0d9a:  JMP jo1419
+o0d9a:  JMP RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
 STANDUP_BAR_TIMER_EXPIRED:
 TIMER_24_EXPIRED:
         LDA CONTROL_FLAGS
         ANI #20
-o0da2:  JZ j0de1
+o0da2:  JZ FINISH_STANDUP_BAR_WINDOW
         LDA $21c4
         ORI #04
         STA $21c4
@@ -1883,25 +1942,31 @@ o0da2:  JZ j0de1
         STA COIL_PULSE_TIMER
         LDA $2226
         MOV B,A
-o0db6:  CALL co1d9c
-o0db9:  JZ j0de1
-o0dbc:  CALL co1d81
+o0db6:  CALL CHECK_LAMP_LIT_PAGE
+o0db9:  JZ FINISH_STANDUP_BAR_WINDOW
+o0dbc:  CALL CLEAR_LAMP_AND_TEST_FLASH_PAGE
 o0dbf:  JZ j0dd1
         LXI H, SCORE_1000
 o0dc5:  CALL ADD_BONUS_HL
         LXI H, LOW_MUSIC
 o0dcb:  CALL PLAY_SOUND
-o0dce:  JMP j0de1
+o0dce:  JMP FINISH_STANDUP_BAR_WINDOW
 j0dd1:  LXI H, SCORE_5000 ;o0dbf
 o0dd4:  CALL ADD_BONUS_HL
         XCHG
 o0dd8:  CALL ADD_BONUS
         LXI H, LIT_STANDUP_MUSIC
 o0dde:  CALL PLAY_SOUND
+; Common standup-window exit: consume the bar-hit flag and return through the
+; periodic timer interrupt epilogue.
+FINISH_STANDUP_BAR_WINDOW:
 j0de1:  LDA CONTROL_FLAGS ;o0da2,o0db9,o0dce
         ANI #df
         STA CONTROL_FLAGS
 o0de9:  JMP END_MAIN_LOOP
+; Add A packed-BCD digits from HL into the SPREAD_1 work buffer.  Carry is
+; propagated digit-by-digit with DAA; the final half-byte is handled specially.
+ADD_BCD_SCORE_TO_SPREAD:
 c0dec:  LXI D, SPREAD_1 ;o0e69,o0f73,o100b,o18b1
         ORA A
         PUSH PSW
@@ -1937,6 +2002,9 @@ j0e0e:  MOV A,M ;o0df3
         STAX D
         RET
 
+; Subtract A packed-BCD digits at HL from SPREAD_1 in place.  This doubles as
+; the game's score comparison primitive: callers inspect carry after return.
+SUBTRACT_BCD_SCORE_FROM_SPREAD:
 c0e18:  MVI C, #00 ;o0ea8,o0fcb,o1004,o102a,o1132,o1dc1,o1de7,o1df7,o1e21,o1e31,o1e41,o1e8c,o1e9e,o1eb0,o1ec2,o1ed4,o1ee6,o1ef8,o1f0a,o1f1c,o1f2e
         ORA A
         LXI D, SPREAD_1
@@ -1989,8 +2057,12 @@ ADD_BONUS:
 o0e61:  CALL COPY_FROM_HL_TO_DE
         LXI H, #235b
         MVI A, #08
-o0e69:  CALL c0dec
+o0e69:  CALL ADD_BCD_SCORE_TO_SPREAD
         LXI H, SPREAD_1
+; Commit the eight-byte SPREAD_1 work buffer to the canonical score/bonus
+; buffer at $235b, mirror six display bytes, and synchronize both lamp pages
+; when the game-state gate permits it.
+COMMIT_SPREAD_TO_BONUS_DISPLAY:
 c0e6f:  LXI D, #235b ;o0d18,o18bc,o1af2
         MVI A, #08
 o0e74:  CALL COPY_FROM_HL_TO_DE
@@ -2006,9 +2078,13 @@ o0e7f:  CALL WRITE_TO_RAM
         MVI A, #06
 o0e90:  CALL COPY_FROM_HL_TO_DE
         MVI B, #39
-o0e95:  CALL co1d76
+o0e95:  CALL SET_LAMP_SOLID
         RET
 
+; Input: HL=packed-BCD amount.  Copy the current bonus into SPREAD_1, subtract
+; the amount, commit the result to both display pages, and return comparison
+; status in the flags (carry means the requested subtraction crossed zero).
+TRY_SUBTRACT_FROM_BONUS:
 c0e99:  PUSH H ;o0cdf,o0d08,o18d0,o18f9
         LXI H, #235b
         LXI D, SPREAD_1
@@ -2016,7 +2092,7 @@ c0e99:  PUSH H ;o0cdf,o0d08,o18d0,o18f9
 o0ea2:  CALL COPY_FROM_HL_TO_DE
         POP H
         MVI A, #08
-o0ea8:  CALL c0e18
+o0ea8:  CALL SUBTRACT_BCD_SCORE_FROM_SPREAD
         PUSH PSW
         LXI H, SPREAD_1
         LXI D, #235b
@@ -2137,7 +2213,7 @@ o0f5a:  JNZ j110b
         LXI H, PL4_SCORE_1
         PUSH H
 j0f71:  MVI A, #08 ;o10f1,o1108,o111f
-o0f73:  CALL c0dec
+o0f73:  CALL ADD_BCD_SCORE_TO_SPREAD
         POP D
         PUSH D
         LXI H, SPREAD_1
@@ -2179,9 +2255,9 @@ o0fad:  JNZ j1008
 o0fc3:  CALL COPY_FROM_HL_TO_DE
         LXI H, PL2_SCORE_1
         MVI A, #07
-o0fcb:  CALL c0e18
+o0fcb:  CALL SUBTRACT_BCD_SCORE_FROM_SPREAD
         PUSH PSW
-o0fcf:  CC c0ff4
+o0fcf:  CC COMPARE_PLAYER_SCORES_REVERSED
         LXI H, SPREAD_1
         LXI D, PL1_SCORE_hrm
         PUSH D
@@ -2197,18 +2273,22 @@ o0fe5:  CALL WRITE_TO_RAM
         MVI A, #06
 o0fee:  CALL WRITE_TO_RAM
 o0ff1:  JMP j1052
+; Repeat the two-player comparison with player 2 as the work-buffer source and
+; player 1 as the subtrahend.  The caller uses the returned carry to choose
+; which team score is displayed first.
+COMPARE_PLAYER_SCORES_REVERSED:
 c0ff4:  LXI H, PL2_SCORE_1 ;o0fcf
         LXI D, SPREAD_1
         MVI A, #07
 o0ffc:  CALL COPY_FROM_HL_TO_DE
         LXI H, PL1_SCORE_1
         MVI A, #07
-o1004:  CALL c0e18
+o1004:  CALL SUBTRACT_BCD_SCORE_FROM_SPREAD
         RET
 
 j1008:  POP H ;o0fad
         MVI A, #08
-o100b:  CALL c0dec
+o100b:  CALL ADD_BCD_SCORE_TO_SPREAD
         LXI H, SPREAD_1
         POP D
         PUSH D
@@ -2222,7 +2302,7 @@ o1015:  CALL COPY_FROM_HL_TO_DE
 o1022:  CALL COPY_FROM_HL_TO_DE
         LXI H, PL24_SCORE_1
         MVI A, #07
-o102a:  CALL c0e18
+o102a:  CALL SUBTRACT_BCD_SCORE_FROM_SPREAD
         PUSH PSW
 o102e:  JC j1122
 j1031:  LXI H, SPREAD_1 ;o1135
@@ -2337,7 +2417,7 @@ j1122:  LXI H, PL24_SCORE_1 ;o102e
 o112a:  CALL COPY_FROM_HL_TO_DE
         LXI H, PL13_SCORE_1
         MVI A, #07
-o1132:  CALL c0e18
+o1132:  CALL SUBTRACT_BCD_SCORE_FROM_SPREAD
 o1135:  JMP j1031
 j1138:  MOV A,M ;o109e,o10da
         ANI #30
@@ -2476,7 +2556,7 @@ o1246:  JNZ jo1258
         STA TONE_TIMER
 o1252:  JMP END_MAIN_LOOP
 jo1255: CALL CLEAR_ATH_BIT_OF_HL ;o122a
-jo1258: CALL c128c ;o1246
+jo1258: CALL DEQUEUE_SOUND_POINTER ;o1246
 o125b:  CALL TONE_PLAY
 o125e:  JMP END_MAIN_LOOP
 PLAY_SOUND:
@@ -2502,6 +2582,10 @@ o1283:  CALL SET_ATH_BIT_OF_HL
         STA TONE_TIMER
         RET
 
+; Remove the next 16-bit music pointer from the circular queue at $21b4..$21bd.
+; Output: HL=dequeued music pointer; $21c0 advances with wrap; $21b3 is updated
+; with the remaining queued-byte distance.
+DEQUEUE_SOUND_POINTER:
 c128c:  LHLD $21c0 ;jo1258
         LXI B, #21be
         MOV A,C
@@ -2771,6 +2855,10 @@ POPCORN_MUSIC:
         DB #ff
 MUSIC_DATA_END:
         DB #fe
+; Reconcile all 32 hardware DMA samples against the adjusted software image.
+; Repeats until every absolute sample delta is below three, then saves the
+; image checksum in $2224.  Interrupts are controlled by the caller.
+RECONCILE_PLAYFIELD_DMA:
 jc137d: LXI H, CONTROL_FLAGS ;o0140,o13b2,o1d6f
         MVI A, #03
 o1382:  CALL CLEAR_ATH_BIT_OF_HL
@@ -2799,8 +2887,8 @@ j13a4:  MOV A,B ;o1399
 o13aa:  JNZ j138d
         LDA CONTROL_FLAGS
         ANI #08
-o13b2:  JNZ jc137d
-o13b5:  CALL c0303
+o13b2:  JNZ RECONCILE_PLAYFIELD_DMA
+o13b5:  CALL SUM_PLAYFIELD_COMPARE_IMAGE
         SHLD $2224
         RET
 
@@ -2824,7 +2912,7 @@ o13dc:  JZ j13e4
 o13e1:  CALL CLEAR_ATH_BIT_OF_HL
 j13e4:  MVI A, #01 ;o13dc
         DI
-o13e7:  JMP j0376
+o13e7:  JMP CLEAR_SWITCH_LATCH_AND_RETURN
 j13ea:  DI ;o13cc
         PUSH H
         LXI H, CONTROL_FLAGS
@@ -2853,17 +2941,20 @@ o1406:  CALL SAVE_BDPSW
         MOV H,M
         MOV L,A
         PCHL
+; Playfield handlers entered through PCHL return here.  Restore their nested
+; context, then continue scanning the remaining DMA comparison bytes.
+RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE:
 jo1419: CALL RESTORE_BDPSW ;o0996,o09ab,o09b8,o09d7,o0a27,o0b60,o0b6c,o0cab,o0d5a,o0d7e,o0d9a,o14a1,o14ab,o14c5,o14d2,o153e,o1549,o15a9,o15c1,o15d3,o15de,o15e6,o15f8,o1810,o1820,o1828,o1886,o18ca
 jo141c: JMP j13cf ;o13ff
 PLAYFIELD_SWITCH_DISPATCH_TABLE:
         DW INLANE_HANDLER          ; 00: DMA $23e0
-        DW jo1419                 ; 01: unused
-        DW jo1419                 ; 02: unused
-        DW jo1419                 ; 03: unused
-        DW jo1419                 ; 04: unused
-        DW jo1419                 ; 05: unused
-        DW jo1419                 ; 06: unused
-        DW jo1419                 ; 07: unused
+        DW RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE                 ; 01: unused
+        DW RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE                 ; 02: unused
+        DW RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE                 ; 03: unused
+        DW RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE                 ; 04: unused
+        DW RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE                 ; 05: unused
+        DW RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE                 ; 06: unused
+        DW RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE                 ; 07: unused
         DW OUTLANE_HANDLER         ; 08
         DW ROLLOVER_2_HANDLER      ; 09
         DW ROLLOVER_3_HANDLER      ; 10
@@ -2901,54 +2992,57 @@ PLAYFIELD_SWITCH_DISPATCH_TABLE:
 ROLLOVER_2_HANDLER:
         MVI C, #01
         MVI B, #2a
-o146a:  JMP j1494
+o146a:  JMP PROCESS_ROLLOVER
 ROLLOVER_3_HANDLER:
         MVI C, #02
         MVI B, #10
-o1471:  JMP j1494
+o1471:  JMP PROCESS_ROLLOVER
 ROLLOVER_4_HANDLER:
         MVI C, #03
         MVI B, #1a
-o1478:  JMP j1494
+o1478:  JMP PROCESS_ROLLOVER
 ROLLOVER_5_HANDLER:
         MVI C, #04
         MVI B, #01
-o147f:  JMP j1494
+o147f:  JMP PROCESS_ROLLOVER
 ROLLOVER_6_HANDLER:
         MVI C, #05
         MVI B, #19
-o1486:  JMP j1494
+o1486:  JMP PROCESS_ROLLOVER
 ROLLOVER_7_HANDLER:
         MVI C, #06
         MVI B, #21
-o148d:  JMP j1494
+o148d:  JMP PROCESS_ROLLOVER
 ROLLOVER_8_HANDLER:
         MVI C, #07
         MVI B, #0a
-j1494:  LXI H, GAME_STATE ;o1463,o146a,o1471,o1478,o147f,o1486,o148d
+; Input: C=rollover bit, B=lamp id.  Ignore inactive/already-collected lanes;
+; otherwise extinguish the lamp, award 500 bonus, and detect set completion.
+PROCESS_ROLLOVER:
+j1494:  LXI H, GAME_STATE ;o1463,o146a,o1471,o1478,o1486,o148d
         MVI A, #07
 o1499:  CALL SET_ATH_BIT_OF_HL
         MVI A, #02
 o149e:  CALL CHECK_ATH_BIT_OF_HL
-o14a1:  JNZ jo1419
+o14a1:  JNZ RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
         MOV A,C
         LXI H, ROLLOVERS
 o14a8:  CALL CHECK_ATH_BIT_OF_HL
-o14ab:  JZ jo1419
+o14ab:  JZ RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
 o14ae:  CALL CLEAR_ATH_BIT_OF_HL
-o14b1:  CALL co1d81
+o14b1:  CALL CLEAR_LAMP_AND_TEST_FLASH_PAGE
         LXI H, SCORE_500
 o14b7:  CALL ADD_BONUS_HL
         LXI H, BONUS_MUSIC
 o14bd:  CALL PLAY_SOUND
         LDA ROLLOVERS
         CPI #00
-o14c5:  JNZ jo1419
+o14c5:  JNZ RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
         MVI A, #3d
         STA ROLLOVER_COMPLETION_TIMER
         MVI A, #00
         STA $2205
-o14d2:  JMP jo1419
+o14d2:  JMP RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
 ROLLOVER_COMPLETION_TIMER_EXPIRED:
 TIMER_13_EXPIRED:
         LDA $2205
@@ -2961,7 +3055,7 @@ o14de:  JZ j14fa
         LXI H, ROLLOVER_LAMP_SEQUENCE_TABLE - 1
         DAD D
         MOV B,M
-o14e9:  CALL co1d76
+o14e9:  CALL SET_LAMP_SOLID
         LXI H, BONUS_MUSIC
 o14ef:  CALL PLAY_SOUND
         MVI A, #0a
@@ -2970,18 +3064,18 @@ o14f7:  JMP END_MAIN_LOOP
 j14fa:  MVI A, #00 ;o14de
         STA $220c
         MVI B, #11
-o1501:  CALL co1d9c
+o1501:  CALL CHECK_LAMP_LIT_PAGE
 o1504:  JNZ jo1517
         MVI B, #38
-o1509:  CALL co1d9c
+o1509:  CALL CHECK_LAMP_LIT_PAGE
 o150c:  JNZ jo151f
         MVI B, #11
-o1511:  CALL co1d76
+o1511:  CALL SET_LAMP_SOLID
 o1514:  JMP jo151f
-jo1517: CALL co1d81 ;o1504
+jo1517: CALL CLEAR_LAMP_AND_TEST_FLASH_PAGE ;o1504
         MVI B, #38
-o151c:  CALL co1d76
-jo151f: CALL c001d ;o150c,o1514
+o151c:  CALL SET_LAMP_SOLID
+jo151f: CALL AWARD_10000_BONUS ;o150c,o1514
 ; reset rollovers
         MVI A, #ff
         STA ROLLOVERS
@@ -2998,11 +3092,11 @@ EXTRA_BALL_LANE_HANDLER:
         LXI H, GAME_STATE
         MVI A, #07
 o153b:  CALL CHECK_ATH_BIT_OF_HL
-o153e:  JZ jo1419
+o153e:  JZ RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
 o1541:  CALL CLEAR_ATH_BIT_OF_HL
         MVI A, #02
 o1546:  CALL CHECK_ATH_BIT_OF_HL
-o1549:  JNZ jo1419
+o1549:  JNZ RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
         LXI H, SCORE_10000
 o154f:  CALL ADD_BONUS
         LXI H, GAME_STATE
@@ -3024,7 +3118,7 @@ o1572:  JNC j1570
 o1577:  JP j157c
         MVI A, #04
 j157c:  STA $2211 ;o1577
-o157f:  CALL c0402
+o157f:  CALL ROTATE_CUP_LAMP_STATE
         LXI H, LONGER_BUMPER_25_MUSIC
 o1585:  CALL PLAY_SOUND
 j1588:  LXI H, GAME_STATE ;o155a,o1565
@@ -3032,14 +3126,14 @@ j1588:  LXI H, GAME_STATE ;o155a,o1565
 o158d:  CALL CHECK_ATH_BIT_OF_HL
 o1590:  JNZ j15a3
         MVI B, #09
-o1595:  CALL co1d9c
+o1595:  CALL CHECK_LAMP_LIT_PAGE
 o1598:  JZ j15a3
-o159b:  CALL co1d81
+o159b:  CALL CLEAR_LAMP_AND_TEST_FLASH_PAGE
         MVI B, #31
-o15a0:  CALL co1d91
+o15a0:  CALL SET_LAMP_FLASHING
 j15a3:  LXI H, LIL_VICTORY_MUSIC ;o1590,o1598
 o15a6:  CALL PLAY_SOUND
-o15a9:  JMP jo1419
+o15a9:  JMP RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
 ; outlane handler
 OUTLANE_HANDLER:
         MVI A, #ff
@@ -3051,44 +3145,44 @@ OUTLANE_HANDLER:
         LXI H, GAME_STATE
         MVI A, #02
 o15be:  CALL CHECK_ATH_BIT_OF_HL
-o15c1:  JNZ jo1419
+o15c1:  JNZ RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
 o15c4:  CALL SET_ATH_BIT_OF_HL
         LXI H, SCORE_1000
 o15ca:  CALL ADD_BONUS_HL
         LXI H, OUTLANE_MUSIC
 o15d0:  CALL PLAY_SOUND
-o15d3:  JMP jo1419
+o15d3:  JMP RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
 ; inlane routine
 INLANE_HANDLER:
         LXI H, GAME_STATE
         MVI A, #02
 o15db:  CALL CHECK_ATH_BIT_OF_HL
-o15de:  JNZ jo1419
+o15de:  JNZ RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
         MVI A, #07
 o15e3:  CALL CHECK_ATH_BIT_OF_HL
-o15e6:  JZ jo1419
+o15e6:  JZ RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
 o15e9:  CALL CLEAR_ATH_BIT_OF_HL
         LXI H, SCORE_1000
 o15ef:  CALL ADD_BONUS
         LXI H, SPREAD_HRM_MUSIC
 o15f5:  CALL PLAY_SOUND
-o15f8:  JMP jo1419
+o15f8:  JMP RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
 START_BUTTON_HANDLER:
         LXI H, GAME_STATE2
         MVI A, #00
 o1600:  CALL CHECK_ATH_BIT_OF_HL
-o1603:  JNZ j1789
-o1606:  CALL c0009
+o1603:  JNZ CLEAR_START_SWITCH_LATCH_AND_RETURN
+o1606:  CALL GRANT_INITIAL_CREDIT
 ; check if credits
         ORA A
 o160a:  JNZ j1620
         LDA $239e
         ANI #08
-o1612:  JNZ j1789
+o1612:  JNZ CLEAR_START_SWITCH_LATCH_AND_RETURN
         LDA $23b6
         ORI #40
         STA $23b6
-o161d:  JMP j1789
+o161d:  JMP CLEAR_START_SWITCH_LATCH_AND_RETURN
 j1620:  LDA BALL_IN_PLAY_hrm ;o160a
         ANI #0f
         CPI #01
@@ -3099,7 +3193,7 @@ o162c:  JZ j16ed
         LXI D, #2320
         MVI A, #2e
 o1637:  CALL COPY_FROM_HL_TO_DE
-o163a:  CALL c17a8
+o163a:  CALL CLEAR_GAME_DISPLAY_STATE
         LXI H, GAME_STATE2
         MVI A, #04
 o1642:  CALL CHECK_ATH_BIT_OF_HL
@@ -3137,7 +3231,7 @@ j1671:  STA BALL_IN_PLAY_hrm ;o1652
         STA $2214
         LXI D, #21d3
         MVI B, #04
-o169f:  CALL jc178e
+o169f:  CALL FILL_PLAYER_DISPLAY_BLOCKS
         LXI H, GAME_STATE2
         MVI A, #06
 o16a7:  CALL CLEAR_ATH_BIT_OF_HL
@@ -3170,7 +3264,7 @@ DECREASE_CREDIT:
 o16ea:  JMP j1783
 j16ed:  LDA $237e ;o1627,o162c
         ANI #08
-o16f2:  JNZ j1789
+o16f2:  JNZ CLEAR_START_SWITCH_LATCH_AND_RETURN
         MVI A, #01
         LXI H, #237e
 o16fa:  CALL CHECK_ATH_BIT_OF_HL
@@ -3228,8 +3322,13 @@ o176d:  JMP DECREASE_CREDIT
 o1780:  JMP DECREASE_CREDIT
 j1783:  LXI H, POPCORN_MUSIC ;o16ea
 o1786:  CALL PLAY_SOUND
+; Release the latched start-button event and return through the switch ISR.
+CLEAR_START_SWITCH_LATCH_AND_RETURN:
 j1789:  MVI A, #06 ;o1603,o1612,o161d,o16f2
-o178b:  JMP j0376
+o178b:  JMP CLEAR_SWITCH_LATCH_AND_RETURN
+; Input: DE=destination, B=number of player/display blocks.
+; Copy the same eight-byte initial display template B times.
+FILL_PLAYER_DISPLAY_BLOCKS:
 jc178e: LXI H, PLAYER_INITIAL_DISPLAY_TABLE ;o01a5,o169f,o179c
         MVI C, #08
 j1793:  MOV A,M ;o1798
@@ -3239,7 +3338,7 @@ j1793:  MOV A,M ;o1798
         DCR C
 o1798:  JNZ j1793
         DCR B
-o179c:  JNZ jc178e
+o179c:  JNZ FILL_PLAYER_DISPLAY_BLOCKS
         RET
 
 PLAYER_INITIAL_DISPLAY_TABLE:
@@ -3251,6 +3350,9 @@ PLAYER_INITIAL_DISPLAY_TABLE:
         DB #2b
         DB #37
         DB #37
+; Clear score/display work RAM, blank both 26-byte lamp pages, and establish
+; the fixed scoreboard masks used at the start of a game.
+CLEAR_GAME_DISPLAY_STATE:
 c17a8:  LXI H, #235b ;jo0168,o163a
         MVI A, #00
         MVI D, #1f
@@ -3283,6 +3385,9 @@ o17cf:  JNZ j17cc
         SHLD $23bc
         RET
 
+; Select the end-of-ball countdown value.  Returns A=$20 normally and A=$80
+; for the gated multi-ball/player condition encoded by $237e/$2214/GAME_STATE.
+SELECT_END_BALL_COUNTDOWN:
 c17ea:  LDA $237e ;o1880,o18fc
         ANI #02
         MVI A, #20
@@ -3303,17 +3408,17 @@ OUTHOLE_HANDLER:
         LXI H, GAME_STATE2
         MVI A, #04
 o180d:  CALL CHECK_ATH_BIT_OF_HL
-o1810:  JNZ jo1419
+o1810:  JNZ RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
         LXI H, #2208
         MVI A, #ff
         ADD M
 o1819:  JNC j1823
         MOV M,A
 o181d:  JZ j182b
-o1820:  JMP jo1419
+o1820:  JMP RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
 j1823:  MVI A, #32 ;o1819
         STA $2208
-o1828:  JMP jo1419
+o1828:  JMP RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
 j182b:  MVI A, #ff ;o181d
         STA STATE_OUTLANE_1
         MVI A, #00
@@ -3332,7 +3437,7 @@ o184b:  CALL SET_ATH_BIT_OF_HL
 o1853:  CALL SET_ATH_BIT_OF_HL
         LXI H, OOPS2_MUSIC
 o1859:  CALL PLAY_SOUND
-o185c:  CALL c1ba8
+o185c:  CALL RESOLVE_CURRENT_PLAYER_SAVED_STATE
         XCHG
         LXI H, ROLLOVERS
         MVI A, #10
@@ -3342,13 +3447,13 @@ o1865:  CALL COPY_FROM_HL_TO_DE
 o186d:  CALL CHECK_ATH_BIT_OF_HL
 o1870:  JNZ j187b
         MVI B, #39
-o1875:  CALL co1d9c
+o1875:  CALL CHECK_LAMP_LIT_PAGE
 o1878:  JNZ j1889
 j187b:  MVI A, #02 ;o1870
         STA END_BALL_TIMER
-o1880:  CALL c17ea
+o1880:  CALL SELECT_END_BALL_COUNTDOWN
         STA $221c
-o1886:  JMP jo1419
+o1886:  JMP RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
 j1889:  LHLD $235c ;o1878
         DAD H
         DAD H
@@ -3370,21 +3475,21 @@ o18a6:  CALL COPY_FROM_HL_TO_DE
 j18ab:  PUSH PSW ;o18b6
         LXI H, #220d
         MVI A, #06
-o18b1:  CALL c0dec
+o18b1:  CALL ADD_BCD_SCORE_TO_SPREAD
         POP PSW
         DCR A
 o18b6:  JNZ j18ab
         LXI H, SPREAD_1
-o18bc:  CALL c0e6f
+o18bc:  CALL COMMIT_SPREAD_TO_BONUS_DISPLAY
         MVI A, #3c
         STA BONUS_PAYOUT_TIMER
         LXI H, SPREAD_HRM_MUSIC
 o18c7:  CALL PLAY_SOUND
-o18ca:  JMP jo1419
+o18ca:  JMP RESTORE_PLAYFIELD_CONTEXT_AND_CONTINUE
 BONUS_PAYOUT_TIMER_EXPIRED:
 TIMER_23_EXPIRED:
         LXI H, SCORE_1000
-o18d0:  CALL c0e99
+o18d0:  CALL TRY_SUBTRACT_FROM_BONUS
 o18d3:  JC j18ea
         LXI H, SCORE_1000
 o18d9:  CALL ADD_BONUS_HL
@@ -3398,8 +3503,8 @@ o18ed:  CALL ADD_BONUS
         LXI H, #235b
 o18f3:  CALL ADD_PTS
         LXI H, #235b
-o18f9:  CALL c0e99
-o18fc:  CALL c17ea
+o18f9:  CALL TRY_SUBTRACT_FROM_BONUS
+o18fc:  CALL SELECT_END_BALL_COUNTDOWN
         STA $221c
 END_BALL_TIMER_EXPIRED:
 TIMER_09_EXPIRED:
@@ -3421,7 +3526,7 @@ o1923:  CALL CLEAR_ATH_BIT_OF_HL
         LDA BALLS_PER_GAME
         SUB M
 o192d:  JP j193b
-o1930:  CALL c1a3a
+o1930:  CALL RESOLVE_CURRENT_PLAYER_DISPLAY
         MOV A,M
         ORA B
         MOV M,A
@@ -3479,7 +3584,7 @@ o199d:  CALL CLEAR_ATH_BIT_OF_HL
         ADI #04
         XCHG
 o19a3:  CALL SET_ATH_BIT_OF_HL
-o19a6:  CALL c1a3a
+o19a6:  CALL RESOLVE_CURRENT_PLAYER_DISPLAY
         MOV A,M
         ORA B
         MOV M,A
@@ -3498,7 +3603,7 @@ o19c9:  JNZ j1a8a
         LDA GAME_STATE2
         ORI #c0
         STA GAME_STATE2
-o19d4:  CALL c1db7
+o19d4:  CALL PROCESS_HIGH_SCORES
         LXI H, #23b6
         MVI A, #07
 o19dc:  CALL SET_ATH_BIT_OF_HL
@@ -3537,6 +3642,9 @@ j1a2a:  MVI A, #00 ;o1a21
         MVI A, #fa
         STA DISPLAY_CLEAR_TIMER
 o1a37:  JMP END_MAIN_LOOP
+; Resolve the current player selected by $2245.
+; Output: HL=player display byte, B=nibble mask, DE=$20 page stride.
+RESOLVE_CURRENT_PLAYER_DISPLAY:
 c1a3a:  LXI H, PLAYER_SCORE_ADDRESS_TABLE ;o1930,o19a6
         LDA $2245
         ADD A
@@ -3578,7 +3686,7 @@ o1a66:  JZ jo1a71
         MVI A, #72
         STA HIGH_SCORE_DISPLAY_TIMER
 o1a6e:  JMP END_MAIN_LOOP
-jo1a71: CALL c06d3 ;o1a66
+jo1a71: CALL ADD_CREDIT_AND_CLEAR_INDICATORS ;o1a66
         LDA $2247
         ANI #f7
         STA $2247
@@ -3610,7 +3718,7 @@ j1aae:  LDA $237e ;o19bc,o1aa3
         MVI A, #00
 o1abf:  CALL CLEAR_ATH_BIT_OF_HL
         MVI B, #09
-o1ac4:  CALL co1d81
+o1ac4:  CALL CLEAR_LAMP_AND_TEST_FLASH_PAGE
         LXI H, #23b6
         MVI A, #04
 o1acc:  CALL CLEAR_ATH_BIT_OF_HL
@@ -3629,12 +3737,12 @@ o1ae4:  CALL PLAY_SOUND
         STA GAME_OVER_SEQUENCE_TIMER
 o1aec:  JMP END_MAIN_LOOP
 j1aef:  LXI H, SCORE_0 ;o1ade
-o1af2:  CALL c0e6f
+o1af2:  CALL COMMIT_SPREAD_TO_BONUS_DISPLAY
         LDA $21c9
         STA $2218
         LDA $21ce
         STA $2219
-o1b01:  CALL c1ba8
+o1b01:  CALL RESOLVE_CURRENT_PLAYER_SAVED_STATE
         LXI D, ROLLOVERS
         MVI A, #10
 o1b09:  CALL COPY_FROM_HL_TO_DE
@@ -3643,23 +3751,23 @@ o1b09:  CALL COPY_FROM_HL_TO_DE
         MVI A, #0a
 o1b14:  CALL COPY_FROM_HL_TO_DE
         MVI B, #2b
-o1b19:  CALL co1d76
+o1b19:  CALL SET_LAMP_SOLID
         MVI B, #2c
-o1b1e:  CALL co1d76
+o1b1e:  CALL SET_LAMP_SOLID
         MVI B, #04
-o1b23:  CALL co1d76
+o1b23:  CALL SET_LAMP_SOLID
         MVI B, #0c
-o1b28:  CALL co1d76
+o1b28:  CALL SET_LAMP_SOLID
         MVI B, #14
-o1b2d:  CALL co1d76
+o1b2d:  CALL SET_LAMP_SOLID
         MVI B, #11
-o1b32:  CALL co1d81
+o1b32:  CALL CLEAR_LAMP_AND_TEST_FLASH_PAGE
         MVI B, #38
-o1b37:  CALL co1d81
+o1b37:  CALL CLEAR_LAMP_AND_TEST_FLASH_PAGE
         MVI B, #31
-o1b3c:  CALL co1d81
+o1b3c:  CALL CLEAR_LAMP_AND_TEST_FLASH_PAGE
         MVI B, #09
-o1b41:  CALL co1d81
+o1b41:  CALL CLEAR_LAMP_AND_TEST_FLASH_PAGE
         LDA $2218
         ANI #41
         MOV B,A
@@ -3675,7 +3783,7 @@ o1b41:  CALL co1d81
         ORA B
         STA $21ce
         MVI B, #39
-o1b64:  CALL co1d81
+o1b64:  CALL CLEAR_LAMP_AND_TEST_FLASH_PAGE
         LXI H, GAME_STATE2
         MVI A, #07
 o1b6c:  CALL SET_ATH_BIT_OF_HL
@@ -3685,8 +3793,8 @@ o1b72:  CALL PLAY_SOUND
         DCR A
         STA $2214
         SUI #02
-o1b7e:  JM jo1ba5
-o1b81:  JNZ jo1ba5
+o1b7e:  JM FINISH_GAME_OVER_SEQUENCE_STEP
+o1b81:  JNZ FINISH_GAME_OVER_SEQUENCE_STEP
         LDA $237e
         MVI B, #00
         ANI #0f
@@ -3696,12 +3804,17 @@ o1b8c:  JNC j1b93
 o1b90:  JMP j1b8b
 j1b93:  LDA CREDITS_1 ;o1b8c
         SUB B
-o1b97:  JP jo1ba5
+o1b97:  JP FINISH_GAME_OVER_SEQUENCE_STEP
         MVI B, #00
-o1b9c:  CALL co1d9c
-o1b9f:  JNZ jo1ba5
-o1ba2:  CALL co1d76
+o1b9c:  CALL CHECK_LAMP_LIT_PAGE
+o1b9f:  JNZ FINISH_GAME_OVER_SEQUENCE_STEP
+o1ba2:  CALL SET_LAMP_SOLID
+; Common exit for the game-over/next-player sequence.
+FINISH_GAME_OVER_SEQUENCE_STEP:
 jo1ba5: JMP END_MAIN_LOOP ;o1b7e,o1b81,o1b97,o1b9f
+; Resolve the saved 16-byte state block for the current player encoded in the
+; high nibble of $237e.  Output: HL points into the per-player state area.
+RESOLVE_CURRENT_PLAYER_SAVED_STATE:
 c1ba8:  LDA $237e ;o185c,o1b01
         ANI #f0
         LXI H, #21eb
@@ -3769,13 +3882,13 @@ o1c33:  JZ j1c4e
         MVI A, #06
 o1c3f:  JNZ jo1c48
 o1c42:  CALL SET_ATH_BIT_OF_HL
-o1c45:  JMP j01d2
+o1c45:  JMP READ_PRICING_AND_GAME_DIP_SWITCHES
 jo1c48: CALL CLEAR_ATH_BIT_OF_HL ;o1c3f
-o1c4b:  JMP j01d2
+o1c4b:  JMP READ_PRICING_AND_GAME_DIP_SWITCHES
 j1c4e:  LDA CONTROL_FLAGS ;o1c33
         ANI #01
         EI
-o1c54:  JZ j01d2
+o1c54:  JZ READ_PRICING_AND_GAME_DIP_SWITCHES
         IN PRICE_TENS_07_PORT
         CPI #fe
 o1c5b:  JNZ j1c65
@@ -3786,11 +3899,11 @@ j1c65:  LXI H, CONTROL_FLAGS ;o1c5b
         MVI A, #00
 o1c6a:  CALL CLEAR_ATH_BIT_OF_HL
         STA CLOCK_TIMER
-o1c70:  JMP j01d2
+o1c70:  JMP READ_PRICING_AND_GAME_DIP_SWITCHES
 j1c73:  LXI H, GAME_STATE2 ;o1bc2
         MVI A, #00
 o1c78:  CALL CHECK_ATH_BIT_OF_HL
-o1c7b:  JNZ j022c
+o1c7b:  JNZ MAIN_OUTPUT_LOOP
 o1c7e:  CALL SET_ATH_BIT_OF_HL
         LXI H, LAMPS_PAGE_1
         LXI D, #224b
@@ -3819,17 +3932,17 @@ o1ca6:  CALL COPY_FROM_HL_TO_DE
         ANI #0f
         ORA B
         STA $23b6
-o1cc0:  JMP j022c
+o1cc0:  JMP MAIN_OUTPUT_LOOP
 j1cc3:  LDA $2353 ;o1c09
         MOV B,A
         LDA $23f8
         SUB B
-o1ccb:  JP j022c
+o1ccb:  JP MAIN_OUTPUT_LOOP
         LXI H, GAME_STATE2
         MVI A, #06
 o1cd3:  CALL CHECK_ATH_BIT_OF_HL
 o1cd6:  JZ j1cdc
-o1cd9:  JMP j022c
+o1cd9:  JMP MAIN_OUTPUT_LOOP
 j1cdc:  LDA $237e ;o1c62,o1cd6
         STA $239e
         LDA $23ac
@@ -3882,23 +3995,28 @@ o1d56:  CALL SET_ATH_BIT_OF_HL
         STA LEFT_FLIPPER_TIMER
         MVI A, #05
         STA SWITCH_SETTLE_TIMER
-o1d63:  JMP j022c
+o1d63:  JMP MAIN_OUTPUT_LOOP
 DMA_RECHECK_TIMER_EXPIRED:
 TIMER_21_EXPIRED:
         LXI H, #21c2
         MVI A, #05
 o1d6b:  CALL CLEAR_ATH_BIT_OF_HL
         DI
-o1d6f:  CALL jc137d
+o1d6f:  CALL RECONCILE_PLAYFIELD_DMA
         EI
 o1d73:  JMP END_MAIN_LOOP
-co1d76: CALL c1da3 ;o0ad6,o0b23,o0b3b,o0b63,o0e95,o14e9,o1511,o151c,o1b19,o1b1e,o1b23,o1b28,o1b2d,o1ba2
+; Input: B=encoded lamp output.  Set its bit in both lamp pages (solid on).
+SET_LAMP_SOLID:
+co1d76: CALL RESOLVE_LAMP_BIT ;o0ad6,o0b23,o0b3b,o0b63,o0e95,o14e9,o1511,o151c,o1b19,o1b1e,o1b23,o1b28,o1b2d,o1ba2
 o1d79:  CALL SET_ATH_BIT_OF_HL
         DAD D
 o1d7d:  CALL SET_ATH_BIT_OF_HL
         RET
 
-co1d81: CALL c1da3 ;o050c,o06e9,jo09da,o0b41,o0c2e,o0c33,o0d37,o0dbc,o14b1,jo1517,o159b,o1ac4,o1b32,o1b37,o1b3c,o1b41,o1b64
+; Input: B=encoded lamp output.  Clear both pages, preserving in the flags
+; whether the second-page bit had been set before it was cleared.
+CLEAR_LAMP_AND_TEST_FLASH_PAGE:
+co1d81: CALL RESOLVE_LAMP_BIT ;o050c,o06e9,jo09da,o0b41,o0c2e,o0c33,o0d37,o0dbc,o14b1,jo1517,o159b,o1ac4,o1b32,o1b37,o1b3c,o1b41,o1b64
 o1d84:  CALL CLEAR_ATH_BIT_OF_HL
         DAD D
 o1d88:  CALL CHECK_ATH_BIT_OF_HL
@@ -3907,16 +4025,23 @@ o1d8c:  CALL CLEAR_ATH_BIT_OF_HL
         POP PSW
         RET
 
-co1d91: CALL c1da3 ;jo0a14,o15a0
+; Input: B=encoded lamp output.  Set page 1 and clear page 2 (flashing).
+SET_LAMP_FLASHING:
+co1d91: CALL RESOLVE_LAMP_BIT ;jo0a14,o15a0
 o1d94:  CALL SET_ATH_BIT_OF_HL
         DAD D
 o1d98:  CALL CLEAR_ATH_BIT_OF_HL
         RET
 
-co1d9c: CALL c1da3 ;o0a03,o0b1b,o0b5d,o0be1,o0c07,o0c14,o0c26,o0db6,o1501,o1509,o1595,o1875,o1b9c
+; Input: B=encoded lamp output.  Return Z/NZ from its page-1 bit.
+CHECK_LAMP_LIT_PAGE:
+co1d9c: CALL RESOLVE_LAMP_BIT ;o0a03,o0b1b,o0b5d,o0be1,o0c07,o0c14,o0c26,o0db6,o1501,o1509,o1595,o1875,o1b9c
 o1d9f:  CALL CHECK_ATH_BIT_OF_HL
         RET
 
+; Decode lamp B: low three bits select a byte at $21c9, the next three select
+; a bit within it.  Output: HL=page-1 byte, A=bit number, DE=5-byte page stride.
+RESOLVE_LAMP_BIT:
 c1da3:  LXI H, #21c9 ;co1d76,co1d81,co1d91,co1d9c
         MVI D, #00
         MOV A,B
@@ -3931,11 +4056,14 @@ c1da3:  LXI H, #21c9 ;co1d76,co1d81,co1d91,co1d9c
         LXI D, #0005
         RET
 
+; Rank all participating player scores, compare them with the four stored high
+; scores, insert qualifiers, and trigger the first-place music/indicator.
+PROCESS_HIGH_SCORES:
 c1db7:  LXI H, PL1_SCORE_1 ;o19d4
-o1dba:  CALL c1fd4
+o1dba:  CALL LOAD_SCORE_TO_SPREAD_BUFFER
         LXI H, PL2_SCORE_1
         PUSH H
-o1dc1:  CALL c0e18
+o1dc1:  CALL SUBTRACT_BCD_SCORE_FROM_SPREAD
         POP H
 o1dc5:  JNC j1dd4
         SHLD $223d
@@ -3946,68 +4074,73 @@ j1dd4:  SHLD $223f ;o1dc5
         LXI H, PL1_SCORE_1
         SHLD $223d
 j1ddd:  LHLD $223d ;o1dd1
-o1de0:  CALL c1fd4
+o1de0:  CALL LOAD_SCORE_TO_SPREAD_BUFFER
         LXI H, PL3_SCORE_1
         PUSH H
-o1de7:  CALL c0e18
+o1de7:  CALL SUBTRACT_BCD_SCORE_FROM_SPREAD
         POP H
 o1deb:  JC j1e04
         PUSH H
         LHLD $223f
-o1df2:  CALL c1fd4
+o1df2:  CALL LOAD_SCORE_TO_SPREAD_BUFFER
         POP H
         PUSH H
-o1df7:  CALL c0e18
+o1df7:  CALL SUBTRACT_BCD_SCORE_FROM_SPREAD
         POP H
 o1dfb:  JC j1e0f
         SHLD $2241
 o1e01:  JMP j1e17
 j1e04:  PUSH H ;o1deb
-o1e05:  CALL c1e6a
+o1e05:  CALL SHIFT_SCORE_RANK_POINTERS_ONE
         POP H
         SHLD $223d
 o1e0c:  JMP j1e17
 j1e0f:  PUSH H ;o1dfb
-o1e10:  CALL c1e6a
+o1e10:  CALL SHIFT_SCORE_RANK_POINTERS_ONE
         POP H
         SHLD $223f
 j1e17:  LHLD $223d ;o1e01,o1e0c
-o1e1a:  CALL c1fd4
+o1e1a:  CALL LOAD_SCORE_TO_SPREAD_BUFFER
         LXI H, PL4_SCORE_1
         PUSH H
-o1e21:  CALL c0e18
+o1e21:  CALL SUBTRACT_BCD_SCORE_FROM_SPREAD
         POP H
 o1e25:  JC j1e4e
         PUSH H
         LHLD $223f
-o1e2c:  CALL c1fd4
+o1e2c:  CALL LOAD_SCORE_TO_SPREAD_BUFFER
         POP H
         PUSH H
-o1e31:  CALL c0e18
+o1e31:  CALL SUBTRACT_BCD_SCORE_FROM_SPREAD
         POP H
 o1e35:  JC j1e59
         PUSH H
         LHLD $2241
-o1e3c:  CALL c1fd4
+o1e3c:  CALL LOAD_SCORE_TO_SPREAD_BUFFER
         POP H
         PUSH H
-o1e41:  CALL c0e18
+o1e41:  CALL SUBTRACT_BCD_SCORE_FROM_SPREAD
         POP H
 o1e45:  JC j1e77
         SHLD $2243
 o1e4b:  JMP j1e82
 j1e4e:  PUSH H ;o1e25
-o1e4f:  CALL c1e64
+o1e4f:  CALL SHIFT_SCORE_RANK_POINTERS_TWO
         POP H
         SHLD $223d
 o1e56:  JMP j1e82
 j1e59:  PUSH H ;o1e35
-o1e5a:  CALL c1e6a
+o1e5a:  CALL SHIFT_SCORE_RANK_POINTERS_ONE
         POP H
         SHLD $223f
 o1e61:  JMP j1e82
+; Shift the third-ranked player-score pointer down into fourth place, then use
+; the common one-place shifter for the remaining ranks.
+SHIFT_SCORE_RANK_POINTERS_TWO:
 c1e64:  LHLD $2241 ;o1e4f
         SHLD $2243
+; Shift the ranked player-score pointers at $223d/$223f/$2241 down one place.
+SHIFT_SCORE_RANK_POINTERS_ONE:
 c1e6a:  LHLD $223f ;o1e05,o1e10,o1e5a
         SHLD $2241
         LHLD $223d
@@ -4020,89 +4153,92 @@ j1e77:  PUSH H ;o1e45
         POP H
         SHLD $2241
 j1e82:  LXI H, HIGH_SCORE_START ;o1e4b,o1e56,o1e61
-o1e85:  CALL c1fd4
+o1e85:  CALL LOAD_SCORE_TO_SPREAD_BUFFER
         LHLD $223d
         PUSH H
-o1e8c:  CALL c0e18
+o1e8c:  CALL SUBTRACT_BCD_SCORE_FROM_SPREAD
         POP H
-o1e90:  CC c1f5e
+o1e90:  CC INSERT_FIRST_HIGH_SCORE
         RC
         LXI H, #2231
-o1e97:  CALL c1fd4
+o1e97:  CALL LOAD_SCORE_TO_SPREAD_BUFFER
         LHLD $223d
         PUSH H
-o1e9e:  CALL c0e18
+o1e9e:  CALL SUBTRACT_BCD_SCORE_FROM_SPREAD
         POP H
-o1ea2:  CC c1f7e
+o1ea2:  CC INSERT_SECOND_HIGH_SCORE
         RC
         LXI H, #2235
-o1ea9:  CALL c1fd4
+o1ea9:  CALL LOAD_SCORE_TO_SPREAD_BUFFER
         LHLD $223d
         PUSH H
-o1eb0:  CALL c0e18
+o1eb0:  CALL SUBTRACT_BCD_SCORE_FROM_SPREAD
         POP H
-o1eb4:  CC c1f8f
+o1eb4:  CC INSERT_THIRD_HIGH_SCORE
         RC
         LXI H, #2239
-o1ebb:  CALL c1fd4
+o1ebb:  CALL LOAD_SCORE_TO_SPREAD_BUFFER
         LHLD $223d
         PUSH H
-o1ec2:  CALL c0e18
+o1ec2:  CALL SUBTRACT_BCD_SCORE_FROM_SPREAD
         POP H
-o1ec6:  CC c1fa0
+o1ec6:  CC INSERT_FOURTH_HIGH_SCORE
         RET
 
         LXI H, #2231
-o1ecd:  CALL c1fd4
+o1ecd:  CALL LOAD_SCORE_TO_SPREAD_BUFFER
         LHLD $223f
         PUSH H
-o1ed4:  CALL c0e18
+o1ed4:  CALL SUBTRACT_BCD_SCORE_FROM_SPREAD
         POP H
-o1ed8:  CC c1f7e
+o1ed8:  CC INSERT_SECOND_HIGH_SCORE
         RC
         LXI H, #2235
-o1edf:  CALL c1fd4
+o1edf:  CALL LOAD_SCORE_TO_SPREAD_BUFFER
         LHLD $223f
         PUSH H
-o1ee6:  CALL c0e18
+o1ee6:  CALL SUBTRACT_BCD_SCORE_FROM_SPREAD
         POP H
-o1eea:  CC c1f8f
+o1eea:  CC INSERT_THIRD_HIGH_SCORE
         RC
         LXI H, #2239
-o1ef1:  CALL c1fd4
+o1ef1:  CALL LOAD_SCORE_TO_SPREAD_BUFFER
         LHLD $223f
         PUSH H
-o1ef8:  CALL c0e18
+o1ef8:  CALL SUBTRACT_BCD_SCORE_FROM_SPREAD
         POP H
-o1efc:  CC c1fa0
+o1efc:  CC INSERT_FOURTH_HIGH_SCORE
         RET
 
         LXI H, #2235
-o1f03:  CALL c1fd4
+o1f03:  CALL LOAD_SCORE_TO_SPREAD_BUFFER
         LHLD $2241
         PUSH H
-o1f0a:  CALL c0e18
+o1f0a:  CALL SUBTRACT_BCD_SCORE_FROM_SPREAD
         POP H
-o1f0e:  CC c1f8f
+o1f0e:  CC INSERT_THIRD_HIGH_SCORE
         RC
         LXI H, #2239
-o1f15:  CALL c1fd4
+o1f15:  CALL LOAD_SCORE_TO_SPREAD_BUFFER
         LHLD $2241
         PUSH H
-o1f1c:  CALL c0e18
+o1f1c:  CALL SUBTRACT_BCD_SCORE_FROM_SPREAD
         POP H
-o1f20:  CC c1fa0
+o1f20:  CC INSERT_FOURTH_HIGH_SCORE
         RET
 
         LXI H, #2239
-o1f27:  CALL c1fd4
+o1f27:  CALL LOAD_SCORE_TO_SPREAD_BUFFER
         LHLD $2243
         PUSH H
-o1f2e:  CALL c0e18
+o1f2e:  CALL SUBTRACT_BCD_SCORE_FROM_SPREAD
         POP H
-o1f32:  CC c1fa0
+o1f32:  CC INSERT_FOURTH_HIGH_SCORE
         RET
 
+; Input: A=number of existing high-score slots to shift.  Move lower-ranked
+; seven-byte entries down to make room for a new score.
+MAKE_ROOM_IN_HIGH_SCORE_TABLE:
 c1f36:  PUSH PSW ;o1f61,o1f81,o1f92
         LXI H, #2235
         PUSH H
@@ -4127,9 +4263,12 @@ o1f4e:  CALL COPY_FROM_HL_TO_DE
 o1f5a:  CALL COPY_FROM_HL_TO_DE
         RET
 
+; Insert the seven-byte score at HL into first place, shifting all lower slots;
+; play the high-score music and set the new-high-score state bit.  Returns C.
+INSERT_FIRST_HIGH_SCORE:
 c1f5e:  PUSH H ;o1e90
         MVI A, #03
-o1f61:  CALL c1f36
+o1f61:  CALL MAKE_ROOM_IN_HIGH_SCORE_TABLE
         POP H
         LXI D, HIGH_SCORE_START
         MVI A, #07
@@ -4143,9 +4282,11 @@ o1f70:  CALL PLAY_SOUND
         CMC
         RET
 
+; Insert the seven-byte score at HL into second place.  Returns C.
+INSERT_SECOND_HIGH_SCORE:
 c1f7e:  PUSH H ;o1ea2,o1ed8
         MVI A, #02
-o1f81:  CALL c1f36
+o1f81:  CALL MAKE_ROOM_IN_HIGH_SCORE_TABLE
         POP H
         LXI D, #2231
         MVI A, #07
@@ -4153,9 +4294,11 @@ o1f8a:  CALL COPY_FROM_HL_TO_DE
         CMC
         RET
 
+; Insert the seven-byte score at HL into third place.  Returns C.
+INSERT_THIRD_HIGH_SCORE:
 c1f8f:  PUSH H ;o1eb4,o1eea,o1f0e
         MVI A, #01
-o1f92:  CALL c1f36
+o1f92:  CALL MAKE_ROOM_IN_HIGH_SCORE_TABLE
         POP H
         LXI D, #2235
         MVI A, #07
@@ -4163,12 +4306,17 @@ o1f9b:  CALL COPY_FROM_HL_TO_DE
         CMC
         RET
 
+; Insert the seven-byte score at HL into fourth place.  Returns C.
+INSERT_FOURTH_HIGH_SCORE:
 c1fa0:  LXI D, #2239 ;o1ec6,o1efc,o1f20,o1f32
         MVI A, #07
 o1fa5:  CALL COPY_FROM_HL_TO_DE
         CMC
         RET
 
+; Restore the four-entry high-score table by shifting the existing values up
+; and copying DEFAULT_HIGH_SCORE into the last slot.
+RESET_HIGH_SCORE_TABLE:
 c1faa:  LXI H, #2231 ;o0707,o08f4
         PUSH H
         LXI D, HIGH_SCORE_START
@@ -4190,6 +4338,9 @@ o1fc7:  CALL COPY_FROM_HL_TO_DE
 o1fd0:  CALL COPY_FROM_HL_TO_DE
         RET
 
+; Input: HL=seven-byte packed-BCD score.  Zero the four-byte SPREAD_1 work
+; prefix, copy the score into it, and return A=7 for the comparison routines.
+LOAD_SCORE_TO_SPREAD_BUFFER:
 c1fd4:  LXI D, SPREAD_1 ;o1dba,o1de0,o1df2,o1e1a,o1e2c,o1e3c,o1e85,o1e97,o1ea9,o1ebb,o1ecd,o1edf,o1ef1,o1f03,o1f15,o1f27
         MVI A, #00
         MVI B, #04
@@ -8263,7 +8414,7 @@ AY_WRITE_REG:
 ROLLOVER_1_HANDLER:
         MVI C, #00
         MVI B, #02
-        JMP j1494
+        JMP PROCESS_ROLLOVER
         NOP
         NOP
         NOP

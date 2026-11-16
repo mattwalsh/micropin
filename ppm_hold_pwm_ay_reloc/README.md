@@ -52,6 +52,9 @@ handler that moved to `$2ff9`.
 See [DISPATCH_TABLES.md](DISPATCH_TABLES.md) for the computed-index contracts,
 the 26-slot software timer map, and the port/DMA table mappings.
 
+See [BASIC_BLOCK_ANALYSIS.md](BASIC_BLOCK_ANALYSIS.md) for callable-entry
+contracts and the first pass over high-fan-in internal blocks.
+
 ## Remaining constraint
 
 This is source-relocatable assembly, not a linker/object-file format.  Code and
