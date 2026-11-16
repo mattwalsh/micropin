@@ -57,6 +57,56 @@ GAME_STATE2 EQU 0x2192
 STACK_SCRATCH EQU 0x2195
 FLIPPER_PWM_MASK EQU 0x22f0
 
+; SOFTWARE TIMER BANK
+;
+; PERIODIC_TIMER_HANDLER decrements these 26 one-byte timers in address order.
+; When slot N reaches zero it dispatches TIMER_EXPIRATION_TABLE[N].  Thus the
+; three representations below are one contract:
+;
+;     timer address = SOFTWARE_TIMER_BASE + N
+;     table entry   = TIMER_EXPIRATION_TABLE + (N * 2)
+;     table target  = that timer's expiration routine
+;
+; Names without an "inferred" qualification are supported by both the timer's
+; writers and its expiration routine.  The qualified names describe the best
+; current static interpretation and should be revisited as those paths become
+; better understood.
+SOFTWARE_TIMER_BASE EQU 0x2197
+SOFTWARE_TIMER_COUNT EQU 0x1a
+SWITCH_SETTLE_TIMER EQU 0x2197       ; slot 00, inferred
+TONE_TIMER EQU 0x2198                ; slot 01
+COIL_PULSE_TIMER EQU 0x2199          ; slot 02
+UNUSED_TIMER_03 EQU 0x219a           ; slot 03
+CUP_BONUS_TIMER EQU 0x219b           ; slot 04
+CUP_COMPLETION_TIMER EQU 0x219c      ; slot 05
+END_SEQUENCE_TIMER EQU 0x219d        ; slot 06, inferred
+DISPLAY_CLEAR_TIMER EQU 0x219e       ; slot 07, inferred
+CLOCK_TIMER EQU 0x219f               ; slot 08, inferred
+END_BALL_TIMER EQU 0x21a0            ; slot 09, inferred
+GAME_OVER_SEQUENCE_TIMER EQU 0x21a1  ; slot 10, inferred
+TILT_TIMER EQU 0x21a2                ; slot 11
+HIGH_SCORE_DISPLAY_TIMER EQU 0x21a3  ; slot 12, inferred
+ROLLOVER_COMPLETION_TIMER EQU 0x21a4 ; slot 13
+CUP_EJECT_SEQUENCE_TIMER EQU 0x21a5  ; slot 14
+TARGET_COIL_TIMER EQU 0x21a6         ; slot 15, inferred
+BONUS_COUNT_TIMER EQU 0x21a7         ; slot 16, inferred
+LEFT_FLIPPER_TIMER EQU 0x21a8        ; slot 17
+RIGHT_FLIPPER_TIMER EQU 0x21a9       ; slot 18
+UNUSED_TIMER_19 EQU 0x21aa           ; slot 19
+COIL_LATCH_TIMER EQU 0x21ab          ; slot 20, inferred
+DMA_RECHECK_TIMER EQU 0x21ac         ; slot 21, inferred
+OUTLANE_STATE_TIMER EQU 0x21ad       ; slot 22, inferred
+BONUS_PAYOUT_TIMER EQU 0x21ae        ; slot 23, inferred
+STANDUP_BAR_TIMER EQU 0x21af         ; slot 24, inferred
+UNUSED_TIMER_25 EQU 0x21b0           ; slot 25
+
+; Hardware-maintained playfield samples and the software-adjusted comparison
+; image.  The dispatcher derives switch N from the low byte of
+; PLAYFIELD_DMA_SAMPLES+N.
+PLAYFIELD_DMA_SAMPLES EQU 0x23e0
+PLAYFIELD_COMPARE_IMAGE EQU 0x233b
+PLAYFIELD_SWITCH_COUNT EQU 0x20
+
 ; INPUT PORTS
 CABINET_TILT_FLIPPERS_TIMER_PORT EQU 0x0
 BUMPER_SLINGS_SWITCHES_PORT EQU 0x1
@@ -106,7 +156,7 @@ c0009:  MVI A, #01 ;o1606
         NOP
         NOP
 c0018:  MVI A, #3c ;jo0aac
-        STA $21a5
+        STA CUP_EJECT_SEQUENCE_TIMER
 c001d:  LXI H, SCORE_10000 ;jo151f
 o0020:  CALL ADD_BONUS
         RET
@@ -162,7 +212,8 @@ j006e:  OUT LAMP_E ;o0073
         OUT LAMP_D
         DCR A
 o0073:  JP j006e
-        LXI H, #2197
+; Clear the timer bank and the immediately following legacy work area.
+        LXI H, SOFTWARE_TIMER_BASE
         MVI C, #2d
 j007b:  SUB A ;o007f
         MOV M,A
@@ -174,7 +225,7 @@ o007f:  JNZ j007b
         CALL AY_INIT
         NOP
         MVI A, #02
-        STA $2198
+        STA TONE_TIMER
         MVI A, #ff
         STA STATE_OUTLANE_1
 o0095:  CALL INIT_FLIPPER_PWM_MASK
@@ -204,7 +255,7 @@ o00c8:  CALL COPY_FROM_HL_TO_DE
         MVI A, #08
 o00d3:  CALL COPY_FROM_HL_TO_DE
         MVI A, #71
-        STA $219f
+        STA CLOCK_TIMER
         MVI A, #3c
         STA $221f
         MVI A, #00
@@ -222,9 +273,9 @@ j00fb:  MVI A, #07 ;o00f2
         CMA
         OUT COIL_5
         MVI A, #06
-        STA $21a6
+        STA TARGET_COIL_TIMER
 j0108:  EI ;o010d
-        LDA $21a6
+        LDA TARGET_COIL_TIMER
         ORA A
 o010d:  JNZ j0108
         MVI A, #28
@@ -240,9 +291,9 @@ o010d:  JNZ j0108
         CMA
         OUT COIL_8
         MVI A, #06
-        STA $21a6
+        STA TARGET_COIL_TIMER
 j012d:  EI ;o0132
-        LDA $21a6
+        LDA TARGET_COIL_TIMER
         ORA A
 o0132:  JNZ j012d
         MVI A, #ff
@@ -436,7 +487,7 @@ o02a3:  JZ j087b
         ANI #20
 o02aa:  JZ j0891
         MVI A, #09
-        STA $21a8
+        STA LEFT_FLIPPER_TIMER
 o02b2:  JMP APPLY_FLIPPER_PWM_MASK
 RIGHT_FLIPPER_HOLD:
         LDA $21c3 ;o092d
@@ -446,7 +497,7 @@ o02ba:  JZ j0938
         ANI #40
 o02c1:  JZ j094e
         MVI A, #09
-        STA $21a9
+        STA RIGHT_FLIPPER_TIMER
 APPLY_FLIPPER_PWM_MASK:
         LDA $21c3 ;o02b2
         MOV D,A
@@ -485,7 +536,7 @@ o02f8:  CALL ADD_PULL_IN_MASK
         OUT COIL_6
         RET
 
-c0303:  LXI D, #233b ;co0317,o13b5
+c0303:  LXI D, PLAYFIELD_COMPARE_IMAGE ;co0317,o13b5
         LXI B, #0000
         LXI H, #0000
 j030c:  LDAX D ;o0313
@@ -542,6 +593,8 @@ o035a:  CALL SAVE_BDPSW
 o0362:  CNZ c0402
 o0365:  CALL RESTORE_BDPSW
 o0368:  CALL SET_ATH_BIT_OF_HL
+; E is the zero-based number of the first asserted port-1 bit.  XCHG moves that
+; index to HL and DAD H converts it to a two-byte pointer-table offset.
         XCHG
         DAD H
         LXI D, REFLEX_DISPATCH_TABLE
@@ -577,6 +630,8 @@ j039a:  MOV A,E ;o0393
 o03a2:  CALL CHECK_ATH_BIT_OF_HL
 o03a5:  JNZ jo0382
 o03a8:  CALL SET_ATH_BIT_OF_HL
+; E is the zero-based number of the first asserted port-0 bit.  As above,
+; doubling it selects the corresponding little-endian handler pointer.
         XCHG
         DAD H
         LXI D, CABINET_DISPATCH_TABLE
@@ -587,32 +642,23 @@ o03a8:  CALL SET_ATH_BIT_OF_HL
         MOV L,A
         PCHL
 REFLEX_DISPATCH_TABLE:
-        DW LOWER_LEFT_BUMPER_HANDLER
-        DW UPPER_LEFT_BUMPER_HANDLER
-        DW MIDDLE_ROLLOVER_BUMPER_HANDLER
-        DW LOWER_RIGHT_BUMPER_HANDLER
-        DW RIGHT_SLINGSHOT_HANDLER
-        DW LEFT_SLINGSHOT_HANDLER
-; port 1 bit 6 vector -> $0784
-        DW REFLEX_CONTROL_FLAG_HANDLER
-        DW jo0382
+        DW LOWER_LEFT_BUMPER_HANDLER       ; port 1 bit 0
+        DW UPPER_LEFT_BUMPER_HANDLER       ; port 1 bit 1
+        DW MIDDLE_ROLLOVER_BUMPER_HANDLER  ; port 1 bit 2
+        DW LOWER_RIGHT_BUMPER_HANDLER      ; port 1 bit 3
+        DW RIGHT_SLINGSHOT_HANDLER         ; port 1 bit 4
+        DW LEFT_SLINGSHOT_HANDLER          ; port 1 bit 5
+        DW REFLEX_CONTROL_FLAG_HANDLER     ; port 1 bit 6
+        DW jo0382                          ; port 1 bit 7, unused/return
 CABINET_DISPATCH_TABLE:
-; switch 0 vector -> $05d9
-        DW PERIODIC_TIMER_HANDLER
-; switch 1 vector -> $13bc
-        DW PLAYFIELD_DMA_HANDLER
-; switch 2 vector -> $0003
-        DW o0003
-; switch 3 tilt vector -> $047b
-        DW TILT_HANDLER
-; switch 4 left flipper vector -> $0837
-        DW LEFT_FLIPPER_HANDLER
-; switch 5 vector -> $0909
-        DW RIGHT_FLIPPER_HANDLER
-; switch 6 vector -> $15fb
-        DW START_BUTTON_HANDLER
-; switch 7 tilt vector -> $047b
-        DW TILT_HANDLER
+        DW PERIODIC_TIMER_HANDLER          ; port 0 bit 0: timer tick
+        DW PLAYFIELD_DMA_HANDLER           ; port 0 bit 1: DMA sample ready
+        DW o0003                          ; port 0 bit 2: credit
+        DW TILT_HANDLER                    ; port 0 bit 3: tilt
+        DW LEFT_FLIPPER_HANDLER            ; port 0 bit 4
+        DW RIGHT_FLIPPER_HANDLER           ; port 0 bit 5
+        DW START_BUTTON_HANDLER            ; port 0 bit 6
+        DW TILT_HANDLER                    ; port 0 bit 7: alternate tilt
 SET_ATH_BIT_OF_HL:
         PUSH B ;o0368,o03a8,o0410,o052e,o06cb,o079f,o09c0,o09cf,o09f6,o0aa1,o0af2,o0b55,o0c98,o0c9e,o0d52,jo1078,jo10ad,o11f8,o1213,o1283,o13c1,o13fb,o1499,o1568,o15c4,o1657,o170a,jo1738,jo174e,o184b,o1853,o19a3,o19dc,jo1a98,o1aab,o1b6c,o1c42,o1c7e,o1d1f,o1d56,o1d79,o1d7d,o1d94
         MOV B,A
@@ -732,11 +778,11 @@ j0479:  DCR A ;o0474
 TILT_HANDLER:
         CALL TILT_HELPER
         MVI A, #7d
-        STA $21a2
+        STA TILT_TIMER
 o0483:  CALL c046a
 o0486:  JNZ jo0382
         MVI A, #fa
-        STA $219e
+        STA DISPLAY_CLEAR_TIMER
         LDA $23b6
         ORI #10
         STA $23b6
@@ -812,20 +858,21 @@ o052e:  CALL SET_ATH_BIT_OF_HL
         MVI A, #28
         STA $221b
         MVI A, #02
-        STA $219d
+        STA END_SEQUENCE_TIMER
 o0540:  JMP jo0382
 TILT2:  LXI H, TILT_MUSIC ;o04ab,o04b3
 o0546:  CALL PLAY_SOUND
 o0549:  JMP jo0382
+END_SEQUENCE_TIMER_EXPIRED:
 TIMER_06_EXPIRED:
         LDA $221b
         DCR A
         STA $221b
 o0553:  JZ j0569
         MVI A, #14
-        STA $219d
+        STA END_SEQUENCE_TIMER
         MVI A, #fa
-        STA $219e
+        STA DISPLAY_CLEAR_TIMER
         LXI H, SILENCE_END_LOOP_MUSIC
 o0563:  CALL PLAY_SOUND
 o0566:  JMP END_MAIN_LOOP
@@ -833,13 +880,14 @@ j0569:  LDA $2247 ;o0553
         ANI #bf
         STA $2247
         MVI A, #01
-        STA $21a0
+        STA END_BALL_TIMER
         STA $221c
         LDA SWITCH_LATCHED
         ANI #33
         STA SWITCH_LATCHED
 o0581:  JMP END_MAIN_LOOP
 ; tilt handler 2
+TILT_TIMER_EXPIRED:
 TIMER_11_EXPIRED:
         IN PRICE_89_CAB
         ANI #80
@@ -848,7 +896,7 @@ o058b:  CALL c046a
 o058e:  JNZ j05a2
 o0591:  CALL TILT_HELPER
         MVI A, #7d
-        STA $21a2
+        STA TILT_TIMER
         LXI H, TILT_MUSIC
 o059c:  CALL PLAY_SOUND
 o059f:  JMP END_MAIN_LOOP
@@ -856,6 +904,7 @@ j05a2:  LDA SWITCH_LATCHED ;o0588,o058e
         ANI #77
         STA SWITCH_LATCHED
 o05aa:  JMP END_MAIN_LOOP
+DISPLAY_CLEAR_TIMER_EXPIRED:
 TIMER_07_EXPIRED:
         LXI H, GAME_STATE2
         MVI A, #07
@@ -875,8 +924,8 @@ o05b5:  JZ END_MAIN_LOOP
 o05d6:  JMP END_MAIN_LOOP
 ; when no switches activated?
 PERIODIC_TIMER_HANDLER:
-        LXI H, #2197
-        MVI C, #1a
+        LXI H, SOFTWARE_TIMER_BASE
+        MVI C, SOFTWARE_TIMER_COUNT
 j05de:  MVI A, #ff ;o05ea
         ADD M
 o05e1:  JNC j05e8
@@ -885,12 +934,12 @@ o05e5:  JZ j0609
 j05e8:  INX H ;o05e1,o0621
         DCR C
 o05ea:  JNZ j05de
-        LDA $2198
+        LDA TONE_TIMER
         ORA A
 o05f1:  JNZ j05f6
         MVI A, #01
 j05f6:  ANI #3f ;o05f1
-        STA $2198
+        STA TONE_TIMER
         LDA $2247
         ANI #40
 o0600:  CZ FLASH_ROUTINE
@@ -899,7 +948,10 @@ o0600:  CZ FLASH_ROUTINE
 o0606:  JMP j0376
 j0609:  DI ;o05e5
 o060a:  CALL SAVE_BDPSW
-        MVI A, #1a
+; C is the number of slots remaining when a zero was found, so
+; SOFTWARE_TIMER_COUNT-C is the expired slot number.  ADD A multiplies that
+; slot by the two-byte DW pointer size before TIMER_EXPIRATION_TABLE is read.
+        MVI A, SOFTWARE_TIMER_COUNT
         SUB C
         ADD A
         LXI D, #0000
@@ -1008,7 +1060,7 @@ o06bd:  CALL CLEAR_ATH_BIT_OF_HL
         MVI A, #03
 o06cb:  CALL SET_ATH_BIT_OF_HL
         MVI A, #09
-        STA $21ab
+        STA COIL_LATCH_TIMER
 c06d3:  MVI A, #06 ;jo1a71
         LXI H, #2376
 o06d8:  CALL CLEAR_ATH_BIT_OF_HL
@@ -1033,6 +1085,7 @@ o06fd:  CALL PLAY_SOUND
 o0707:  CALL c1faa
         RET
 
+COIL_LATCH_TIMER_EXPIRED:
 TIMER_20_EXPIRED:
         LXI H, #21c5
         MVI A, #03
@@ -1040,39 +1093,39 @@ o0710:  CALL CHECK_ATH_BIT_OF_HL
 o0713:  JZ j0721
 o0716:  CALL CLEAR_ATH_BIT_OF_HL
         MVI A, #09
-        STA $21ab
+        STA COIL_LATCH_TIMER
 o071e:  JMP END_MAIN_LOOP
 j0721:  LDA SWITCH_LATCHED ;o0713
         ANI #bb
         STA SWITCH_LATCHED
 o0729:  JMP END_MAIN_LOOP
 TIMER_EXPIRATION_TABLE:
-        DW TIMER_00_EXPIRED
-        DW TIMER_01_EXPIRED
-        DW TIMER_02_EXPIRED
-        DW END_MAIN_LOOP
-        DW TIMER_04_EXPIRED
-        DW TIMER_05_EXPIRED
-        DW TIMER_06_EXPIRED
-        DW TIMER_07_EXPIRED
-        DW TIMER_08_EXPIRED
-        DW TIMER_09_EXPIRED
-        DW TIMER_10_EXPIRED
-        DW TIMER_11_EXPIRED
-        DW TIMER_12_EXPIRED
-        DW TIMER_13_EXPIRED
-        DW TIMER_14_EXPIRED
-        DW TIMER_15_EXPIRED
-        DW TIMER_16_EXPIRED
-        DW o0870
-        DW o092d
-        DW END_MAIN_LOOP
-        DW TIMER_20_EXPIRED
-        DW TIMER_21_EXPIRED
-        DW TIMER_22_EXPIRED
-        DW TIMER_23_EXPIRED
-        DW TIMER_24_EXPIRED
-        DW END_MAIN_LOOP
+        DW SWITCH_SETTLE_TIMER_EXPIRED       ; 00: $2197
+        DW TONE_TIMER_EXPIRED                ; 01: $2198
+        DW COIL_PULSE_TIMER_EXPIRED          ; 02: $2199
+        DW END_MAIN_LOOP                     ; 03: unused
+        DW CUP_BONUS_TIMER_EXPIRED           ; 04: $219b
+        DW CUP_COMPLETION_TIMER_EXPIRED      ; 05: $219c
+        DW END_SEQUENCE_TIMER_EXPIRED        ; 06: $219d, inferred
+        DW DISPLAY_CLEAR_TIMER_EXPIRED       ; 07: $219e, inferred
+        DW CLOCK_TIMER_EXPIRED               ; 08: $219f, inferred
+        DW END_BALL_TIMER_EXPIRED            ; 09: $21a0, inferred
+        DW GAME_OVER_SEQUENCE_TIMER_EXPIRED  ; 10: $21a1, inferred
+        DW TILT_TIMER_EXPIRED                ; 11: $21a2
+        DW HIGH_SCORE_DISPLAY_TIMER_EXPIRED  ; 12: $21a3, inferred
+        DW ROLLOVER_COMPLETION_TIMER_EXPIRED ; 13: $21a4
+        DW CUP_EJECT_SEQUENCE_TIMER_EXPIRED  ; 14: $21a5
+        DW TARGET_COIL_TIMER_EXPIRED         ; 15: $21a6, inferred
+        DW BONUS_COUNT_TIMER_EXPIRED         ; 16: $21a7, inferred
+        DW LEFT_FLIPPER_TIMER_EXPIRED        ; 17: $21a8
+        DW RIGHT_FLIPPER_TIMER_EXPIRED       ; 18: $21a9
+        DW END_MAIN_LOOP                     ; 19: unused
+        DW COIL_LATCH_TIMER_EXPIRED          ; 20: $21ab, inferred
+        DW DMA_RECHECK_TIMER_EXPIRED         ; 21: $21ac, inferred
+        DW OUTLANE_STATE_TIMER_EXPIRED       ; 22: $21ad, inferred
+        DW BONUS_PAYOUT_TIMER_EXPIRED        ; 23: $21ae, inferred
+        DW STANDUP_BAR_TIMER_EXPIRED         ; 24: $21af, inferred
+        DW END_MAIN_LOOP                     ; 25: unused
 ; Lower-left bumper, coil 11
 LOWER_LEFT_BUMPER_HANDLER:
         LXI D, #0000
@@ -1117,7 +1170,7 @@ j078f:  LXI H, REFLEX_COIL_INDEX_TABLE ;o0763,o0769,o076f,o0775,o077b,o0781
         MOV L,B
 o079f:  CALL SET_ATH_BIT_OF_HL
         MVI A, #09
-        STA $2199
+        STA COIL_PULSE_TIMER
         LDA $21c3
         CMA
         OUT COIL_6
@@ -1142,6 +1195,7 @@ o07bc:  CALL PLAY_SOUND
         MOV L,B
 o07c8:  CALL ADD_BONUS_HL
 o07cb:  JMP jo0382
+COIL_PULSE_TIMER_EXPIRED:
 TIMER_02_EXPIRED:
         LDA $21c3
         ANI #30
@@ -1153,12 +1207,13 @@ TIMER_02_EXPIRED:
         STA $21c4
         CMA
         OUT COIL_7
-        LDA $21ad
+        LDA OUTLANE_STATE_TIMER
         ORA A
 o07e8:  JNZ END_MAIN_LOOP
         MVI A, #06
-        STA $21ad
+        STA OUTLANE_STATE_TIMER
 o07f0:  JMP END_MAIN_LOOP
+OUTLANE_STATE_TIMER_EXPIRED:
 TIMER_22_EXPIRED:
         LXI H, GAME_STATE
         MVI A, #02
@@ -1218,7 +1273,7 @@ LEFT_FLIPPER_HANDLER:
         CMA
         OUT COIL_6
         MVI A, #19
-        STA $21a8
+        STA LEFT_FLIPPER_TIMER
         LXI H, GAME_STATE
         MVI A, #05
 o084c:  CALL CHECK_ATH_BIT_OF_HL
@@ -1232,9 +1287,10 @@ o0855:  CALL PLAY_SOUND
 o0862:  CALL CHECK_ATH_BIT_OF_HL
 o0865:  JZ jo0382
         MVI A, #7d
-        STA $219f
+        STA CLOCK_TIMER
 o086d:  JMP jo0382
 ; left flipper release
+LEFT_FLIPPER_TIMER_EXPIRED:
 o0870:  JMP FLIPPER_HOLD_ROUTINE
         MVI A, #04
 o0875:  CALL CHECK_ATH_BIT_OF_HL
@@ -1254,8 +1310,9 @@ j0891:  LDA $21c3 ;o02aa,o0878
         CMA
         OUT COIL_6
         MVI A, #06
-        STA $21a8
+        STA LEFT_FLIPPER_TIMER
 o08a1:  JMP END_MAIN_LOOP
+CLOCK_TIMER_EXPIRED:
 TIMER_08_EXPIRED:
         LDA CONTROL_FLAGS
         ANI #01
@@ -1264,10 +1321,10 @@ o08a9:  JZ j08bc
         ORI #30
         STA $21c3
         MVI A, #19
-        STA $21a8
-        STA $21a9
+        STA LEFT_FLIPPER_TIMER
+        STA RIGHT_FLIPPER_TIMER
 j08bc:  MVI A, #71 ;o08a9
-        STA $219f
+        STA CLOCK_TIMER
         LDA $221f
         DCR A
         STA $221f
@@ -1296,7 +1353,7 @@ o08f4:  CALL c1faa
         MVI A, #04
         STA $2222
         MVI A, #00
-        STA $219f
+        STA CLOCK_TIMER
 o0906:  JMP END_MAIN_LOOP
 RIGHT_FLIPPER_HANDLER:
         LDA $21c3
@@ -1305,7 +1362,7 @@ RIGHT_FLIPPER_HANDLER:
         CMA
         OUT COIL_6
         MVI A, #19
-        STA $21a9
+        STA RIGHT_FLIPPER_TIMER
         LXI H, GAME_STATE
         MVI A, #05
 o091e:  CALL CHECK_ATH_BIT_OF_HL
@@ -1313,6 +1370,7 @@ o0921:  JNZ jo0382
         LXI H, SILENCE_MUSIC
 o0927:  CALL PLAY_SOUND
 o092a:  JMP jo0382
+RIGHT_FLIPPER_TIMER_EXPIRED:
 o092d:  JMP RIGHT_FLIPPER_HOLD
         MVI A, #05
 o0932:  CALL CHECK_ATH_BIT_OF_HL
@@ -1332,7 +1390,7 @@ j094e:  LDA $21c3 ;o02c1,o0935
         CMA
         OUT COIL_6
         MVI A, #06
-        STA $21a9
+        STA RIGHT_FLIPPER_TIMER
 o095e:  JMP END_MAIN_LOOP
 CUP_1_HANDLER:
         MVI B, #24
@@ -1356,7 +1414,7 @@ CUP_5_HANDLER:
 o0981:  JMP j0999
 SIDE_BONUS_CUP_HANDLER:
         MVI A, #04
-        STA $2197
+        STA SWITCH_SETTLE_TIMER
         LXI H, #2208
         MVI A, #ff
         ADD M
@@ -1371,12 +1429,12 @@ o099f:  JNC j09ae
         MOV M,A
 o09a3:  JZ j09bb
         MVI A, #04
-        STA $2197
+        STA SWITCH_SETTLE_TIMER
 o09ab:  JMP jo1419
 j09ae:  MVI A, #64 ;o098f,o099f
         STA $2208
         MVI A, #04
-        STA $2197
+        STA SWITCH_SETTLE_TIMER
 o09b8:  JMP jo1419
 j09bb:  LXI H, GAME_STATE ;o09a3
         MVI A, #07
@@ -1388,7 +1446,7 @@ o09c8:  JZ jo09da
 o09cc:  CALL c0b6f
 o09cf:  CALL SET_ATH_BIT_OF_HL
         MVI A, #06
-        STA $21a6
+        STA TARGET_COIL_TIMER
 o09d7:  JMP jo1419
 jo09da: CALL co1d81 ;o09c8
         MOV A,C
@@ -1420,8 +1478,9 @@ o0a1a:  CALL PLAY_SOUND
         MVI A, #c8
         STA $2208
         MVI A, #5a
-j0a24:  STA $219b ;o0a11
+j0a24:  STA CUP_BONUS_TIMER ;o0a11
 o0a27:  JMP jo1419
+CUP_BONUS_TIMER_EXPIRED:
 TIMER_04_EXPIRED:
         LXI H, CUP_BONUS_SCORE_TABLE - 1
         LDA $21c8
@@ -1451,8 +1510,9 @@ o0a5b:  CALL CLEAR_ATH_BIT_OF_HL
         MVI A, #05
         STA $221a
         MVI A, #28
-        STA $219c
+        STA CUP_COMPLETION_TIMER
 o0a6d:  JMP END_MAIN_LOOP
+CUP_COMPLETION_TIMER_EXPIRED:
 TIMER_05_EXPIRED:
         LXI H, SCORE_5000
 o0a73:  CALL ADD_BONUS
@@ -1463,7 +1523,7 @@ o0a79:  CALL PLAY_SOUND
         STA $221a
 o0a83:  JZ j0a93
         MVI A, #28
-        STA $219c
+        STA CUP_COMPLETION_TIMER
         MVI A, #fa
         STA $2208
 o0a90:  JMP END_MAIN_LOOP
@@ -1474,7 +1534,7 @@ o0a98:  JZ jo0aac
         LDA $220b
 o0aa1:  CALL SET_ATH_BIT_OF_HL
         MVI A, #06
-        STA $21a6
+        STA TARGET_COIL_TIMER
 o0aa9:  JMP END_MAIN_LOOP
 ; all cups complete
 jo0aac: CALL c0018 ;o0a98
@@ -1485,6 +1545,7 @@ jo0aac: CALL c0018 ;o0a98
         MVI A, #00
         STA $2207
 o0abb:  JMP END_MAIN_LOOP
+CUP_EJECT_SEQUENCE_TIMER_EXPIRED:
 TIMER_14_EXPIRED:
         SUB A
         STA $2208
@@ -1502,7 +1563,7 @@ o0ad6:  CALL co1d76
         LXI H, UNKNOWN_MUSIC
 o0adc:  CALL PLAY_SOUND
         MVI A, #0f
-        STA $21a5
+        STA CUP_EJECT_SEQUENCE_TIMER
         MVI A, #64
         STA $2208
 o0ae9:  JMP END_MAIN_LOOP
@@ -1510,7 +1571,7 @@ j0aec:  LHLD $2209 ;o0acb
         LDA $220b
 o0af2:  CALL SET_ATH_BIT_OF_HL
         MVI A, #06
-        STA $21a6
+        STA TARGET_COIL_TIMER
         MVI A, #1f
         STA CUPS_LEFT
         LDA $2246
@@ -1555,7 +1616,7 @@ o0b4f:  JMP END_MAIN_LOOP
 jo0b52: CALL c0b6f ;o09e4
 o0b55:  CALL SET_ATH_BIT_OF_HL
         MVI A, #06
-        STA $21a6
+        STA TARGET_COIL_TIMER
 o0b5d:  CALL co1d9c
 o0b60:  JNZ jo1419
 o0b63:  CALL co1d76
@@ -1584,6 +1645,7 @@ c0b6f:  MVI D, #00 ;o09cc,o0a00,jo0b52
         MOV A,C
         RET
 
+TARGET_COIL_TIMER_EXPIRED:
 TIMER_15_EXPIRED:
         MVI A, #00
         STA $21c2
@@ -1596,6 +1658,7 @@ TIMER_15_EXPIRED:
         MVI A, #01
 o0ba4:  CALL CLEAR_ATH_BIT_OF_HL
 o0ba7:  JMP END_MAIN_LOOP
+SWITCH_SETTLE_TIMER_EXPIRED:
 TIMER_00_EXPIRED:
         MVI A, #00
         STA $2208
@@ -1708,8 +1771,9 @@ o0c9e:  CALL SET_ATH_BIT_OF_HL
         MVI A, #fa
 o0ca3:  JMP j0ca8
 j0ca6:  MVI A, #3c ;o0bf7,o0c29
-j0ca8:  STA $21a7 ;o0ca3
+j0ca8:  STA BONUS_COUNT_TIMER ;o0ca3
 o0cab:  JMP jo1419
+BONUS_COUNT_TIMER_EXPIRED:
 TIMER_16_EXPIRED:
         LDA $2349
         MOV B,A
@@ -1721,7 +1785,7 @@ o0cb6:  JM j0cc4
         STA SWITCH_LATCHED
 o0cc1:  JMP END_MAIN_LOOP
 j0cc4:  MVI A, #00 ;o0cb6
-        STA $2197
+        STA SWITCH_SETTLE_TIMER
         LDA SWITCH_LATCHED
         ORI #02
         STA SWITCH_LATCHED
@@ -1735,7 +1799,7 @@ o0ce2:  JC j0cf9
         LXI H, SCORE_1000
 o0ce8:  CALL ADD_BONUS_HL
         MVI A, #0a
-        STA $21a7
+        STA BONUS_COUNT_TIMER
         LXI H, BUMPER_25_MUSIC
 o0cf3:  CALL PLAY_SOUND
 o0cf6:  JMP END_MAIN_LOOP
@@ -1752,7 +1816,7 @@ o0d12:  JM j0d29
         LXI H, #220d
 o0d18:  CALL c0e6f
         MVI A, #3c
-        STA $21a7
+        STA BONUS_COUNT_TIMER
         LXI H, SPREAD_HRM_MUSIC
 jo0d23: CALL PLAY_SOUND ;o0d4a
 o0d26:  JMP END_MAIN_LOOP
@@ -1761,7 +1825,7 @@ j0d29:  LXI H, #21c5 ;o0cd9,o0d0f,o0d12
         ORI #02
         MOV M,A
         MVI A, #09
-        STA $21a6
+        STA TARGET_COIL_TIMER
         MVI B, #39
 o0d37:  CALL co1d81
         LDA SWITCH_LATCHED
@@ -1775,7 +1839,7 @@ j0d4d:  LXI H, #21c5 ;o0be4,o0bef
         MVI A, #01
 o0d52:  CALL SET_ATH_BIT_OF_HL
         MVI A, #06
-        STA $21a6
+        STA TARGET_COIL_TIMER
 o0d5a:  JMP jo1419
 STANDUP_1_HANDLER:
         MVI A, #2b
@@ -1796,7 +1860,7 @@ j0d76:  STA $2226 ;o0d5f,o0d64,o0d69,o0d6e,o0d73
         LDA GAME_STATE
         ANI #04
 o0d7e:  JNZ jo1419
-        LDA $21af
+        LDA STANDUP_BAR_TIMER
         ORA A
 o0d85:  JNZ j0d95
         LDA CONTROL_FLAGS
@@ -1805,8 +1869,9 @@ o0d85:  JNZ j0d95
         MVI A, #80
         STA STATE_OUTLANE_1
 j0d95:  MVI A, #03 ;o0d85
-        STA $21af
+        STA STANDUP_BAR_TIMER
 o0d9a:  JMP jo1419
+STANDUP_BAR_TIMER_EXPIRED:
 TIMER_24_EXPIRED:
         LDA CONTROL_FLAGS
         ANI #20
@@ -1815,7 +1880,7 @@ o0da2:  JZ j0de1
         ORI #04
         STA $21c4
         MVI A, #09
-        STA $2199
+        STA COIL_PULSE_TIMER
         LDA $2226
         MOV B,A
 o0db6:  CALL co1d9c
@@ -2195,12 +2260,12 @@ jo107d: CALL CLEAR_ATH_BIT_OF_HL ;o10b2
         PUSH B
         LXI H, SPREAD_TAKEOVER_MUSIC
 o1085:  CALL PLAY_SOUND
-        LXI H, #21a7
+        LXI H, BONUS_COUNT_TIMER
         MOV A,M
         ORA A
 o108d:  JZ j1092
         MVI M, #7d
-j1092:  LXI H, #21ae ;o108d
+j1092:  LXI H, BONUS_PAYOUT_TIMER ;o108d
         MOV A,M
         ORA A
 o1097:  JZ j109c
@@ -2359,7 +2424,7 @@ j11ec:  INX D ;o11c2
 j11ed:  INX D ;o11bd
 j11ee:  INX D ;o11b8
 j11ef:  LDAX D ;o11b3,o11e3
-        STA $2198
+        STA TONE_TIMER
         LXI H, GAME_STATE
         MVI A, #05
 o11f8:  CALL SET_ATH_BIT_OF_HL
@@ -2376,6 +2441,7 @@ TONE_DURATION_TIMER_TABLE:
         DB #05
         DB #02
         DB #32
+TONE_TIMER_EXPIRED:
 TIMER_01_EXPIRED:
         LXI H, GAME_STATE
         MVI A, #05
@@ -2386,7 +2452,7 @@ o1213:  CALL SET_ATH_BIT_OF_HL
         CALL AY_MUTE
         NOP
         MVI A, #02
-        STA $2198
+        STA TONE_TIMER
 o121f:  JMP END_MAIN_LOOP
 jo1222: CALL CLEAR_ATH_BIT_OF_HL ;o120e
         MVI A, #06
@@ -2407,7 +2473,7 @@ o1246:  JNZ jo1258
         CALL AY_MUTE
         NOP
         MVI A, #0c
-        STA $2198
+        STA TONE_TIMER
 o1252:  JMP END_MAIN_LOOP
 jo1255: CALL CLEAR_ATH_BIT_OF_HL ;o122a
 jo1258: CALL c128c ;o1246
@@ -2433,7 +2499,7 @@ o127f:  CALL CHECK_ATH_BIT_OF_HL
         RNZ
 o1283:  CALL SET_ATH_BIT_OF_HL
         MVI A, #01
-        STA $2198
+        STA TONE_TIMER
         RET
 
 c128c:  LHLD $21c0 ;jo1258
@@ -2709,8 +2775,10 @@ jc137d: LXI H, CONTROL_FLAGS ;o0140,o13b2,o1d6f
         MVI A, #03
 o1382:  CALL CLEAR_ATH_BIT_OF_HL
         OUT LAMP_F
-        LXI H, #23e0
-        LXI D, #233b
+; Reconcile the 32 hardware-maintained samples with the software comparison
+; image.  Both pointers advance together; L wraps after sample $23ff.
+        LXI H, PLAYFIELD_DMA_SAMPLES
+        LXI D, PLAYFIELD_COMPARE_IMAGE
 j138d:  MOV B,M ;o13aa
         LDAX D
         ADI #04
@@ -2740,8 +2808,8 @@ PLAYFIELD_DMA_HANDLER:
         LXI H, CONTROL_FLAGS
         MVI A, #06
 o13c1:  CALL SET_ATH_BIT_OF_HL
-        LXI H, #23e0
-        LXI D, #233b
+        LXI H, PLAYFIELD_DMA_SAMPLES
+        LXI D, PLAYFIELD_COMPARE_IMAGE
 j13ca:  LDAX D ;o13d1
         SUB M
 o13cc:  JP j13ea
@@ -2771,6 +2839,8 @@ o13ff:  JMP jo141c
 jo1402: CALL CLEAR_ATH_BIT_OF_HL ;o13f8
         POP H
 o1406:  CALL SAVE_BDPSW
+; HL still points at PLAYFIELD_DMA_SAMPLES+N.  Subtracting its $e0 low byte
+; yields switch index N (0..31); DAD H converts N to a two-byte DW offset.
         MOV A,L
         SUI #e0
         MOV L,A
@@ -2786,38 +2856,38 @@ o1406:  CALL SAVE_BDPSW
 jo1419: CALL RESTORE_BDPSW ;o0996,o09ab,o09b8,o09d7,o0a27,o0b60,o0b6c,o0cab,o0d5a,o0d7e,o0d9a,o14a1,o14ab,o14c5,o14d2,o153e,o1549,o15a9,o15c1,o15d3,o15de,o15e6,o15f8,o1810,o1820,o1828,o1886,o18ca
 jo141c: JMP j13cf ;o13ff
 PLAYFIELD_SWITCH_DISPATCH_TABLE:
-        DW INLANE_HANDLER
-        DW jo1419
-        DW jo1419
-        DW jo1419
-        DW jo1419
-        DW jo1419
-        DW jo1419
-        DW jo1419
-        DW OUTLANE_HANDLER
-        DW ROLLOVER_2_HANDLER
-        DW ROLLOVER_3_HANDLER
-        DW ROLLOVER_6_HANDLER
-        DW ROLLOVER_4_HANDLER
-        DW ROLLOVER_5_HANDLER
-        DW SIDE_BONUS_CUP_HANDLER
-        DW EXTRA_BALL_LANE_HANDLER
-        DW ROLLOVER_7_HANDLER
-        DW ROLLOVER_8_HANDLER
-        DW CUP_5_HANDLER
-        DW ROLLOVER_1_HANDLER
-        DW CUP_4_HANDLER
-        DW STANDUP_3_HANDLER
-        DW STANDUP_4_HANDLER
-        DW STANDUP_5_HANDLER
-        DW OUTHOLE_HANDLER
-        DW CUP_3_HANDLER
-        DW STANDUP_2_HANDLER
-        DW CUP_2_HANDLER
-        DW STANDUP_1_HANDLER
-        DW CUP_1_HANDLER
-        DW OUTLANE_HANDLER
-        DW INLANE_HANDLER
+        DW INLANE_HANDLER          ; 00: DMA $23e0
+        DW jo1419                 ; 01: unused
+        DW jo1419                 ; 02: unused
+        DW jo1419                 ; 03: unused
+        DW jo1419                 ; 04: unused
+        DW jo1419                 ; 05: unused
+        DW jo1419                 ; 06: unused
+        DW jo1419                 ; 07: unused
+        DW OUTLANE_HANDLER         ; 08
+        DW ROLLOVER_2_HANDLER      ; 09
+        DW ROLLOVER_3_HANDLER      ; 10
+        DW ROLLOVER_6_HANDLER      ; 11
+        DW ROLLOVER_4_HANDLER      ; 12
+        DW ROLLOVER_5_HANDLER      ; 13
+        DW SIDE_BONUS_CUP_HANDLER ; 14
+        DW EXTRA_BALL_LANE_HANDLER ; 15
+        DW ROLLOVER_7_HANDLER      ; 16
+        DW ROLLOVER_8_HANDLER      ; 17
+        DW CUP_5_HANDLER           ; 18
+        DW ROLLOVER_1_HANDLER      ; 19
+        DW CUP_4_HANDLER           ; 20
+        DW STANDUP_3_HANDLER       ; 21
+        DW STANDUP_4_HANDLER       ; 22
+        DW STANDUP_5_HANDLER       ; 23
+        DW OUTHOLE_HANDLER         ; 24
+        DW CUP_3_HANDLER           ; 25
+        DW STANDUP_2_HANDLER       ; 26
+        DW CUP_2_HANDLER           ; 27
+        DW STANDUP_1_HANDLER       ; 28
+        DW CUP_1_HANDLER           ; 29
+        DW OUTLANE_HANDLER         ; 30
+        DW INLANE_HANDLER          ; 31: DMA $23ff
 ; Relocated to the ROM-5 cove at $2ff9.  These NOPs intentionally preserve
 ; every following legacy address; the symbolic PCHL table is the only route
 ; that needs to know where the handler lives.
@@ -2875,10 +2945,11 @@ o14bd:  CALL PLAY_SOUND
         CPI #00
 o14c5:  JNZ jo1419
         MVI A, #3d
-        STA $21a4
+        STA ROLLOVER_COMPLETION_TIMER
         MVI A, #00
         STA $2205
 o14d2:  JMP jo1419
+ROLLOVER_COMPLETION_TIMER_EXPIRED:
 TIMER_13_EXPIRED:
         LDA $2205
         INR A
@@ -2894,7 +2965,7 @@ o14e9:  CALL co1d76
         LXI H, BONUS_MUSIC
 o14ef:  CALL PLAY_SOUND
         MVI A, #0a
-        STA $21a4
+        STA ROLLOVER_COMPLETION_TIMER
 o14f7:  JMP END_MAIN_LOOP
 j14fa:  MVI A, #00 ;o14de
         STA $220c
@@ -3248,8 +3319,8 @@ j182b:  MVI A, #ff ;o181d
         MVI A, #00
         STA $220c
         STA $21c3
-        STA $21a8
-        STA $21a9
+        STA LEFT_FLIPPER_TIMER
+        STA RIGHT_FLIPPER_TIMER
         LDA SWITCH_LATCHED
         ORI #30
         STA SWITCH_LATCHED
@@ -3274,7 +3345,7 @@ o1870:  JNZ j187b
 o1875:  CALL co1d9c
 o1878:  JNZ j1889
 j187b:  MVI A, #02 ;o1870
-        STA $21a0
+        STA END_BALL_TIMER
 o1880:  CALL c17ea
         STA $221c
 o1886:  JMP jo1419
@@ -3306,10 +3377,11 @@ o18b6:  JNZ j18ab
         LXI H, SPREAD_1
 o18bc:  CALL c0e6f
         MVI A, #3c
-        STA $21ae
+        STA BONUS_PAYOUT_TIMER
         LXI H, SPREAD_HRM_MUSIC
 o18c7:  CALL PLAY_SOUND
 o18ca:  JMP jo1419
+BONUS_PAYOUT_TIMER_EXPIRED:
 TIMER_23_EXPIRED:
         LXI H, SCORE_1000
 o18d0:  CALL c0e99
@@ -3317,7 +3389,7 @@ o18d3:  JC j18ea
         LXI H, SCORE_1000
 o18d9:  CALL ADD_BONUS_HL
         MVI A, #0a
-        STA $21ae
+        STA BONUS_PAYOUT_TIMER
         LXI H, BUMPER_25_MUSIC
 o18e4:  CALL PLAY_SOUND
 o18e7:  JMP END_MAIN_LOOP
@@ -3329,13 +3401,14 @@ o18f3:  CALL ADD_PTS
 o18f9:  CALL c0e99
 o18fc:  CALL c17ea
         STA $221c
+END_BALL_TIMER_EXPIRED:
 TIMER_09_EXPIRED:
         LDA $221c
         DCR A
         STA $221c
 o1909:  JZ j1914
         MVI A, #02
-        STA $21a0
+        STA END_BALL_TIMER
 o1911:  JMP END_MAIN_LOOP
 j1914:  MVI A, #01 ;o1909
         STA $2212
@@ -3454,7 +3527,7 @@ o1a14:  JZ j1a24
         MVI A, #04
         STA $2217
         MVI A, #7a
-        STA $21a3
+        STA HIGH_SCORE_DISPLAY_TIMER
 o1a21:  JMP j1a2a
 j1a24:  LXI H, GAME_OVER_MUSIC ;o1a14
 o1a27:  CALL PLAY_SOUND
@@ -3462,7 +3535,7 @@ j1a2a:  MVI A, #00 ;o1a21
         STA BALL_IN_PLAY_1
         STA BALL_IN_PLAY_2
         MVI A, #fa
-        STA $219e
+        STA DISPLAY_CLEAR_TIMER
 o1a37:  JMP END_MAIN_LOOP
 c1a3a:  LXI H, PLAYER_SCORE_ADDRESS_TABLE ;o1930,o19a6
         LDA $2245
@@ -3497,12 +3570,13 @@ PLAYER_DISPLAY_MASK_TABLE:
         DB #f0
         DB #0f
         DB #f0
+HIGH_SCORE_DISPLAY_TIMER_EXPIRED:
 TIMER_12_EXPIRED:
         LXI H, #2217
         DCR M
 o1a66:  JZ jo1a71
         MVI A, #72
-        STA $21a3
+        STA HIGH_SCORE_DISPLAY_TIMER
 o1a6e:  JMP END_MAIN_LOOP
 jo1a71: CALL c06d3 ;o1a66
         LDA $2247
@@ -3541,8 +3615,9 @@ o1ac4:  CALL co1d81
         MVI A, #04
 o1acc:  CALL CLEAR_ATH_BIT_OF_HL
         MVI A, #02
-        STA $21a1
+        STA GAME_OVER_SEQUENCE_TIMER
 o1ad4:  JMP END_MAIN_LOOP
+GAME_OVER_SEQUENCE_TIMER_EXPIRED:
 TIMER_10_EXPIRED:
         LDA $2212
         DCR A
@@ -3551,7 +3626,7 @@ o1ade:  JZ j1aef
         LXI H, MORSE_CODE_MUSIC
 o1ae4:  CALL PLAY_SOUND
         MVI A, #a0
-        STA $21a1
+        STA GAME_OVER_SEQUENCE_TIMER
 o1aec:  JMP END_MAIN_LOOP
 j1aef:  LXI H, SCORE_0 ;o1ade
 o1af2:  CALL c0e6f
@@ -3710,7 +3785,7 @@ o1c62:  JZ j1cdc
 j1c65:  LXI H, CONTROL_FLAGS ;o1c5b
         MVI A, #00
 o1c6a:  CALL CLEAR_ATH_BIT_OF_HL
-        STA $219f
+        STA CLOCK_TIMER
 o1c70:  JMP j01d2
 j1c73:  LXI H, GAME_STATE2 ;o1bc2
         MVI A, #00
@@ -3787,7 +3862,7 @@ o1d1f:  CALL SET_ATH_BIT_OF_HL
         MVI A, #80
         STA STATE_OUTLANE_1
         MVI A, #06
-        STA $21ac
+        STA DMA_RECHECK_TIMER
         MVI A, #00
         STA SWITCH_LATCHED
         LDA GAME_STATE
@@ -3804,10 +3879,11 @@ o1d4e:  CALL CLEAR_ATH_BIT_OF_HL
         MVI A, #04
 o1d56:  CALL SET_ATH_BIT_OF_HL
         MVI A, #06
-        STA $21a8
+        STA LEFT_FLIPPER_TIMER
         MVI A, #05
-        STA $2197
+        STA SWITCH_SETTLE_TIMER
 o1d63:  JMP j022c
+DMA_RECHECK_TIMER_EXPIRED:
 TIMER_21_EXPIRED:
         LXI H, #21c2
         MVI A, #05
@@ -4128,11 +4204,11 @@ o1fe6:  CALL COPY_FROM_HL_TO_DE
         RET
 
 ADD_PULL_IN_MASK:
-        LDA $21a8 ;o02f8
+        LDA LEFT_FLIPPER_TIMER ;o02f8
         ANI #10
         ORA B
         MOV B,A
-        LDA $21a9
+        LDA RIGHT_FLIPPER_TIMER
         ANI #10
         ADD A
         ORA B

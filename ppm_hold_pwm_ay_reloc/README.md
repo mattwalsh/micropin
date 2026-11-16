@@ -49,6 +49,9 @@ relocated rollover: PASS score=00>00 rollovers=ff>fe
 The rollover bitmap transition is the direct proof: it is performed by the
 handler that moved to `$2ff9`.
 
+See [DISPATCH_TABLES.md](DISPATCH_TABLES.md) for the computed-index contracts,
+the 26-slot software timer map, and the port/DMA table mappings.
+
 ## Remaining constraint
 
 This is source-relocatable assembly, not a linker/object-file format.  Code and
