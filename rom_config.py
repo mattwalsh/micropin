@@ -18,6 +18,7 @@ MAME_VARIANT_TARGETS = {
     # MAME's pencup2c definition has five ROM sockets.  This hardware build
     # also creates ROM 6 for the physical ROMulator; MAME simply ignores it.
     "ppm_hold_pwm_ay": ("pencup2c", "coin"),
+    "ppm_hold_pwm_ay_reloc": ("pencup2c", "coin"),
     "bridge": ("pencupx", "x"),
     "arb": ("pencupx", "x"),
     "aperture_test": ("pencupx", "x"),
