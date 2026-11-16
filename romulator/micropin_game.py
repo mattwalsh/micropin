@@ -51,7 +51,6 @@ RIGHT_FLIPPER_MASK = 0x10
 LEFT_FLIPPER_MASK = 0x20
 LEFT_FLIPPER_LEVEL_MASK = 0x40
 CREDIT_MASK = 0x04
-CREDIT_LEVEL_MASK = 0x10
 TILT_MASK = 0x88
 OUTHOLE_DMA_INDEX = 24
 
@@ -1409,16 +1408,26 @@ class HardwareSnapshot:
     cabinet_levels: int
     rollover_events: int
     dma: bytes
+    rotary_positions: int = 0xFF
 
     @classmethod
     def from_wire(
-        cls, ports: tuple[int, int, int, int], dma: bytes
+        cls, ports: tuple[int, ...], dma: bytes
     ) -> "HardwareSnapshot":
-        if len(ports) != 4:
-            raise ValueError("expected four returned port bytes")
+        if len(ports) not in (4, 5):
+            raise ValueError("expected four or five returned port bytes")
         if len(dma) != 32:
             raise ValueError("expected 32 DMA switch bytes")
-        return cls(ports[0], ports[1], ports[2], ports[3], bytes(dma))
+        rotary_positions = ports[4] if len(ports) == 5 else 0xFF
+        return cls(ports[0], ports[1], ports[2], ports[3], bytes(dma), rotary_positions)
+
+    @property
+    def rotary_port2(self) -> int:
+        return self.rotary_positions & 0x0F
+
+    @property
+    def rotary_port3(self) -> int:
+        return self.rotary_positions >> 4
 
     @property
     def start_pressed(self) -> bool:
@@ -1439,10 +1448,6 @@ class HardwareSnapshot:
     @property
     def credit_pressed(self) -> bool:
         return bool(self.cabinet_events & CREDIT_MASK)
-
-    @property
-    def credit_held(self) -> bool:
-        return bool(self.cabinet_levels & CREDIT_LEVEL_MASK)
 
     @property
     def tilt_pressed(self) -> bool:
@@ -1853,7 +1858,6 @@ class MicropinGame:
         self.recent_games: list[int] = []
         self.muted = False
         self._credit_press_started: float | None = None
-        self._credit_long_handled = False
         self.sounds = SoundController(clock=clock)
         self._mute_feedback_handle: SoundSequenceHandle | None = None
         self._background_sound: SoundSequenceHandle | None = None
@@ -1940,7 +1944,6 @@ class MicropinGame:
 
         self._handle_credit_button(
             event=inputs.credit_pressed,
-            held=inputs.credit_held,
             messages=messages,
         )
 
@@ -2591,50 +2594,26 @@ class MicropinGame:
         self,
         *,
         event: bool,
-        held: bool,
         messages: list[str],
     ) -> None:
-        """Distinguish a short credit press from a long mute gesture.
+        """Credit once when the reliable Port-0 event pulse is released.
 
-        The motherboard fans the physical switch into two software-visible
-        paths, just as it does for the flippers: Port 0 bit $04 provides the
-        interrupt event that catches a tap, while Port 4 bit $10 is the held
-        level used by the stock ROM's polling path.
+        Port 4 bit $10 was once treated as a held-credit level for an
+        experimental long-press mute gesture. Hardware testing instead shows
+        that bit is the external credit-enable loop, so it must not participate
+        in credit-button state or sound muting.
         """
-        now = self._clock()
-        if event or held:
+        if event:
             if self._credit_press_started is None:
-                self._credit_press_started = now
-            self._credit_long_handled = False
-            if (
-                held
-                and
-                not self._credit_long_handled
-                and now - self._credit_press_started
-                >= self.config.credit_long_press_seconds
-            ):
-                self._credit_long_handled = True
-                self._stop_songs()
-                self.muted = not self.muted
-                self._save_nvram()
-                if self.muted:
-                    self._start_song(
-                        self.config.mute_on_song, audible_while_muted=True
-                    )
-                    messages.append("sound: muted")
-                else:
-                    self._start_song(self.config.mute_off_song)
-                    messages.append("sound: unmuted")
+                self._credit_press_started = self._clock()
             return
 
         if self._credit_press_started is None:
             return
 
-        if not self._credit_long_handled:
-            self._add_credit("button", messages)
-            self._start_song(self.config.add_credit_song)
+        self._add_credit("button", messages)
+        self._start_song(self.config.add_credit_song)
         self._credit_press_started = None
-        self._credit_long_handled = False
 
     def _load_nvram(self) -> None:
         if self.nvram_path is None or not self.nvram_path.exists():
@@ -2642,7 +2621,10 @@ class MicropinGame:
         try:
             data = json.loads(self.nvram_path.read_text())
             self.context.credits = max(0, min(99, int(data.get("credits", 0))))
-            self.muted = data.get("muted", False) is True
+            # Port 4 bit $10 is the external credit-enable loop, not a held
+            # credit button. The retired experiment could persist an arbitrary
+            # mute state while that loop was asserted; never restore it.
+            self.muted = False
             scores = data.get("high_scores")
             if isinstance(scores, list) and any(scores):
                 loaded = [max(0, int(score)) for score in scores[:6]]

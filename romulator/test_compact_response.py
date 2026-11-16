@@ -17,6 +17,15 @@ class FakeSerial:
 
 
 class CompactResponseTests(unittest.TestCase):
+    def test_compact_v3_includes_rotary_positions(self):
+        packed = bytes((0x01, 0x80, 0x04, 0x10))
+        sequence, ports, dma = send_and_verify(
+            FakeSerial(b"\x42\x09\x00\x01\x02\x03" + packed + b"\x74"), b"hello"
+        )
+        self.assertEqual((sequence, ports), (0x42, (0, 1, 2, 3, 0x74)))
+        self.assertEqual(len(dma), 32)
+        self.assertEqual(dma[0], 0x00)
+
     def test_compact_v2_expands_packed_contacts(self):
         packed = bytes((0x01, 0x80, 0x04, 0x10))
         sequence, ports, dma = send_and_verify(

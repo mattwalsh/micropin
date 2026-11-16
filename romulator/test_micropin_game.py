@@ -828,63 +828,17 @@ class MicropinGameTests(unittest.TestCase):
         self.assertEqual(game.context.credits, 1)
         self.assertFalse(credited.output.launch)
 
-    def test_long_credit_press_toggles_persistent_mute_without_credit(self) -> None:
+    def test_credit_enable_level_does_not_toggle_mute(self) -> None:
         now = [0.0]
-        mute_on = (SongNote(Tone(0xa1, 4), 0.1),)
-        mute_off = (SongNote(Tone(0xb2, 4), 0.1),)
-        config = GameConfig(
-            credit_long_press_seconds=3.0,
-            mute_on_song=mute_on,
-            mute_off_song=mute_off,
-            boot_song=(SongNote(Tone(0xc3, 4), 0.1),),
-        )
+        config = GameConfig(boot_song=())
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "nvram.json"
             game = MicropinGame(config, clock=lambda: now[0], nvram_path=path)
-            # Consume the boot note before testing the mute confirmation.
-            game.step(snapshot())
-            for index, timestamp in enumerate((0.1, 1.0, 2.0, 3.11)):
+            for timestamp in (0.1, 1.0, 2.0, 3.11, 10.0):
                 now[0] = timestamp
-                result = game.step(snapshot(
-                    cabinet=0x04 if index == 0 else 0,
-                    cabinet_levels=0x9f,
-                ))
-            self.assertTrue(game.muted)
+                game.step(snapshot(cabinet_levels=0x10))
+            self.assertFalse(game.muted)
             self.assertEqual(game.context.credits, 0)
-            self.assertEqual((result.output.tone_pitch, result.output.tone_duration), (0xa1, 4))
-            now[0] += 0.26
-            game.step(snapshot())
-            self.assertEqual(game.context.credits, 0)
-
-            # After the confirmation finishes, ordinary game sounds remain
-            # suppressed while their scoring behavior is unchanged.
-            now[0] += 0.1
-            game.step(snapshot())  # explicit end-of-song silence
-            game.context.state = GameState.GAME_PLAYING
-            muted_hit = game.step(snapshot(outhole=False, reflex=1))
-            self.assertEqual(game.context.player_scores[0], 25)
-            self.assertEqual(
-                (muted_hit.output.tone_pitch, muted_hit.output.tone_duration),
-                (0xff, 0),
-            )
-
-            restored = MicropinGame(config, clock=lambda: now[0], nvram_path=path)
-            self.assertTrue(restored.muted)
-            self.assertEqual(
-                (restored.step(snapshot()).output.tone_pitch,
-                 restored.step(snapshot()).output.tone_duration),
-                (0xff, 0),
-            )
-
-            for index, delta in enumerate((0.0, 1.0, 2.0, 3.1)):
-                now[0] += delta if delta == 0 else 1.0 if delta < 3 else 1.1
-                result = restored.step(snapshot(
-                    cabinet=0x04 if index == 0 else 0,
-                    cabinet_levels=0x9f,
-                ))
-            self.assertFalse(restored.muted)
-            self.assertEqual(restored.context.credits, 0)
-            self.assertEqual((result.output.tone_pitch, result.output.tone_duration), (0xb2, 4))
 
     def test_right_flipper_launches_only_with_ball_in_outhole(self) -> None:
         game = MicropinGame()

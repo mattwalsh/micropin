@@ -58,7 +58,7 @@ def _expand_packed_contacts(packed: bytes) -> bytes:
     )
 
 
-def send_and_verify(serial: SerialLines, payload: bytes) -> tuple[int, tuple[int, int, int, int], bytes]:
+def send_and_verify(serial: SerialLines, payload: bytes) -> tuple[int, tuple[int, ...], bytes]:
     reply = serial.command(f"tx {payload.hex()}")
     match = re.fullmatch(r"tx ([0-9a-fA-F]{2})", reply)
     if not match:
@@ -77,20 +77,27 @@ def send_and_verify(serial: SerialLines, payload: bytes) -> tuple[int, tuple[int
                 raise TimeoutError(f"incomplete response for lamp transaction {sequence:02x}")
             time.sleep(0.001)
 
-    # Compact v2 carries four event bytes plus four packed contact bytes.  The
-    # prior 36-byte image and the original echo form remain accepted so old
-    # diagnostic ROMs can still be used with current host tools.
+    # Compact v3 appends the packed rotary positions to v2's four event bytes
+    # and four packed-contact bytes. Older diagnostic ROM formats remain
+    # accepted so current host tools can still inspect them.
+    compact_v3 = len(response) == 11 and response[:2] == bytes((sequence, 9))
     compact_v2 = len(response) == 10 and response[:2] == bytes((sequence, 8))
     compact = len(response) == 38 and response[:2] == bytes((sequence, 36))
     expected_prefix = bytes((sequence, len(payload) + 36)) + payload
     echoed = len(response) == len(expected_prefix) + 36 and response.startswith(expected_prefix)
-    if not compact_v2 and not compact and not echoed:
+    if not compact_v3 and not compact_v2 and not compact and not echoed:
         returned_sequence = response[0] if response else -1
         returned_payload = response[2:2 + len(payload)] if len(response) >= 2 else b""
         raise ResponseMismatch(
             f"sequence {sequence:02x}: expected echo {payload.hex()}, "
             f"received sequence {returned_sequence:02x} echo {returned_payload.hex()}"
         )
+    if compact_v3:
+        switches = response[2:]
+        # Wire order is the four legacy event/status bytes, four packed DMA
+        # contact bytes, then the newly appended packed rotary-position byte.
+        ports = tuple(switches[:4]) + (switches[8],)
+        return sequence, ports, _expand_packed_contacts(switches[4:8])
     if compact_v2:
         switches = response[2:]
         return sequence, tuple(switches[:4]), _expand_packed_contacts(switches[4:])
@@ -140,10 +147,11 @@ def main() -> int:
                         if (old ^ new) & 0x10
                     ]
                     changed = ",".join(changes) if changes else "-"
+                rotary_text = f" rotaries={ports[4]:02x}" if len(ports) >= 5 else ""
                 print(
                     f"{number:4d}: lamp {lamp:2d}  sequence {sequence:02x}  "
                     f"ports p0irq={ports[0]:02x} p1irq={ports[1]:02x} "
-                    f"p4={ports[2]:02x} rollovers={ports[3]:02x}  "
+                    f"p4={ports[2]:02x} rollovers={ports[3]:02x}{rotary_text}  "
                     f"dma={dma.hex()}  changed={changed}  "
                     f"p0-events={describe_events(ports[0], CABINET_NAMES)}  "
                     f"reflex={describe_events(ports[1], REFLEX_NAMES)}"

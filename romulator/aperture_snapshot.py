@@ -39,13 +39,18 @@ def main() -> int:
                 raise TimeoutError(f"incomplete aperture response for {sequence:02x}")
             time.sleep(0.001)
 
-    if len(response) != 10 or response[:2] != bytes((sequence, 8)):
-        raise RuntimeError(f"expected packed v2 response, got {response.hex()}")
+    if len(response) != 11 or response[:2] != bytes((sequence, 9)):
+        raise RuntimeError(f"expected packed v3 response, got {response.hex()}")
     ports = response[2:6]
     packed = response[6:10]
+    rotary_positions = response[10]
     dma = _expand_packed_contacts(packed)
     print(f"response: {response.hex()}")
-    print(f"ports:    {ports.hex()}  packed contacts: {packed.hex()}")
+    print(
+        f"ports:    {ports.hex()}  "
+        f"rotaries: {rotary_positions >> 4}/{rotary_positions & 0x0f}  "
+        f"packed contacts: {packed.hex()}"
+    )
     print(
         f"contact 24 / outhole: {'CLOSED' if dma[24] == 0 else 'OPEN'} "
         f"(packed[3] bit0={'1' if packed[3] & 1 else '0'}, raw={dma[24]:02x})"
