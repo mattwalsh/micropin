@@ -51,36 +51,10 @@ BALL_IN_PLAY_2 EQU 0x23bb
 BALL_IN_PLAY_3 EQU 0x23db
 BALLS_PER_GAME EQU 0x2213
 DIP_SWITCHES EQU 0x2216
-HARD_RESET EQU 0x5d
 CUPS_LEFT EQU 0x21c7
 GAME_STATE EQU 0x2190
 GAME_STATE2 EQU 0x2192
 STACK_SCRATCH EQU 0x2195
-LEFT_SLING_TONE EQU 0x12b9
-RIGHT_SLING_TONE EQU 0x12bc
-SILENCE_END_LOOP_MUSIC EQU 0x12bf
-TILT_MUSIC EQU 0x12c2
-BONUS_MUSIC EQU 0x12d7
-START_PLAYER_MUSIC EQU 0x12da
-UNKNOWN_MUSIC EQU 0x12dd
-LOW_MUSIC EQU 0x12e0
-OOPS_MUSIC EQU 0x12e3
-OOPS2_MUSIC EQU 0x12e8
-LIL_VICTORY_MUSIC EQU 0x12ed
-LIT_STANDUP_MUSIC EQU 0x12f2
-GAME_OVER_MUSIC EQU 0x12ff
-SPREAD_TAKEOVER_MUSIC EQU 0x1316
-MORSE_CODE_MUSIC EQU 0x1321
-BUMPER_25_MUSIC_2 EQU 0x12ad
-BUMPER_25_MUSIC EQU 0x1332
-SPREAD_HRM_MUSIC EQU 0x1335
-LONGER_BUMPER_25_MUSIC EQU 0x1338
-CREDIT_MUSIC EQU 0x1341
-NEXT_PLAYER_MUSIC EQU 0x1346
-OUTLANE_MUSIC EQU 0x134b
-SILENCE_MUSIC EQU 0x134e
-POPCORN_MUSIC EQU 0x136a
-HIGH_SCORE_MUSIC EQU 0x1351
 FLIPPER_PWM_MASK EQU 0x22f0
 
 ; INPUT PORTS
@@ -133,7 +107,7 @@ c0009:  MVI A, #01 ;o1606
         NOP
 c0018:  MVI A, #3c ;jo0aac
         STA $21a5
-c001d:  LXI H, #117d ;jo151f
+c001d:  LXI H, SCORE_10000 ;jo151f
 o0020:  CALL ADD_BONUS
         RET
 
@@ -174,6 +148,7 @@ o0053:  JNZ j0047
         ANI #20
 o005a:  JZ j0069
 ; hard reset routine
+HARD_RESET:
         LXI H, #2000
 j0060:  SUB A ;o0066
         MOV M,A
@@ -220,11 +195,11 @@ o0095:  CALL INIT_FLIPPER_PWM_MASK
         IN PRICE_89_CAB
         ANI #20
 o00bd:  JZ jo00f5
-        LXI H, #1181
+        LXI H, DEFAULT_HIGH_SCORE
 j00c3:  LXI D, HIGH_SCORE_START ;o003b
         MVI A, #08
 o00c8:  CALL COPY_FROM_HL_TO_DE
-        LXI H, #117d
+        LXI H, SCORE_10000
         LXI D, #2231
         MVI A, #08
 o00d3:  CALL COPY_FROM_HL_TO_DE
@@ -694,10 +669,10 @@ o0423:  CALL CLEAR_ATH_BIT_OF_HL
 
 c0427:  MVI D, #00 ;o0406,o041f
         MOV E,A
-        LXI H, #0440
+        LXI H, CUP_LIGHT_INDEX_TABLE
         DAD D
         MOV A,M
-        LXI H, #0445
+        LXI H, CUP_LAMP_STATE_ADDRESS_TABLE
         XCHG
         DAD H
         DAD D
@@ -712,11 +687,13 @@ c0427:  MVI D, #00 ;o0406,o041f
         RET
 
 ; unreachable or data or computed call?
+CUP_LIGHT_INDEX_TABLE:
         DB #04
         DB #00
         DB #01
         DB #02
         DB #05
+CUP_LAMP_STATE_ADDRESS_TABLE:
         DB #cd
         DB #21
         DB #cc
@@ -1126,13 +1103,13 @@ REFLEX_CONTROL_FLAG_HANDLER:
         ORI #20
         STA CONTROL_FLAGS
 o078c:  JMP jo0382
-j078f:  LXI H, #0806 ;o0763,o0769,o076f,o0775,o077b,o0781
+j078f:  LXI H, REFLEX_COIL_INDEX_TABLE ;o0763,o0769,o076f,o0775,o077b,o0781
         DAD D
         MOV A,M
         XCHG
         DAD H
         XCHG
-        LXI H, #080d
+        LXI H, REFLEX_COIL_STATE_TABLE
         DAD D
         MOV B,M
         INX H
@@ -1147,7 +1124,7 @@ o079f:  CALL SET_ATH_BIT_OF_HL
         LDA $21c4
         CMA
         OUT COIL_7
-        LXI H, #081b
+        LXI H, REFLEX_SOUND_TABLE
         DAD D
         MOV B,M
         INX H
@@ -1157,7 +1134,7 @@ o079f:  CALL SET_ATH_BIT_OF_HL
 ; computed sound?
 o07bc:  CALL PLAY_SOUND
         POP D
-        LXI H, #0829
+        LXI H, REFLEX_SCORE_TABLE
         DAD D
         MOV B,M
         INX H
@@ -1190,17 +1167,20 @@ o07fb:  JNZ END_MAIN_LOOP
         MVI A, #80
         STA STATE_OUTLANE_1
 o0803:  JMP END_MAIN_LOOP
+REFLEX_COIL_INDEX_TABLE:
         INX B
         NOP
         LXI B, #0302
         INR B
         STAX B
+REFLEX_COIL_STATE_TABLE:
         JMP $c421
         LXI H, #21c4
         JMP $c421
         LXI H, #21c4
         DB #c4
         DB #21
+REFLEX_SOUND_TABLE:
         DB #ad
         DB #12
         DB #b0
@@ -1215,6 +1195,7 @@ o0803:  JMP END_MAIN_LOOP
         DB #12
         DB #bf
         DB #12
+REFLEX_SCORE_TABLE:
         DB #55
         DB #11
         DB #59
@@ -1442,7 +1423,7 @@ o0a1a:  CALL PLAY_SOUND
 j0a24:  STA $219b ;o0a11
 o0a27:  JMP jo1419
 TIMER_04_EXPIRED:
-        LXI H, #0bd5
+        LXI H, CUP_BONUS_SCORE_TABLE - 1
         LDA $21c8
         ADD A
         MVI D, #00
@@ -1473,7 +1454,7 @@ o0a5b:  CALL CLEAR_ATH_BIT_OF_HL
         STA $219c
 o0a6d:  JMP END_MAIN_LOOP
 TIMER_05_EXPIRED:
-        LXI H, #1171
+        LXI H, SCORE_5000
 o0a73:  CALL ADD_BONUS
         LXI H, SPREAD_HRM_MUSIC
 o0a79:  CALL PLAY_SOUND
@@ -1514,7 +1495,7 @@ TIMER_14_EXPIRED:
 o0acb:  JZ j0aec
         MVI D, #00
         MOV E,A
-        LXI H, #0bb9
+        LXI H, CUP_COIL_TABLE - 1
         DAD D
         MOV B,M
 o0ad6:  CALL co1d76
@@ -1557,7 +1538,7 @@ o0b2c:  JZ j0b44
         STA $21c8
         MVI D, #00
         MOV E,A
-        LXI H, #0bbe
+        LXI H, CUP_LAMP_TABLE - 1
         DAD D
         MOV B,M
         PUSH H
@@ -1583,17 +1564,17 @@ o0b69:  CALL PLAY_SOUND
 o0b6c:  JMP jo1419
 c0b6f:  MVI D, #00 ;o09cc,o0a00,jo0b52
         MOV E,A
-        LXI H, #0bc3
+        LXI H, CUP_TARGET_LAMP_TABLE - 1
         DAD D
         MOV B,M
-        LXI H, #0bc8
+        LXI H, CUP_STATE_INDEX_TABLE - 1
         DAD D
         ADD A
         MOV E,A
         MOV A,M
         STA $220b
         MOV C,A
-        LXI H, #0bcd
+        LXI H, CUP_STATE_ADDRESS_TABLE - 1
         DAD D
         MOV A,M
         INX H
@@ -1622,31 +1603,15 @@ TIMER_00_EXPIRED:
         MVI A, #03
 o0bb4:  CALL CLEAR_ATH_BIT_OF_HL
 o0bb7:  JMP END_MAIN_LOOP
-        INR H
-        INX B
-        DCX B
-        INX D
-        DAD H
-        INX H
-        INR E
-        DCX D
-        STAX D
-        DCX H
-        INR L
-        INR B
-        INR C
-        INR D
-        INX B
-        DCR B
-        STAX B
-        NOP
-        LXI B, #21c2
-        CNZ $c221
-        LXI H, #21c2
-        JNZ $6921
-        LXI D, #116d
-        MOV M,L
-        LXI D, #1179
+CUP_COIL_TABLE:       DB #24, #03, #0b, #13, #29
+CUP_LAMP_TABLE:       DB #23, #1c, #1b, #12, #2b
+CUP_TARGET_LAMP_TABLE: DB #2c, #04, #0c, #14, #03
+CUP_STATE_INDEX_TABLE: DB #05, #02, #00, #01, #c2
+CUP_STATE_ADDRESS_TABLE:
+        DB #21, #c4, #21, #c2, #21, #c2, #21, #c2
+CUP_BONUS_SCORE_TABLE:
+        DB #21
+        DW SCORE_2000, SCORE_4000, SCORE_6000, SCORE_8000
 j0bdf:  MVI B, #39 ;o0993
 o0be1:  CALL co1d9c
 o0be4:  JZ j0d4d
@@ -1764,17 +1729,17 @@ j0cc4:  MVI A, #00 ;o0cb6
         MVI A, #00
 o0cd6:  CALL CHECK_ATH_BIT_OF_HL
 o0cd9:  JNZ j0d29
-        LXI H, #1165
+        LXI H, SCORE_1000
 o0cdf:  CALL c0e99
 o0ce2:  JC j0cf9
-        LXI H, #1165
+        LXI H, SCORE_1000
 o0ce8:  CALL ADD_BONUS_HL
         MVI A, #0a
         STA $21a7
         LXI H, BUMPER_25_MUSIC
 o0cf3:  CALL PLAY_SOUND
 o0cf6:  JMP END_MAIN_LOOP
-j0cf9:  LXI H, #1165 ;o0ce2
+j0cf9:  LXI H, SCORE_1000 ;o0ce2
 o0cfc:  CALL ADD_BONUS
         LXI H, #235b
 o0d02:  CALL ADD_PTS
@@ -1857,12 +1822,12 @@ o0db6:  CALL co1d9c
 o0db9:  JZ j0de1
 o0dbc:  CALL co1d81
 o0dbf:  JZ j0dd1
-        LXI H, #1165
+        LXI H, SCORE_1000
 o0dc5:  CALL ADD_BONUS_HL
         LXI H, LOW_MUSIC
 o0dcb:  CALL PLAY_SOUND
 o0dce:  JMP j0de1
-j0dd1:  LXI H, #1171 ;o0dbf
+j0dd1:  LXI H, SCORE_5000 ;o0dbf
 o0dd4:  CALL ADD_BONUS_HL
         XCHG
 o0dd8:  CALL ADD_BONUS
@@ -2129,7 +2094,7 @@ o0f91:  CALL COPY_FROM_HL_TO_DE
         LDA $21f6
         ANI #0f
 o0f9a:  JZ j0fa5
-        LXI H, #1189
+        LXI H, BLANK_SCORE
         MVI A, #06
 o0fa2:  CALL COPY_FROM_HL_TO_DE
 j0fa5:  LXI H, #237e ;o0f9a
@@ -2210,7 +2175,7 @@ o104f:  CALL COPY_FROM_HL_TO_DE
 j1052:  LDA $21f6 ;o0ff1
         ANI #0f
 o1057:  JZ j1065
-        LXI H, #1189
+        LXI H, BLANK_SCORE
         LXI D, SPREAD_4
         MVI A, #06
 o1062:  CALL COPY_FROM_HL_TO_DE
@@ -2258,11 +2223,11 @@ o10ba:  CALL CLEAR_ATH_BIT_OF_HL
         MVI A, #05
 o10bf:  CALL CLEAR_ATH_BIT_OF_HL
         PUSH H
-        LXI H, #1185
+        LXI H, BLANK_SCORE_PREFIX
         LXI D, SPREAD_4
         MVI A, #06
 o10cb:  CALL COPY_FROM_HL_TO_DE
-        LXI H, #1185
+        LXI H, BLANK_SCORE_PREFIX
         LXI D, SPREAD_3
         MVI A, #06
 o10d6:  CALL COPY_FROM_HL_TO_DE
@@ -2320,85 +2285,34 @@ j1138:  MOV A,M ;o109e,o10da
         RET
 
 ; scores
-        DB #00
-        DB #00
-        DB #00
-        DB #00
-        DB #01
-        DB #00
-        DB #00
-        DB #00
-        DB #10
-        DB #00
-        DB #00
-        DB #00
-        DB #25
-        DB #00
-        DB #00
-        DB #00
-        DB #50
-        DB #00
-        DB #00
-        DB #00
-        DB #00
-        DB #01
-        DB #00
-        DB #00
-        DB #00
-        DB #05
-        DB #00
-        DB #00
-        DB #00
-        DB #10
-        DB #00
-        DB #00
-        DB #00
-        DB #20
-        DB #00
-        DB #00
-        DB #00
-        DB #40
-        DB #00
-        DB #00
-        DB #00
-        DB #50
-        DB #00
-        DB #00
-        DB #00
-        DB #60
-        DB #00
-        DB #00
-        DB #00
-        DB #80
-        DB #00
-        DB #00
-        DB #00
-        DB #00
-        DB #01
-        DB #00
+SCORE_0:     DB #00, #00, #00, #00
+SCORE_1:     DB #01, #00, #00, #00
+SCORE_10:    DB #10, #00, #00, #00
+SCORE_25:    DB #25, #00, #00, #00
+SCORE_50:    DB #50, #00, #00, #00
+SCORE_100:   DB #00, #01, #00, #00
+SCORE_500:   DB #00, #05, #00, #00
+SCORE_1000:  DB #00, #10, #00, #00
+SCORE_2000:  DB #00, #20, #00, #00
+SCORE_4000:  DB #00, #40, #00, #00
+SCORE_5000:  DB #00, #50, #00, #00
+SCORE_6000:  DB #00, #60, #00, #00
+SCORE_8000:  DB #00, #80, #00, #00
+SCORE_10000: DB #00, #00, #01, #00
 ; default high score
-        DB #79
-        DB #19
-        DB #00
-        DB #00
-        DB #f0
-        DB #ff
-        DB #ff
-        DB #ff
-        DB #ff
-        DB #ff
-        DB #ff
-        DB #ff
+DEFAULT_HIGH_SCORE: DB #79, #19, #00, #00
+BLANK_SCORE_PREFIX: DB #f0, #ff, #ff, #ff
+BLANK_SCORE:        DB #ff, #ff, #ff, #ff
 TONE_PLAY:
         CALL AY_MUTE ;o123b,o125b
         NOP
-        LXI D, #12ac
+        LXI D, MUSIC_DATA_START
         MOV A,L
         SUB E
         MOV A,H
         SBB D
         RM
-        LXI D, #137c
+        LXI D, MUSIC_DATA_END
         MOV A,E
         SUB L
         MOV A,D
@@ -2413,7 +2327,7 @@ TONE_PLAY:
         CALL AY_PLAY_TONE
         NOP
         SHLD NEXT_TONE
-        LXI D, #11fc
+        LXI D, TONE_DURATION_TIMER_TABLE
         CPI #00
 o11b3:  JZ j11ef
         CPI #02
@@ -2451,6 +2365,7 @@ j11ef:  LDAX D ;o11b3,o11e3
 o11f8:  CALL SET_ATH_BIT_OF_HL
         RET
 
+TONE_DURATION_TIMER_TABLE:
         DB #0d
         DB #0a
         DB #0e
@@ -2540,7 +2455,9 @@ j129a:  MOV E,M ;o1294
         POP H
         RET
 
+MUSIC_DATA_START:
         DB #ff
+BUMPER_25_MUSIC_2:
         DB #ca
         DB #08
         DB #ff
@@ -2554,16 +2471,20 @@ j129a:  MOV E,M ;o1294
         DB #08
         DB #ff
         ; Left sling: raise two octaves for the AY / existing audio path.
+LEFT_SLING_TONE:
         DB #cc
         DB #08
         DB #ff
         ; Right sling: likewise, preserving the original interval.
+RIGHT_SLING_TONE:
         DB #f0
         DB #08
         DB #ff
+SILENCE_END_LOOP_MUSIC:
         DB #1c
         DB #00
         DB #ff
+TILT_MUSIC:
         DB #43
         DB #08
         DB #87
@@ -2585,33 +2506,41 @@ j129a:  MOV E,M ;o1294
         DB #87
         DB #08
         DB #ff
+BONUS_MUSIC:
         DB #55
         DB #08
         DB #ff
+START_PLAYER_MUSIC:
         DB #3c
         DB #08
         DB #ff
+UNKNOWN_MUSIC:
         DB #2b
         DB #08
         DB #ff
+LOW_MUSIC:
         DB #22
         DB #08
         DB #ff
+OOPS_MUSIC:
         DB #22
         DB #28
         DB #1e
         DB #0c
         DB #ff
+OOPS2_MUSIC:
         DB #15
         DB #02
         DB #15
         DB #0c
         DB #ff
+LIL_VICTORY_MUSIC:
         DB #33
         DB #08
         DB #43
         DB #0c
         DB #ff
+LIT_STANDUP_MUSIC:
         DB #78
         DB #28
         DB #50
@@ -2626,6 +2555,7 @@ j129a:  MOV E,M ;o1294
         DB #28
         DB #ff
 ; game over music
+GAME_OVER_MUSIC:
         DB #98
         DB #08
         DB #ca
@@ -2650,6 +2580,7 @@ j129a:  MOV E,M ;o1294
         DB #08
         DB #ff
 ; spread takeover music
+SPREAD_TAKEOVER_MUSIC:
         DB #43
         DB #20
         DB #43
@@ -2662,6 +2593,7 @@ j129a:  MOV E,M ;o1294
         DB #0c
         DB #ff
 ; morse code music
+MORSE_CODE_MUSIC:
         DB #43
         DB #04
         DB #43
@@ -2680,14 +2612,17 @@ j129a:  MOV E,M ;o1294
         DB #04
         DB #ff
 ; bumper 25 music
+BUMPER_25_MUSIC:
         DB #c6
         DB #08
         DB #ff
 ; spread music
+SPREAD_HRM_MUSIC:
         DB #4c
         DB #0c
         DB #ff
 ; longer bumper 25 music
+LONGER_BUMPER_25_MUSIC:
         DB #ca
         DB #08
         DB #ca
@@ -2698,26 +2633,31 @@ j129a:  MOV E,M ;o1294
         DB #0c
         DB #ff
 ; credit music
+CREDIT_MUSIC:
         DB #78
         DB #28
         DB #65
         DB #04
         DB #ff
 ; next player music
+NEXT_PLAYER_MUSIC:
         DB #a0
         DB #2c
         DB #a0
         DB #0c
         DB #ff
 ; outlane music
+OUTLANE_MUSIC:
         DB #15
         DB #0c
         DB #ff
 ; silence music
+SILENCE_MUSIC:
         DB #ca
         DB #00
         DB #ff
 ; funkytown
+HIGH_SCORE_MUSIC:
         DB #87
         DB #0c
         DB #87
@@ -2744,6 +2684,7 @@ j129a:  MOV E,M ;o1294
         DB #0c
         DB #ff
 ; popcorn
+POPCORN_MUSIC:
         DB #f1
         DB #04
         DB #d6
@@ -2762,6 +2703,7 @@ j129a:  MOV E,M ;o1294
         DB #ff
         DB #ff
         DB #ff
+MUSIC_DATA_END:
         DB #fe
 jc137d: LXI H, CONTROL_FLAGS ;o0140,o13b2,o1d6f
         MVI A, #03
@@ -2925,7 +2867,7 @@ o14a8:  CALL CHECK_ATH_BIT_OF_HL
 o14ab:  JZ jo1419
 o14ae:  CALL CLEAR_ATH_BIT_OF_HL
 o14b1:  CALL co1d81
-        LXI H, #1161
+        LXI H, SCORE_500
 o14b7:  CALL ADD_BONUS_HL
         LXI H, BONUS_MUSIC
 o14bd:  CALL PLAY_SOUND
@@ -2945,7 +2887,7 @@ TIMER_13_EXPIRED:
 o14de:  JZ j14fa
         MVI D, #00
         MOV E,A
-        LXI H, #152d
+        LXI H, ROLLOVER_LAMP_SEQUENCE_TABLE - 1
         DAD D
         MOV B,M
 o14e9:  CALL co1d76
@@ -2975,6 +2917,7 @@ jo151f: CALL c001d ;o150c,o1514
         SUB A
         STA $2205
 o152b:  JMP END_MAIN_LOOP
+ROLLOVER_LAMP_SEQUENCE_TABLE:
         STAX B
         LHLD $1a10
         LXI B, #2119
@@ -2989,7 +2932,7 @@ o1541:  CALL CLEAR_ATH_BIT_OF_HL
         MVI A, #02
 o1546:  CALL CHECK_ATH_BIT_OF_HL
 o1549:  JNZ jo1419
-        LXI H, #117d
+        LXI H, SCORE_10000
 o154f:  CALL ADD_BONUS
         LXI H, GAME_STATE
         MVI A, #04
@@ -3039,7 +2982,7 @@ OUTLANE_HANDLER:
 o15be:  CALL CHECK_ATH_BIT_OF_HL
 o15c1:  JNZ jo1419
 o15c4:  CALL SET_ATH_BIT_OF_HL
-        LXI H, #1165
+        LXI H, SCORE_1000
 o15ca:  CALL ADD_BONUS_HL
         LXI H, OUTLANE_MUSIC
 o15d0:  CALL PLAY_SOUND
@@ -3054,7 +2997,7 @@ o15de:  JNZ jo1419
 o15e3:  CALL CHECK_ATH_BIT_OF_HL
 o15e6:  JZ jo1419
 o15e9:  CALL CLEAR_ATH_BIT_OF_HL
-        LXI H, #1165
+        LXI H, SCORE_1000
 o15ef:  CALL ADD_BONUS
         LXI H, SPREAD_HRM_MUSIC
 o15f5:  CALL PLAY_SOUND
@@ -3174,11 +3117,11 @@ o170a:  CALL SET_ATH_BIT_OF_HL
         PUSH PSW
         MVI A, #1f
         STA $237e
-        LXI H, #1149
+        LXI H, SCORE_0
 o1722:  CALL ADD_PTS
         MVI A, #2f
         STA $237e
-        LXI H, #1149
+        LXI H, SCORE_0
 o172d:  CALL ADD_PTS
         POP PSW
         STA $237e
@@ -3216,7 +3159,7 @@ j1783:  LXI H, POPCORN_MUSIC ;o16ea
 o1786:  CALL PLAY_SOUND
 j1789:  MVI A, #06 ;o1603,o1612,o161d,o16f2
 o178b:  JMP j0376
-jc178e: LXI H, #17a0 ;o01a5,o169f,o179c
+jc178e: LXI H, PLAYER_INITIAL_DISPLAY_TABLE ;o01a5,o169f,o179c
         MVI C, #08
 j1793:  MOV A,M ;o1798
         STAX D
@@ -3228,6 +3171,7 @@ o1798:  JNZ j1793
 o179c:  JNZ jc178e
         RET
 
+PLAYER_INITIAL_DISPLAY_TABLE:
         DB #ff
         DB #1f
         DB #01
@@ -3367,17 +3311,17 @@ o18bc:  CALL c0e6f
 o18c7:  CALL PLAY_SOUND
 o18ca:  JMP jo1419
 TIMER_23_EXPIRED:
-        LXI H, #1165
+        LXI H, SCORE_1000
 o18d0:  CALL c0e99
 o18d3:  JC j18ea
-        LXI H, #1165
+        LXI H, SCORE_1000
 o18d9:  CALL ADD_BONUS_HL
         MVI A, #0a
         STA $21ae
         LXI H, BUMPER_25_MUSIC
 o18e4:  CALL PLAY_SOUND
 o18e7:  JMP END_MAIN_LOOP
-j18ea:  LXI H, #1165 ;o18d3
+j18ea:  LXI H, SCORE_1000 ;o18d3
 o18ed:  CALL ADD_BONUS
         LXI H, #235b
 o18f3:  CALL ADD_PTS
@@ -3520,7 +3464,7 @@ j1a2a:  MVI A, #00 ;o1a21
         MVI A, #fa
         STA $219e
 o1a37:  JMP END_MAIN_LOOP
-c1a3a:  LXI H, #1a56 ;o1930,o19a6
+c1a3a:  LXI H, PLAYER_SCORE_ADDRESS_TABLE ;o1930,o19a6
         LDA $2245
         ADD A
         LXI B, #0000
@@ -3529,7 +3473,7 @@ c1a3a:  LXI H, #1a56 ;o1930,o19a6
         MOV E,M
         INX H
         MOV D,M
-        LXI H, #1a5e
+        LXI H, PLAYER_DISPLAY_MASK_TABLE
         MOV A,C
         RAR
         MOV C,A
@@ -3539,6 +3483,7 @@ c1a3a:  LXI H, #1a56 ;o1930,o19a6
         LXI D, #0020
         RET
 
+PLAYER_SCORE_ADDRESS_TABLE:
         DB #8c
         DB #23
         DB #8b
@@ -3547,6 +3492,7 @@ c1a3a:  LXI H, #1a56 ;o1930,o19a6
         DB #23
         DB #8a
         DB #23
+PLAYER_DISPLAY_MASK_TABLE:
         DB #0f
         DB #f0
         DB #0f
@@ -3607,7 +3553,7 @@ o1ae4:  CALL PLAY_SOUND
         MVI A, #a0
         STA $21a1
 o1aec:  JMP END_MAIN_LOOP
-j1aef:  LXI H, #1149 ;o1ade
+j1aef:  LXI H, SCORE_0 ;o1ade
 o1af2:  CALL c0e6f
         LDA $21c9
         STA $2218
@@ -3730,7 +3676,7 @@ o1c09:  JNZ j1cc3
         LXI D, HIGH_SCORE_DISP3
         MVI A, #07
 o1c15:  CALL WRITE_TO_RAM
-        LXI H, #1189
+        LXI H, BLANK_SCORE
         LDA $2247
         ANI #08
 o1c20:  JNZ j1c26
@@ -4162,7 +4108,7 @@ o1fbd:  CALL COPY_FROM_HL_TO_DE
         PUSH H
         MVI A, #07
 o1fc7:  CALL COPY_FROM_HL_TO_DE
-        LXI H, #1181
+        LXI H, DEFAULT_HIGH_SCORE
         POP D
         MVI A, #07
 o1fd0:  CALL COPY_FROM_HL_TO_DE
